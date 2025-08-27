@@ -16,7 +16,7 @@ jobs:
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ubuntu
-          key: ${{ secrets.SSH_KEY_DOCKER }}
+          key: ${{ secrets.SSH_KEY }}
           script: |
             cd /home/ubuntu/myapp/backend
             git pull origin main
