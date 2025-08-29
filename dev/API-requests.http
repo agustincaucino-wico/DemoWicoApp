@@ -1,0 +1,41 @@
+### --- USUARIOS ---
+
+### POST registering user
+POST http://127.0.0.1:8000/users/ HTTP/1.1
+content-type: application/json
+
+{
+    "email": "testAPI@example.com",
+    "dni": "42326207",
+    "password": "asdasdasd"
+}
+
+### POST Requesting a token
+POST http://127.0.0.1:8000/api/token/ HTTP/1.1
+content-type: application/json
+
+{
+    "email": "testAPI@example.com", 
+    "password": "asdasdasd"}
+
+### POST Token refresh
+POST http://127.0.0.1:8000/api/token/refresh/ HTTP/1.1
+content-type: application/json
+
+{"refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc0NDc1ODM5MiwiaWF0IjoxNzQ0NjcxOTkyLCJqdGkiOiJhZWY1Njc1ZDdmOGE0OGE1YTAyNjg1YTQ3MmYxMWEzZSIsInVzZXJfaWQiOjR9.D9ZSGXlBEzjkLZDoWP6VumXTfYoTC_5hb9qf1irDdfg"}
+
+### GET user list
+GET http://127.0.0.1:8000/users/ HTTP/1.1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU1MTk3NzAxLCJpYXQiOjE3NTUxOTQxMDEsImp0aSI6ImIzYmU3MmMyNGY1ZjQwNTNhMGU0YmM2ODlkNjg5ZTU2IiwidXNlcl9pZCI6OX0.ZKY23RTKsS0WhNJs24-ekmLzdS7XkJhPQrB9V_qE99w
+
+### GET my user
+GET http://127.0.0.1:8000/users/me/ HTTP/1.1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU2NDc2NzgxLCJpYXQiOjE3NTY0NzMxODEsImp0aSI6IjQwNzIwZTEzN2VmZDRkZGFhZWU3N2EzZGJkYTg4ZmUwIiwidXNlcl9pZCI6OX0.D3lviceuTu5dKP143qaN3cl3BafnZQEcOHBIWdZDlDI
+
+### LOCATIONS ###
+
+### GET countries list
+GET http://127.0.0.1:8000/locations/countries/ HTTP/1.1
+
+### GET list of cities of province with id 20
+GET http://127.0.0.1:8000/locations/cities/?province_id=20 HTTP/1.1

@@ -1,1 +1,2 @@
-# APP-Mobile-Backend
+# wico-app
+Wico app
