@@ -1,6 +1,9 @@
 from .base import *  # noqa
 from .base import MIDDLEWARE
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 
 DEBUG = True
 
