@@ -62,3 +62,9 @@ class Setting(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, primary_key=True)
     push_notif = models.BooleanField(default=True)
     email_notif = models.BooleanField(default=True)
+
+
+# class Settings(models.Model): # TO DO
+#     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+#     push_notif = models.BooleanField(default=True)
+#     email_notif = models.BooleanField(default=True)
