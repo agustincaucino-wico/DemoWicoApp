@@ -39,3 +39,86 @@ GET http://127.0.0.1:8000/locations/countries/ HTTP/1.1
 
 ### GET list of cities of province with id 20
 GET http://127.0.0.1:8000/locations/cities/?province_id=20 HTTP/1.1
+
+
+
+
+
+### ACCOUNTS ###
+
+### GET all accounts
+GET http://127.0.0.1:8000/accounts/ HTTP/1.1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU2ODI3MjgyLCJpYXQiOjE3NTY4MjM2ODIsImp0aSI6ImFkMGRjZDBiNDdiNDRlZTJiNGVmNDI1ZTAxNTRhMjkyIiwidXNlcl9pZCI6OX0.vPhTJeAve62LaF1dDZumuZDK5kylr66Z93-cyz6cvag
+
+
+
+### GET account by id
+GET http://127.0.0.1:8000/accounts/accounts/1/ HTTP/1.1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU2ODI3MjgyLCJpYXQiOjE3NTY4MjM2ODIsImp0aSI6ImFkMGRjZDBiNDdiNDRlZTJiNGVmNDI1ZTAxNTRhMjkyIiwidXNlcl9pZCI6OX0.vPhTJeAve62LaF1dDZumuZDK5kylr66Z93-cyz6cvag
+
+
+### POST create account
+POST http://127.0.0.1:8000/accounts/accounts/ HTTP/1.1
+content-type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU2ODI3MjgyLCJpYXQiOjE3NTY4MjM2ODIsImp0aSI6ImFkMGRjZDBiNDdiNDRlZTJiNGVmNDI1ZTAxNTRhMjkyIiwidXNlcl9pZCI6OX0.vPhTJeAve62LaF1dDZumuZDK5kylr66Z93-cyz6cvag
+
+{
+    "user": 2,
+    "balance": "0",
+    "account_type": "dependent"
+}
+
+### DEPENDENTS ###
+
+### GET all dependents
+GET http://127.0.0.1:8000/accounts/dependents/ HTTP/1.1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU2ODI3MjgyLCJpYXQiOjE3NTY4MjM2ODIsImp0aSI6ImFkMGRjZDBiNDdiNDRlZTJiNGVmNDI1ZTAxNTRhMjkyIiwidXNlcl9pZCI6OX0.vPhTJeAve62LaF1dDZumuZDK5kylr66Z93-cyz6cvag
+
+
+### POST create dependent
+POST http://127.0.0.1:8000/accounts/dependents/ HTTP/1.1
+content-type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU2ODI3MjgyLCJpYXQiOjE3NTY4MjM2ODIsImp0aSI6ImFkMGRjZDBiNDdiNDRlZTJiNGVmNDI1ZTAxNTRhMjkyIiwidXNlcl9pZCI6OX0.vPhTJeAve62LaF1dDZumuZDK5kylr66Z93-cyz6cvag
+
+{
+    "holder_account": 1,
+    "dependent_account": 2,
+    "start_date": "2025-09-02"
+}
+
+
+### PLATES ###
+
+### GET all plates
+GET http://127.0.0.1:8000/accounts/plates/ HTTP/1.1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU2ODI3MjgyLCJpYXQiOjE3NTY4MjM2ODIsImp0aSI6ImFkMGRjZDBiNDdiNDRlZTJiNGVmNDI1ZTAxNTRhMjkyIiwidXNlcl9pZCI6OX0.vPhTJeAve62LaF1dDZumuZDK5kylr66Z93-cyz6cvag
+
+
+### POST create plate
+POST http://127.0.0.1:8000/accounts/plates/ HTTP/1.1
+content-type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU2ODI3MjgyLCJpYXQiOjE3NTY4MjM2ODIsImp0aSI6ImFkMGRjZDBiNDdiNDRlZTJiNGVmNDI1ZTAxNTRhMjkyIiwidXNlcl9pZCI6OX0.vPhTJeAve62LaF1dDZumuZDK5kylr66Z93-cyz6cvag
+
+{
+    "plate_number": "ABC123",
+    "holder_account": 1,
+    "start_date": "2025-09-02"
+}
+
+### AUTHORIZED PLATES ###
+
+### GET all authorized plates
+GET http://127.0.0.1:8000/accounts/authorized-plates/ HTTP/1.1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU2ODI3MjgyLCJpYXQiOjE3NTY4MjM2ODIsImp0aSI6ImFkMGRjZDBiNDdiNDRlZTJiNGVmNDI1ZTAxNTRhMjkyIiwidXNlcl9pZCI6OX0.vPhTJeAve62LaF1dDZumuZDK5kylr66Z93-cyz6cvag
+
+### POST create authorized plate
+POST http://127.0.0.1:8000/accounts/authorized-plates/ HTTP/1.1
+content-type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU2ODI3MjgyLCJpYXQiOjE3NTY4MjM2ODIsImp0aSI6ImFkMGRjZDBiNDdiNDRlZTJiNGVmNDI1ZTAxNTRhMjkyIiwidXNlcl9pZCI6OX0.vPhTJeAve62LaF1dDZumuZDK5kylr66Z93-cyz6cvag
+
+{
+    "holder_account": 1,
+    "dependent_account": 7,
+    "plate": 1,
+    "start_date": "2025-09-02"
+}

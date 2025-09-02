@@ -3,27 +3,23 @@ from .models import Country, Province, City, Address
 from myapp.admin import my_admin_site
 
 
-@admin.register(Country)
 class CountryAdmin(admin.ModelAdmin):
     list_display = ("id", "name")
     search_fields = ("name",)
 
 
-@admin.register(Province)
 class ProvinceAdmin(admin.ModelAdmin):
     list_display = ("id", "name", "country")
     search_fields = ("name", "country__name")
     list_filter = ("country",)
 
 
-@admin.register(City)
 class CityAdmin(admin.ModelAdmin):
     list_display = ("id", "name", "postal_code", "province")
     search_fields = ("name", "postal_code", "province__name")
     list_filter = ("province",)
 
 
-@admin.register(Address)
 class AddressAdmin(admin.ModelAdmin):
     list_display = ("id", "street", "number", "floor", "apartment", "city")
     search_fields = ("street", "city__name")

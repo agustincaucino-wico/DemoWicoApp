@@ -1,5 +1,6 @@
 from django.db import models
 from users.models import CustomUser
+from locations.models import Province
 
 
 class Account(models.Model):
@@ -12,7 +13,7 @@ class Account(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Account {self.id} - {self.user.first_name} {self.user.last_name}"
+        return f"Account {self.id} - {self.user.email}"
 
 
 class Dependents(models.Model):
@@ -26,7 +27,7 @@ class Dependents(models.Model):
     end_date = models.DateField(null=True, blank=True)
 
     def __str__(self):
-        return f"Dependent {self.id} - {self.holder_account.user.first_name} to {self.dependent_account.user.first_name}"
+        return f"Dependent {self.id} - {self.holder_account.user.email} to {self.dependent_account.user.email}"
 
 
 class Plates(models.Model):
@@ -49,3 +50,20 @@ class AuthorizedPlate(models.Model):
     plate = models.ForeignKey(Plates, on_delete=models.CASCADE)
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
+
+
+class Company(models.Model):
+    name = models.CharField(max_length=255)
+    province = models.ForeignKey(Province, on_delete=models.CASCADE)
+
+
+class CompanyAssignment(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE)
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+
+    def __str__(self):
+        return (
+            f"Company Assignment {self.id} - {self.user.email} to {self.company.name}"
+        )

@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "users",
     "locations",
+    "accounts",
 ]
 
 REST_FRAMEWORK = {

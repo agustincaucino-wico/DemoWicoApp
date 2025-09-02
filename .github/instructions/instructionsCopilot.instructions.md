@@ -4,8 +4,16 @@ applyTo: '**'
 Provide project context and coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.
 Always try to use the predefined colours instead of new RBG values.
 Always use existing components and patterns in the codebase to maintain consistency.
+
+**Frontend**
 When using expo-secure-store, import { getItemAsync, setItemAsync } from '../api/apiManager'
 The authentication token is called "access_token", and the refresh token is called "refresh_token".
+
+**Backend**
+When making views, only implement GET, POST, and DELETE methods unless specified otherwise.
+Remember to add the app name into the INSTALLED_APPS setting in settings.py.
+Remember to take into account the authentication and permissions for each view.
+Always use JWT for authentications, and take in consideration the business logic for the views permissions.
 
 **Project Structure**: Understand the overall structure of the project, including key directories and files.
 **Coding Standards**: Follow established coding standards and best practices for the specific programming languages and frameworks used in the project.

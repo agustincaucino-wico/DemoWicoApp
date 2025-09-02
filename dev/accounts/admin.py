@@ -1,3 +1,68 @@
 from django.contrib import admin
+from .models import (
+    Account,
+    Dependents,
+    Plates,
+    AuthorizedPlate,
+    Company,
+    CompanyAssignment,
+)
+from myapp.admin import my_admin_site
 
-# Register your models here.
+
+class AccountAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "balance", "account_type", "created_at", "updated_at")
+    search_fields = ("user__email", "user__first_name", "user__last_name")
+    list_filter = ("account_type",)
+
+
+class DependentsAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "holder_account",
+        "dependent_account",
+        "start_date",
+        "end_date",
+    )
+    search_fields = ("holder_account__user__email", "dependent_account__user__email")
+
+
+class PlatesAdmin(admin.ModelAdmin):
+    list_display = ("id", "plate_number", "holder_account", "start_date", "end_date")
+    search_fields = ("plate_number", "holder_account__user__email")
+
+
+class AuthorizedPlateAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "holder_account",
+        "dependent_account",
+        "plate",
+        "start_date",
+        "end_date",
+    )
+    search_fields = (
+        "holder_account__user__email",
+        "dependent_account__user__email",
+        "plate__plate_number",
+    )
+
+
+class CompanyAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "province")
+    search_fields = ("name", "province__name")
+    list_filter = ("province",)
+
+
+class CompanyAssignmentAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "company", "start_date", "end_date")
+    search_fields = ("user__email", "company__name")
+    list_filter = ("company",)
+
+
+my_admin_site.register(Account, AccountAdmin)
+my_admin_site.register(Dependents, DependentsAdmin)
+my_admin_site.register(Plates, PlatesAdmin)
+my_admin_site.register(AuthorizedPlate, AuthorizedPlateAdmin)
+my_admin_site.register(Company, CompanyAdmin)
+my_admin_site.register(CompanyAssignment, CompanyAssignmentAdmin)

@@ -4,6 +4,354 @@ info:
   version: 0.0.1
   description: API para aplicación Wico
 paths:
+  /accounts/accounts/:
+    get:
+      operationId: accounts_accounts_list
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Account'
+          description: ''
+    post:
+      operationId: accounts_accounts_create
+      tags:
+      - accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Account'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Account'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Account'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+          description: ''
+  /accounts/accounts/{id}/:
+    delete:
+      operationId: accounts_accounts_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this account.
+        required: true
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /accounts/authorized-plates/:
+    get:
+      operationId: accounts_authorized_plates_list
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuthorizedPlate'
+          description: ''
+    post:
+      operationId: accounts_authorized_plates_create
+      tags:
+      - accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthorizedPlate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AuthorizedPlate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AuthorizedPlate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorizedPlate'
+          description: ''
+  /accounts/authorized-plates/{id}/:
+    delete:
+      operationId: accounts_authorized_plates_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this authorized plate.
+        required: true
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /accounts/companies/:
+    get:
+      operationId: accounts_companies_list
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Company'
+          description: ''
+    post:
+      operationId: accounts_companies_create
+      tags:
+      - accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Company'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Company'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Company'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Company'
+          description: ''
+  /accounts/companies/{id}/:
+    delete:
+      operationId: accounts_companies_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this company.
+        required: true
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /accounts/company-assignments/:
+    get:
+      operationId: accounts_company_assignments_list
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CompanyAssignment'
+          description: ''
+    post:
+      operationId: accounts_company_assignments_create
+      tags:
+      - accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CompanyAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CompanyAssignment'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyAssignment'
+          description: ''
+  /accounts/company-assignments/{id}/:
+    delete:
+      operationId: accounts_company_assignments_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this company assignment.
+        required: true
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /accounts/dependents/:
+    get:
+      operationId: accounts_dependents_list
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Dependents'
+          description: ''
+    post:
+      operationId: accounts_dependents_create
+      tags:
+      - accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Dependents'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Dependents'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Dependents'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dependents'
+          description: ''
+  /accounts/dependents/{id}/:
+    delete:
+      operationId: accounts_dependents_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this dependents.
+        required: true
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /accounts/plates/:
+    get:
+      operationId: accounts_plates_list
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Plates'
+          description: ''
+    post:
+      operationId: accounts_plates_create
+      tags:
+      - accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Plates'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Plates'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Plates'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plates'
+          description: ''
+  /accounts/plates/{id}/:
+    delete:
+      operationId: accounts_plates_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this plates.
+        required: true
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/token/:
     post:
       operationId: api_token_create
@@ -493,6 +841,43 @@ paths:
           description: ''
 components:
   schemas:
+    Account:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        account_type:
+          $ref: '#/components/schemas/AccountTypeEnum'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        user:
+          type: integer
+          nullable: true
+      required:
+      - account_type
+      - balance
+      - created_at
+      - id
+      - updated_at
+    AccountTypeEnum:
+      enum:
+      - holder
+      - dependent
+      type: string
+      description: |-
+        * `holder` - Holder
+        * `dependent` - Dependent
     Address:
       type: object
       properties:
@@ -522,6 +907,31 @@ components:
       - id
       - number
       - street
+    AuthorizedPlate:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        holder_account:
+          type: integer
+        dependent_account:
+          type: integer
+        plate:
+          type: integer
+      required:
+      - dependent_account
+      - holder_account
+      - id
+      - plate
+      - start_date
     City:
       type: object
       properties:
@@ -541,6 +951,43 @@ components:
       - name
       - postal_code
       - province
+    Company:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        province:
+          type: integer
+      required:
+      - id
+      - name
+      - province
+    CompanyAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        user:
+          type: integer
+        company:
+          type: integer
+      required:
+      - company
+      - id
+      - start_date
+      - user
     Country:
       type: object
       properties:
@@ -553,6 +1000,28 @@ components:
       required:
       - id
       - name
+    Dependents:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        holder_account:
+          type: integer
+        dependent_account:
+          type: integer
+      required:
+      - dependent_account
+      - holder_account
+      - id
+      - start_date
     GenderEnum:
       enum:
       - M
@@ -596,6 +1065,29 @@ components:
           nullable: true
         gender:
           $ref: '#/components/schemas/GenderEnum'
+    Plates:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        plate_number:
+          type: string
+          maxLength: 10
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        holder_account:
+          type: integer
+      required:
+      - holder_account
+      - id
+      - plate_number
+      - start_date
     Province:
       type: object
       properties:
