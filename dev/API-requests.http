@@ -5,8 +5,8 @@ POST http://127.0.0.1:8000/users/ HTTP/1.1
 content-type: application/json
 
 {
-    "email": "testAPI@example.com",
-    "dni": "42326207",
+    "email": "cliente6@example.com",
+    "dni": "42326215",
     "password": "asdasdasd"
 }
 
@@ -15,7 +15,7 @@ POST http://127.0.0.1:8000/api/token/ HTTP/1.1
 content-type: application/json
 
 {
-    "email": "testAPI@example.com", 
+    "email": "gestor2@example.com", 
     "password": "asdasdasd"}
 
 ### POST Token refresh
@@ -30,7 +30,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiY
 
 ### GET my user
 GET http://127.0.0.1:8000/users/me/ HTTP/1.1
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU2NDc2NzgxLCJpYXQiOjE3NTY0NzMxODEsImp0aSI6IjQwNzIwZTEzN2VmZDRkZGFhZWU3N2EzZGJkYTg4ZmUwIiwidXNlcl9pZCI6OX0.D3lviceuTu5dKP143qaN3cl3BafnZQEcOHBIWdZDlDI
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU2OTEzNTc1LCJpYXQiOjE3NTY5MDk5NzUsImp0aSI6IjExM2FhMmMzODI1NDQwZDdiZTc2Mjc2ODc0NDEwNDY4IiwidXNlcl9pZCI6MTh9.5BszEjU9H4U1esJH84IyNolJR1Ck1uO2lz-miwR7DTU
 
 ### LOCATIONS ###
 
@@ -40,8 +40,14 @@ GET http://127.0.0.1:8000/locations/countries/ HTTP/1.1
 ### GET list of cities of province with id 20
 GET http://127.0.0.1:8000/locations/cities/?province_id=20 HTTP/1.1
 
+### POST create a new country
+POST http://127.0.0.1:8000/locations/countries/ HTTP/1.1
+content-type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU2OTIxNDg1LCJpYXQiOjE3NTY5MTc4ODUsImp0aSI6IjYyOTZmYWI5NWM4MjQzMDBiYjU1NzRlOGZjNjJmMjYxIiwidXNlcl9pZCI6MTh9.yercls5qR1_Qe8oHcjOig1TFUHeZHl6UIiond4gMB_8
 
-
+{
+    "name": "Uruguay"
+}
 
 
 ### ACCOUNTS ###

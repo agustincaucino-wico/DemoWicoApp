@@ -22,13 +22,6 @@ class UserViewSet(viewsets.ModelViewSet):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsStaffOrTargetUser]
 
-    # return a server error when making a post request
-    def create(self, request, *args, **kwargs):
-        try:
-            return super().create(request, *args, **kwargs)
-        except Exception:
-            return Response({"detail": "Server error"}, status=500)
-
     @action(
         detail=False,
         methods=["get"],

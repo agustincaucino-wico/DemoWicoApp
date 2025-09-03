@@ -28,7 +28,15 @@ class DependentsAdmin(admin.ModelAdmin):
 
 
 class PlatesAdmin(admin.ModelAdmin):
-    list_display = ("id", "plate_number", "holder_account", "start_date", "end_date")
+    list_display = (
+        "id",
+        "plate_number",
+        "holder_account",
+        "brand",
+        "model",
+        "start_date",
+        "end_date",
+    )
     search_fields = ("plate_number", "holder_account__user__email")
 
 

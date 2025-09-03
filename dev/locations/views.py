@@ -1,7 +1,7 @@
 from rest_framework import mixins, viewsets
 from django.shortcuts import get_object_or_404
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from locations.permissions import IsAdminOrReadOnly
+from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly, IsAdminUser
 
 from .models import Country, Province, City, Address
 from .serializers import (
@@ -19,7 +19,7 @@ class BaseLCViewSet(
     viewsets.GenericViewSet,
 ):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [DjangoModelPermissionsOrAnonReadOnly]
 
 
 class CountryViewSet(BaseLCViewSet):
@@ -75,6 +75,7 @@ class AddressViewSet(BaseLCViewSet):
     API endpoint that allows addresses to be created, viewed or deleted.
     """
 
+    permission_classes = [IsAdminUser]
     queryset = Address.objects.all().order_by("id")
     serializer_class = AddressSerializer
 

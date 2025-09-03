@@ -2,6 +2,8 @@ from rest_framework import mixins, viewsets
 from rest_framework.permissions import IsAdminUser
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from accounts.permissions import IsAdminOrReadOnly
+from rest_framework.permissions import DjangoModelPermissions
+
 from .models import (
     Account,
     Dependents,
@@ -27,7 +29,7 @@ class BaseLCViewSet(
     viewsets.GenericViewSet,
 ):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [DjangoModelPermissions]
 
 
 class AccountViewSet(BaseLCViewSet):
