@@ -45,19 +45,6 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         return self.email
 
 
-class Role(models.Model):
-    role_name = models.CharField(max_length=50)
-    description = models.TextField()
-
-    def __str__(self):
-        return self.role_name
-
-
-class RolAssignment(models.Model):
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    role = models.ForeignKey(Role, on_delete=models.CASCADE)
-
-
 class Setting(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, primary_key=True)
     push_notif = models.BooleanField(default=True)

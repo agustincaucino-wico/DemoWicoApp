@@ -33,6 +33,8 @@ class Dependents(models.Model):
 class Plates(models.Model):
     plate_number = models.CharField(max_length=10, unique=True)
     holder_account = models.ForeignKey(Account, on_delete=models.CASCADE)
+    brand = models.CharField(max_length=50, null=True, blank=True)
+    model = models.CharField(max_length=50, null=True, blank=True)
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
 
@@ -55,6 +57,9 @@ class AuthorizedPlate(models.Model):
 class Company(models.Model):
     name = models.CharField(max_length=255)
     province = models.ForeignKey(Province, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.name
 
 
 class CompanyAssignment(models.Model):

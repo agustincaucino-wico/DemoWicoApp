@@ -1,10 +1,10 @@
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from users.models import CustomUser, Role, RolAssignment, Setting
+from django.contrib.auth.models import Group, Permission
+from users.models import CustomUser, Setting
 from myapp.admin import my_admin_site
 from django.contrib import admin
 
 
-@admin.register(CustomUser)
 class CustomUserAdmin(BaseUserAdmin):
     ordering = ["email"]
     list_display = (
@@ -74,5 +74,5 @@ class CustomUserAdmin(BaseUserAdmin):
     )
 
 
-my_admin_site.register([Role, RolAssignment, Setting])
+my_admin_site.register([Setting, Group, Permission])
 my_admin_site.register(CustomUser, CustomUserAdmin)
