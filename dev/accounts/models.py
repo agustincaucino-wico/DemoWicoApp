@@ -1,10 +1,11 @@
 from django.db import models
 from users.models import CustomUser
 from locations.models import Province
+from django.core.exceptions import ValidationError
 
 
 class Account(models.Model):
-    ACCOUNT_TYPES = [("holder", "Holder"), ("dependent", "Dependent")]
+    ACCOUNT_TYPES = [("holder", "Titular"), ("dependent", "Adherido")]
 
     user = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True)
     balance = models.DecimalField(max_digits=12, decimal_places=2)
@@ -12,8 +13,24 @@ class Account(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=models.Q(account_type="holder"),
+                name="one_holder_account_per_user",
+                violation_error_message="Un usuario solo puede tener una única cuenta titular",
+            )
+        ]
+
+    def clean(self):
+        if self.account_type == "dependent" and self.pk:
+            dependents_as_holder = Dependents.objects.filter(holder_account=self)
+            if dependents_as_holder.exists():
+                raise ValidationError("Una cuenta adherente no puede tener adherentes")
+
     def __str__(self):
-        return f"Account {self.id} - {self.user.email}"
+        return f"Cuenta {self.get_account_type_display()} {self.id} - {self.user.email}"
 
 
 class Dependents(models.Model):
@@ -26,17 +43,55 @@ class Dependents(models.Model):
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["holder_account", "dependent_account"],
+                condition=models.Q(end_date__isnull=True),
+                name="unique_active_dependent_per_holder",
+                violation_error_message="La cuenta adherida ya está asociada a la cuenta titular",
+            )
+        ]
+
+    def clean(self):
+        # Validar que holder_account sea de tipo 'holder'
+        if self.holder_account.account_type != "holder":
+            raise ValidationError("Solo las cuentas titulares pueden tener adherentes")
+
+        # Validar que dependent_account sea de tipo 'dependent'
+        if self.dependent_account.account_type != "dependent":
+            raise ValidationError("Solo las cuentas adherentes pueden ser adheridas")
+
     def __str__(self):
         return f"Dependent {self.id} - {self.holder_account.user.email} to {self.dependent_account.user.email}"
 
 
 class Plates(models.Model):
-    plate_number = models.CharField(max_length=10, unique=True)
+    plate_number = models.CharField(max_length=10)
     holder_account = models.ForeignKey(Account, on_delete=models.CASCADE)
     brand = models.CharField(max_length=50, null=True, blank=True)
     model = models.CharField(max_length=50, null=True, blank=True)
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["plate_number", "holder_account"],
+                condition=models.Q(end_date__isnull=True),
+                name="unique_active_plate_per_holder",
+                violation_error_message="Ya existe una patente activa con este número para esta cuenta titular",
+            )
+        ]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        # Solo cuentas titulares pueden tener patentes
+        if self.holder_account.account_type != "holder":
+            raise ValidationError(
+                "Solo las cuentas titulares pueden tener patentes asignadas"
+            )
 
     def __str__(self):
         return f"{self.plate_number}"
@@ -53,9 +108,22 @@ class AuthorizedPlate(models.Model):
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["plate", "holder_account", "dependent_account"],
+                condition=models.Q(end_date__isnull=True),
+                name="unique_active_authorized_plate",
+                violation_error_message="Ya existe una autorización activa con esta patente para esta cuenta",
+            )
+        ]
+
+    def __str__(self):
+        return f"Authorized Plate {self.plate.plate_number} for {self.dependent_account.user.email}"
+
 
 class Company(models.Model):
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, unique=True)
     province = models.ForeignKey(Province, on_delete=models.CASCADE)
 
     def __str__(self):
@@ -63,7 +131,7 @@ class Company(models.Model):
 
 
 class CompanyAssignment(models.Model):
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
     company = models.ForeignKey(Company, on_delete=models.CASCADE)
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
