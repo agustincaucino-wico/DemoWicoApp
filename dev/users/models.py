@@ -50,8 +50,5 @@ class Setting(models.Model):
     push_notif = models.BooleanField(default=True)
     email_notif = models.BooleanField(default=True)
 
-
-# class Settings(models.Model): # TO DO
-#     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-#     push_notif = models.BooleanField(default=True)
-#     email_notif = models.BooleanField(default=True)
+    def __str__(self):
+        return f"Settings for {self.user.email}"

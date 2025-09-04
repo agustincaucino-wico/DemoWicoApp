@@ -1,5 +1,8 @@
 ROLES = {
     "Gestor": [
+        "view_logentry",
+        "view_permission",
+        "view_group",
         "add_customuser",
         "change_customuser",
         "delete_customuser",

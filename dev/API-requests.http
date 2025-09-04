@@ -5,12 +5,20 @@ POST http://127.0.0.1:8000/users/ HTTP/1.1
 content-type: application/json
 
 {
-    "email": "cliente6@example.com",
-    "dni": "42326215",
+    "email": "cliente7@example.com",
+    "dni": "42326216",
     "password": "asdasdasd"
 }
 
-### POST Requesting a token
+### POST Requesting a token ADMIN
+POST http://127.0.0.1:8000/api/token/ HTTP/1.1
+content-type: application/json
+
+{
+    "email": "admin@example.com", 
+    "password": "asdasdasd"}
+
+### POST Requesting a token GESTOR
 POST http://127.0.0.1:8000/api/token/ HTTP/1.1
 content-type: application/json
 

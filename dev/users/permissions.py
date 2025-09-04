@@ -1,25 +1,39 @@
 from rest_framework import permissions
 
-class IsStaffOrTargetUser(permissions.BasePermission):
+
+class DjangoModelOrTargetUser(permissions.DjangoModelPermissions):
     """
     Custom permission:
-    - Staff users can do anything.
+    - Django's model permission level.
     - Users can view/change/delete their own user object.
+    - Everyone can create a user.
     """
 
     def has_permission(self, request, view):
         # Allow anyone to create (POST)
-        if view.action == 'create':
+        if view.action == "create":
             return True
-        # Only staff can list all users
-        if view.action == 'list':
-            return request.user and request.user.is_staff
-        # For retrieve/update/destroy, check object permissions
-        return request.user and request.user.is_authenticated
+        # Otherwise, use default DjangoModelPermissions
+        return super().has_permission(request, view)
 
     def has_object_permission(self, request, view, obj):
-        # Staff can do anything
-        if request.user.is_staff:
+        # Allow users to view/change/delete their own user object
+        if request.user.is_authenticated and obj == request.user:
             return True
-        # Users can access/change/delete their own user object
-        return obj == request.user
+        # Otherwise, use default DjangoModelPermissions
+        return super().has_object_permission(request, view, obj)
+
+
+class DjangoModelPermissionsOrOwner(permissions.DjangoModelPermissions):
+    """
+    Custom permission:
+    - Django's model permission level.
+    - Users can change their own settings object.
+    """
+
+    def has_object_permission(self, request, view, obj):
+        # Allow users to change their own settings object
+        if request.user.is_authenticated and obj == request.user.setting:
+            return True
+        # Otherwise, use default DjangoModelPermissions
+        return super().has_object_permission(request, view, obj)

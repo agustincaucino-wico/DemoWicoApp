@@ -1,5 +1,4 @@
 from rest_framework import mixins, viewsets
-from django.shortcuts import get_object_or_404
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import DjangoModelPermissionsOrAnonReadOnly, IsAdminUser
 
@@ -59,16 +58,6 @@ class CityViewSet(BaseLCViewSet):
             qs = qs.filter(province_id=province_id)
         return qs
 
-    def perform_create(self, serializer):
-        province_id = self.request.query_params.get(
-            "province_id"
-        ) or self.request.data.get("province")
-        if province_id and not self.request.data.get("province"):
-            province = get_object_or_404(Province, pk=province_id)
-            serializer.save(province=province)
-        else:
-            serializer.save()
-
 
 class AddressViewSet(BaseLCViewSet):
     """
@@ -87,13 +76,3 @@ class AddressViewSet(BaseLCViewSet):
         if city_id:
             qs = qs.filter(city_id=city_id)
         return qs
-
-    def perform_create(self, serializer):
-        city_id = self.request.query_params.get("city_id") or self.request.data.get(
-            "city"
-        )
-        if city_id and not self.request.data.get("city"):
-            city = get_object_or_404(City, pk=city_id)
-            serializer.save(city=city)
-        else:
-            serializer.save()
