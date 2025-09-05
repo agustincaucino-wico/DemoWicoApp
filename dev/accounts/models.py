@@ -98,9 +98,6 @@ class Plates(models.Model):
 
 
 class AuthorizedPlate(models.Model):
-    holder_account = models.ForeignKey(
-        Account, on_delete=models.CASCADE, related_name="auth_plate_holder"
-    )
     dependent_account = models.ForeignKey(
         Account, on_delete=models.CASCADE, related_name="auth_plate_dependent"
     )
@@ -111,7 +108,7 @@ class AuthorizedPlate(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["plate", "holder_account", "dependent_account"],
+                fields=["plate", "dependent_account"],
                 condition=models.Q(end_date__isnull=True),
                 name="unique_active_authorized_plate",
                 violation_error_message="Ya existe una autorización activa con esta patente para esta cuenta",

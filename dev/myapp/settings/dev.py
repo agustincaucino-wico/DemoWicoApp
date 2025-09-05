@@ -18,6 +18,11 @@ MIDDLEWARE = [
 
 CORS_ALLOW_ALL_ORIGINS = True
 
+GRAPH_MODELS = {
+    "all_applications": True,
+    "group_models": True,
+}
+
 STATIC_URL = "static/"
 
 LOGGING = {

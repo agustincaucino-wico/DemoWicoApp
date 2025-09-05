@@ -4,7 +4,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import DjangoModelPermissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .permissions import IsAdminOrReadOnly, DjangoModelOrPlatesOwner
+from .permissions import DjangoModelOrObjectOwner
 
 
 from .models import (
@@ -38,24 +38,24 @@ class BaseLCViewSet(
 class AccountViewSet(BaseLCViewSet):
     queryset = Account.objects.all().order_by("id")
     serializer_class = AccountSerializer
-    permission_classes = [IsAdminUser]
 
 
 class DependentsViewSet(BaseLCViewSet):
     queryset = Dependents.objects.all().order_by("id")
     serializer_class = DependentsSerializer
+    permission_classes = [DjangoModelOrObjectOwner]
 
 
 class PlatesViewSet(BaseLCViewSet):
     queryset = Plates.objects.all().order_by("id")
     serializer_class = PlatesSerializer
+    permission_classes = [DjangoModelOrObjectOwner]
 
 
 class AuthorizedPlateViewSet(BaseLCViewSet):
     queryset = AuthorizedPlate.objects.all().order_by("id")
     serializer_class = AuthorizedPlateSerializer
-    permission_classes = [DjangoModelOrPlatesOwner]
-    # El usuario autenticado puede autorizar sus patentes a sus dependientes
+    permission_classes = [DjangoModelOrObjectOwner]
 
 
 class CompanyViewSet(BaseLCViewSet):

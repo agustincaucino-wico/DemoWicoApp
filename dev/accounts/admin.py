@@ -50,10 +50,14 @@ class AuthorizedPlateAdmin(admin.ModelAdmin):
         "end_date",
     )
     search_fields = (
-        "holder_account__user__email",
         "dependent_account__user__email",
         "plate__plate_number",
     )
+
+    def holder_account(self, obj):
+        return obj.plate.holder_account if obj.plate else None
+
+    holder_account.short_description = "Cuenta Titular de la Patente"
 
 
 class CompanyAdmin(admin.ModelAdmin):

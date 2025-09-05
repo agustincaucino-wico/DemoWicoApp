@@ -62,6 +62,9 @@ ROLES = {
         "view_city",
         "view_province",
         "view_country",
+        "add_dependents",
+        "add_plates",
+        "add_authorizedplate",
     ],
 }
 
