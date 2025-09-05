@@ -1,7 +1,7 @@
 # gitignore
 
 # API testing
-API-requests.http
+dev/API-requests.http
 
 # Virtual enviroment
 .venv
