@@ -8,6 +8,8 @@ DEBUG = False
 
 ALLOWED_HOSTS = ["back-appmobile-tst.wico.com.ar"]
 
+DJANGO_SETTINGS_MODULE = "app.myapp.settings.dev"
+
 STATIC_URL = "static/"  # Cambiar por nginx
 
 CORS_ALLOW_ALL_ORIGINS = True  # Cambiar por false luego del deploy

@@ -1,6 +1,5 @@
 from .base import *  # noqa
 from .base import MIDDLEWARE
-import os
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -10,6 +9,8 @@ DEBUG = True
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 ALLOWED_HOSTS = ["*"]
+
+DJANGO_SETTINGS_MODULE = "myapp.settings.dev"
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
