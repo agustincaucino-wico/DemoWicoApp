@@ -10,8 +10,6 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 
 ADMINS = [("Bruno Spoletini", "bruno.spoletini@wico.com.ar")]
 
-ROOT_URLCONF = "myapp.urls"
-
 AUTH_USER_MODEL = "users.CustomUser"
 
 INSTALLED_APPS = [
