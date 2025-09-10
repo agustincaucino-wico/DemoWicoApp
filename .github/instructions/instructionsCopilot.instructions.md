@@ -9,6 +9,7 @@ When using expo-secure-store, import { getItemAsync, setItemAsync } from '../api
 The authentication token is called "access_token", and the refresh token is called "refresh_token".
 Always try to use the predefined colours instead of new RBG values.
 Always use existing components and patterns in the codebase to maintain consistency.
+Always use the back/dev/schema.yml when using endpoints
 
 **Backend**
 When making views, only implement GET, POST, and DELETE methods unless specified otherwise.
