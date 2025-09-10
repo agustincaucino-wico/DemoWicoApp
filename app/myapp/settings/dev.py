@@ -10,7 +10,7 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 ALLOWED_HOSTS = ["*"]
 
-ROOT_URLCONF = "myapp.urls"
+# ROOT_URLCONF = "myapp.urls"
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",

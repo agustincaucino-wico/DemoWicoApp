@@ -8,7 +8,7 @@ DEBUG = False
 
 ALLOWED_HOSTS = ["back-appmobile-tst.wico.com.ar"]
 
-ROOT_URLCONF = "app.myapp.urls"
+# ROOT_URLCONF = "app.myapp.urls"
 
 STATIC_URL = "static/"  # Cambiar por nginx
 
