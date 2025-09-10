@@ -8,7 +8,7 @@ DEBUG = False
 
 ALLOWED_HOSTS = ["back-appmobile-tst.wico.com.ar"]
 
-DJANGO_SETTINGS_MODULE = "app.myapp.settings.dev"
+ROOT_URLCONF = "app.myapp.urls"
 
 STATIC_URL = "static/"  # Cambiar por nginx
 

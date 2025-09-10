@@ -1,5 +1,18 @@
-### --- USUARIOS ---
+# Pruebas usuarios
 
+POST http://back-appmobile-tst.wico.com.ar:5000/users/ HTTP/1.1
+content-type: application/json
+
+{
+    "email": "carlos.perez@example.com",
+    "dni": "42326218",
+    "first_name": "Carlos",
+    "last_name": "Perez",
+    "phone_number": "123456789",
+    "password": "asdasdasd"
+}
+
+### --- USUARIOS ---
 ### POST registering user
 POST http://127.0.0.1:8000/users/ HTTP/1.1
 content-type: application/json
