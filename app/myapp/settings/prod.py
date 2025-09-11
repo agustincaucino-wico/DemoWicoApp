@@ -6,7 +6,9 @@ load_dotenv()
 
 DEBUG = False
 
-ALLOWED_HOSTS = ["back-appmobile-tst.wico.com.ar", "localhost"]
+ALLOWED_HOSTS = ["back-appmobile-tst.wico.com.ar", "localhost", "172.31.25.8"]
+# TO DO - el ultimo es probablemente un health check que se hace en el server, cambiar cuando
+# se implemente nginx
 
 STATIC_URL = "static/"  # Cambiar por nginx
 
