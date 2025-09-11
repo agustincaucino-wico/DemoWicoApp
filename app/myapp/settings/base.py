@@ -12,6 +12,8 @@ ADMINS = [("Bruno Spoletini", "bruno.spoletini@wico.com.ar")]
 
 AUTH_USER_MODEL = "users.CustomUser"
 
+ROOT_URLCONF = "app.myapp.urls"
+
 INSTALLED_APPS = [
     "jazzmin",
     "django.contrib.admin",
