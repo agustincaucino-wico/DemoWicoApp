@@ -10,7 +10,7 @@ ALLOWED_HOSTS = ["back-appmobile-tst.wico.com.ar"]
 
 STATIC_URL = "static/"  # Cambiar por nginx
 
-CORS_ALLOW_ALL_ORIGINS = True  # Cambiar por false luego del deploy
+CORS_ALLOW_ALL_ORIGINS = False  # Cambiar por false luego del deploy
 
 ROOT_URLCONF = "myapp.urls"
 
