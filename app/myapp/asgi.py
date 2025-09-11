@@ -13,8 +13,9 @@ from dotenv import load_dotenv
 dotenv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '..', '.env')
 load_dotenv(dotenv_path)
 
+# Esto usará el valor de la variable de entorno si existe, y como fallback: app.myapp.settings.prod
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "app.myapp.settings.prod")
+
 from django.core.asgi import get_asgi_application
-
-os.environ.setdefault("DJANGO_SETTINGS_MODULE")
-
 application = get_asgi_application()
+
