@@ -12,7 +12,7 @@ STATIC_URL = "static/"  # Cambiar por nginx
 
 CORS_ALLOW_ALL_ORIGINS = True  # Cambiar por false luego del deploy
 
-ROOT_URLCONF = "app.myapp.urls"
+ROOT_URLCONF = "myapp.urls"
 
 # SECURE_HSTS_SECONDS = 31536000
 # SECURE_HSTS_INCLUDE_SUBDOMAINS = True
