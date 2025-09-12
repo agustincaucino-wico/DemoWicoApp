@@ -17,6 +17,6 @@ dotenv_path = os.path.join(
 load_dotenv(dotenv_path)
 
 # Esto usará el valor de la variable de entorno si existe, y como fallback: app.myapp.settings.prod
-os.environ.setdefault("DJANGO_SETTINGS_MODULE")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "myapp.settings.prod")
 
 application = get_asgi_application()
