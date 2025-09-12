@@ -15,8 +15,8 @@ class ProvinceAdmin(admin.ModelAdmin):
 
 
 class CityAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "postal_code", "province")
-    search_fields = ("name", "postal_code", "province__name")
+    list_display = ("id", "name", "province")
+    search_fields = ("name", "province__name")
     list_filter = ("province",)
 
 

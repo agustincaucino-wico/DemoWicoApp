@@ -20,7 +20,6 @@ class Province(models.Model):
 
 class City(models.Model):
     name = models.CharField(max_length=100)
-    postal_code = models.CharField(max_length=20)
     province = models.ForeignKey(
         Province, on_delete=models.CASCADE, related_name="cities"
     )
