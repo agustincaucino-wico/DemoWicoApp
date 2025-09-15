@@ -1,8 +1,11 @@
 import os
+from pathlib import Path
 from .base import *  # noqa
 from dotenv import load_dotenv
 
 load_dotenv()
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 DEBUG = False
 
@@ -10,9 +13,10 @@ ALLOWED_HOSTS = ["back-appmobile-tst.wico.com.ar", "localhost", "172.31.25.8"]
 # TO DO - el ultimo es probablemente un health check que se hace en el server, cambiar cuando
 # se implemente nginx
 
-STATIC_URL = "static/"  # Cambiar por nginx
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
-CORS_ALLOW_ALL_ORIGINS = False  # Cambiar por false luego del deploy
+CORS_ALLOW_ALL_ORIGINS = False
 
 ROOT_URLCONF = "myapp.urls"
 

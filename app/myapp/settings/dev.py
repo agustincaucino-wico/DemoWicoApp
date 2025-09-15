@@ -24,7 +24,7 @@ GRAPH_MODELS = {
     "group_models": True,
 }
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 
 LOGGING = {
     "version": 1,
