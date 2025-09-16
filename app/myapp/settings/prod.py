@@ -13,11 +13,8 @@ ALLOWED_HOSTS = ["back-appmobile-tst.wico.com.ar", "localhost", "172.31.25.8"]
 # TO DO - el ultimo es probablemente un health check que se hace en el server, cambiar cuando
 # se implemente nginx
 
-
 STATIC_URL = "/static/"
-PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-STATIC_ROOT = os.path.join(PROJECT_DIR, "static")
-# STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = "/appContainer/staticfiles"
 
 CORS_ALLOW_ALL_ORIGINS = False
 
