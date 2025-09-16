@@ -14,7 +14,7 @@ ALLOWED_HOSTS = ["back-appmobile-tst.wico.com.ar", "localhost", "172.31.25.8"]
 # se implemente nginx
 
 STATIC_URL = "/static/"
-STATIC_ROOT = "/appContainer/staticfiles"
+STATIC_ROOT = BASE_DIR / "appContainer/staticfiles"
 
 CORS_ALLOW_ALL_ORIGINS = False
 
