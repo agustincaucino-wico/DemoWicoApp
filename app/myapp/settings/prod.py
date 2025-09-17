@@ -22,8 +22,6 @@ CORS_ALLOW_ALL_ORIGINS = True
 STATIC_URL = "/static/"
 STATIC_ROOT = "/appContainer/staticfiles"
 
-CORS_ALLOW_ALL_ORIGINS = False
-
 ROOT_URLCONF = "myapp.urls"
 
 # SECURE_HSTS_SECONDS = 31536000
