@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from .base import *  # noqa
+from .base import MIDDLEWARE
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,8 +12,12 @@ DEBUG = False
 
 ALLOWED_HOSTS = ["back-appmobile-tst.wico.com.ar", "localhost", "172.31.25.8"]
 
-# TO DO - el ultimo es probablemente un health check que se hace en el server, cambiar cuando
-# se implemente nginx
+MIDDLEWARE = [  # Quitar CORS en producción
+    "corsheaders.middleware.CorsMiddleware",
+    *MIDDLEWARE,
+]
+
+CORS_ALLOW_ALL_ORIGINS = True
 
 STATIC_URL = "/static/"
 STATIC_ROOT = "/appContainer/staticfiles"
