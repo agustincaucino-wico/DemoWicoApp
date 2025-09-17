@@ -4,6 +4,8 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import DjangoModelPermissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+
+from users.serializers import UserSerializer
 from .permissions import DjangoModelOrObjectOwner
 
 
@@ -79,9 +81,21 @@ class UserAccountInfoViewSet(viewsets.ViewSet):
         accounts = Account.objects.filter(user=user)
         accounts_data = AccountSerializer(accounts, many=True).data
 
-        # Get dependents for those accounts
-        dependents = Dependents.objects.filter(holder_account__in=accounts)
-        dependents_data = DependentsSerializer(dependents, many=True).data
+        # Get dependents data for those accounts
+        dependent_relations = Dependents.objects.filter(holder_account__in=accounts)
+        dependents_data = []
+
+        for dependent_relation in dependent_relations:
+            dependent_account = dependent_relation.dependent_account
+
+            dependent_account_user = dependent_account.user
+
+            dependents_data.append(
+                {
+                    "dependent_account": AccountSerializer(dependent_account).data,
+                    "dependent_user": UserSerializer(dependent_account_user).data,
+                }
+            )
 
         # Get plates for those accounts
         plates = Plates.objects.filter(holder_account__in=accounts)

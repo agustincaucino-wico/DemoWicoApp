@@ -1,10 +1,8 @@
 from django.contrib import admin
 from django.urls import include, path
 from users.admin import my_admin_site
-from rest_framework import routers
 from drf_spectacular.views import (
     SpectacularAPIView,
-    SpectacularRedocView,
     SpectacularSwaggerView,
 )
 from rest_framework_simplejwt.views import (
@@ -12,6 +10,7 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
     TokenVerifyView,
 )
+from .views import HealthCheckView
 
 urlpatterns = [
     path("admin/", my_admin_site.urls),
@@ -25,4 +24,5 @@ urlpatterns = [
     # API schema
     path("", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("health/", HealthCheckView.as_view(), name="health_check"),
 ]
