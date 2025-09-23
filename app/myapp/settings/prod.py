@@ -48,6 +48,11 @@ CORS_ALLOWED_ORIGINS = [
     "https://back-appmobile-tst.wico.com.ar",
 ]
 
+# CSRF Settings for HTTPS
+CSRF_TRUSTED_ORIGINS = [
+    "https://back-appmobile-tst.wico.com.ar",
+]
+
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
@@ -81,9 +86,4 @@ LOGGING = {
             "propagate": True,
         },
     },
-}
-LOGGING["loggers"]["django.security.csrf"] = {
-    "handlers": ["console"],
-    "level": "INFO",
-    "propagate": False,
 }
