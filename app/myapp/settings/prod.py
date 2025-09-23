@@ -15,6 +15,7 @@ ALLOWED_HOSTS = [
     "localhost",
     "172.31.25.8",
     "3.21.84.174",
+    "174.84.21.3",
 ]
 
 # # -- Quitar CORS en producción
@@ -41,6 +42,7 @@ SECURE_PROXY_SSL_HEADER = (
     "HTTP_X_FORWARDED_PROTO",
     "https",
 )  # Configuración para trabajar detrás de un proxy
+USE_X_FORWARDED_HOST = True  # allow Host from proxy
 SECURE_SSL_REDIRECT = True  # Redirigir todo el tráfico HTTP a HTTPS
 CORS_ALLOWED_ORIGINS = [
     "https://back-appmobile-tst.wico.com.ar",
@@ -79,4 +81,9 @@ LOGGING = {
             "propagate": True,
         },
     },
+}
+LOGGING["loggers"]["django.security.csrf"] = {
+    "handlers": ["console"],
+    "level": "INFO",
+    "propagate": False,
 }
