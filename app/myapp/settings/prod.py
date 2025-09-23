@@ -10,14 +10,21 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 DEBUG = False
 
-ALLOWED_HOSTS = ["back-appmobile-tst.wico.com.ar", "localhost", "172.31.25.8"]
-
-MIDDLEWARE = [  # Quitar CORS en producción
-    "corsheaders.middleware.CorsMiddleware",
-    *MIDDLEWARE,
+ALLOWED_HOSTS = [
+    "back-appmobile-tst.wico.com.ar",
+    "localhost",
+    "172.31.25.8",
+    "3.21.84.174",
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True
+# # -- Quitar CORS en producción
+# MIDDLEWARE = [
+#     "corsheaders.middleware.CorsMiddleware",
+#     *MIDDLEWARE,
+# ]
+
+# CORS_ALLOW_ALL_ORIGINS = True
+# ---
 
 STATIC_URL = "/static/"
 STATIC_ROOT = "/appContainer/staticfiles"
@@ -30,9 +37,9 @@ ROOT_URLCONF = "myapp.urls"
 # SECURE_CONTENT_TYPE_NOSNIFF = True
 # SECURE_BROWSER_XSS_FILTER = True
 # SECURE_SSL_REDIRECT = False  # change to True when HTTPS is enforced
-# SESSION_COOKIE_SECURE = True
-# CSRF_COOKIE_SECURE = True
 # REFERRER_POLICY = "strict-origin-when-cross-origin"
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 SERVER_EMAIL = os.getenv("SERVER_EMAIL")

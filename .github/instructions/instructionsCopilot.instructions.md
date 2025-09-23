@@ -7,10 +7,11 @@ Provide project context and coding guidelines that AI should follow when generat
 **Frontend**
 When using expo-secure-store, import { getItemAsync, setItemAsync } from '../api/apiManager'
 The authentication token is called "access_token", and the refresh token is called "refresh_token".
-Always try to use the predefined colours instead of new RBG values.
-Always try to use the predefined text sizes instead of new values.
+Always try to use the predefined colours from Commons instead of new RBG values.
+Always try to use the predefined text sizes from Commons instead of new values.
 Always use existing components and patterns in the codebase to maintain consistency.
 Always use the back/dev/schema.yml when using endpoints
+Always use router for navigation
 
 **Backend**
 When making views, only implement GET, POST, and DELETE methods unless specified otherwise.
