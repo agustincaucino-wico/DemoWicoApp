@@ -8,7 +8,7 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = [
     "back-appmobile-tst.wico.com.ar",
@@ -51,6 +51,7 @@ CORS_ALLOWED_ORIGINS = [
 # CSRF Settings for HTTPS
 CSRF_TRUSTED_ORIGINS = [
     "https://back-appmobile-tst.wico.com.ar",
+    "http://localhost:5000",
 ]
 
 SESSION_COOKIE_SECURE = True
