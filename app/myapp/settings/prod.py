@@ -35,9 +35,17 @@ ROOT_URLCONF = "myapp.urls"
 # SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 # SECURE_HSTS_PRELOAD = True
 # SECURE_CONTENT_TYPE_NOSNIFF = True
-# SECURE_BROWSER_XSS_FILTER = True
-# SECURE_SSL_REDIRECT = False  # change to True when HTTPS is enforced
 # REFERRER_POLICY = "strict-origin-when-cross-origin"
+# SECURE_BROWSER_XSS_FILTER = True
+SECURE_PROXY_SSL_HEADER = (
+    "HTTP_X_FORWARDED_PROTO",
+    "https",
+)  # Configuración para trabajar detrás de un proxy
+SECURE_SSL_REDIRECT = True  # Redirigir todo el tráfico HTTP a HTTPS
+CORS_ALLOWED_ORIGINS = [
+    "https://back-appmobile-tst.wico.com.ar",
+]
+
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
