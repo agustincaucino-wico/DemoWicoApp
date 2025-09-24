@@ -79,7 +79,7 @@ class CompanyAssignmentViewSet(BaseLCViewSet):
     serializer_class = CompanyAssignmentSerializer
 
 
-class UserAccountInfoViewSet(viewsets.ViewSet):
+class UserActionsViewSet(viewsets.ViewSet):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
     serializer_class = AccountSerializer  # Default serializer for schema generation
@@ -89,8 +89,8 @@ class UserAccountInfoViewSet(viewsets.ViewSet):
         description="Get user account information including accounts, dependents, plates, and company",
         summary="Get User Account Info",
     )
-    @action(detail=False, methods=["get"], url_path="me")
-    def me(self, request):
+    @action(detail=False, methods=["get"], url_path="info")
+    def info(self, request):
         user = request.user
         # Get accounts associated to user
         accounts = Account.objects.filter(user=user)
@@ -311,65 +311,5 @@ class UserAccountInfoViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response(
                 {"error": f"An error occurred: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    @extend_schema(
-        responses={200: None, 500: None},
-        description="Send a test Hello World email to bruno.spoletini@wico.com.ar",
-        summary="Send Test Email",
-    )
-    @action(detail=False, methods=["post"], url_path="test-email")
-    def test_email(self, request):
-        """
-        Send a test Hello World email.
-        """
-        try:
-            from django.core.mail import send_mail
-            from django.conf import settings
-
-            recipient = "bruno.spoletini@wico.com.ar"
-            subject = "Hello World Test Email"
-
-            html_message = """
-            <html>
-            <body>
-                <h1>Hello World!</h1>
-                <p>This is a test email from the WiCo application.</p>
-                <p>If you're reading this, the email system is working correctly!</p>
-                <hr>
-                <p><small>This is a test message from WiCo. Please do not reply to this email.</small></p>
-            </body>
-            </html>
-            """
-
-            plain_message = """
-Hello World!
-
-This is a test email from the WiCo application.
-
-If you're reading this, the email system is working correctly!
-
----
-This is a test message from WiCo. Please do not reply to this email.
-            """
-
-            send_mail(
-                subject=subject,
-                message=plain_message,
-                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@wico.app"),
-                recipient_list=[recipient],
-                html_message=html_message,
-                fail_silently=False,
-            )
-
-            return Response(
-                {"message": f"Hello World email sent successfully to {recipient}"},
-                status=status.HTTP_200_OK,
-            )
-
-        except Exception as e:
-            return Response(
-                {"error": f"Failed to send test email: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

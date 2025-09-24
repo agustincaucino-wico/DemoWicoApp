@@ -7,7 +7,7 @@ from .views import (
     AuthorizedPlateViewSet,
     CompanyViewSet,
     CompanyAssignmentViewSet,
-    UserAccountInfoViewSet,
+    UserActionsViewSet,
 )
 
 
@@ -18,9 +18,7 @@ router.register(r"plates", PlatesViewSet)
 router.register(r"authorized-plates", AuthorizedPlateViewSet)
 router.register(r"companies", CompanyViewSet)
 router.register(r"company-assignments", CompanyAssignmentViewSet)
-router.register(
-    r"user-account-info", UserAccountInfoViewSet, basename="user-account-info"
-)
+router.register(r"user-actions", UserActionsViewSet, basename="user-actions")
 
 urlpatterns = [
     path("", include(router.urls)),
