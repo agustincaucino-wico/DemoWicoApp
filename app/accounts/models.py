@@ -42,6 +42,7 @@ class Dependents(models.Model):
     )
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=20, default="pending")
 
     class Meta:
         constraints = [

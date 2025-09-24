@@ -1,12 +1,19 @@
-from rest_framework import mixins, viewsets
-from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework import mixins, viewsets, status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import DjangoModelPermissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
+from django.db import transaction
+from django.utils import timezone
+from decimal import Decimal
+from drf_spectacular.utils import extend_schema
 
+from users.models import CustomUser
 from users.serializers import UserSerializer
 from .permissions import DjangoModelOrObjectOwner
+from utils.email_service import email_service
 
 
 from .models import (
@@ -24,6 +31,8 @@ from .serializers import (
     AuthorizedPlateSerializer,
     CompanySerializer,
     CompanyAssignmentSerializer,
+    AddDependentSerializer,
+    RemoveDependentSerializer,
 )
 
 
@@ -73,7 +82,13 @@ class CompanyAssignmentViewSet(BaseLCViewSet):
 class UserAccountInfoViewSet(viewsets.ViewSet):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
+    serializer_class = AccountSerializer  # Default serializer for schema generation
 
+    @extend_schema(
+        responses={200: None},
+        description="Get user account information including accounts, dependents, plates, and company",
+        summary="Get User Account Info",
+    )
     @action(detail=False, methods=["get"], url_path="me")
     def me(self, request):
         user = request.user
@@ -81,8 +96,10 @@ class UserAccountInfoViewSet(viewsets.ViewSet):
         accounts = Account.objects.filter(user=user)
         accounts_data = AccountSerializer(accounts, many=True).data
 
-        # Get dependents data for those accounts
-        dependent_relations = Dependents.objects.filter(holder_account__in=accounts)
+        # Get dependents data for those accounts (only active ones)
+        dependent_relations = Dependents.objects.filter(
+            holder_account__in=accounts, end_date__isnull=True
+        )
         dependents_data = []
 
         for dependent_relation in dependent_relations:
@@ -119,3 +136,240 @@ class UserAccountInfoViewSet(viewsets.ViewSet):
                 "company": company_data,
             }
         )
+
+    @extend_schema(
+        request=AddDependentSerializer,
+        responses={201: None, 400: None, 404: None, 500: None},
+        description="Add a dependent user to a holder account",
+        summary="Add Dependent",
+    )
+    @action(detail=False, methods=["post"], url_path="add-dependent")
+    def add_dependent(self, request):
+        """
+        Add a dependent to a holder account.
+        Expects: holder_account_id, dependent_email
+        """
+        serializer = AddDependentSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        holder_account_id = serializer.validated_data["holder_account_id"]
+        dependent_email = serializer.validated_data["dependent_email"]
+
+        try:
+            # Verify the holder account belongs to the current user and is holder type
+            holder_account = get_object_or_404(
+                Account, id=holder_account_id, user=request.user, account_type="holder"
+            )
+
+            # Get the dependent user by email
+            dependent_user = get_object_or_404(CustomUser, email=dependent_email)
+
+            # Prevent users from adding themselves as dependents
+            if dependent_user == request.user:
+                return Response(
+                    {"error": "You cannot add yourself as a dependent"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Check if there's already an active relationship between this holder and dependent user
+            # A dependent user can have multiple dependent accounts, but not multiple relationships with the same holder
+            existing_relationship = Dependents.objects.filter(
+                holder_account=holder_account,
+                dependent_account__user=dependent_user,
+                end_date__isnull=True,
+            ).first()
+
+            if existing_relationship:
+                return Response(
+                    {
+                        "error": "This user is already a dependent of this holder account"
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            with transaction.atomic():
+                # Create a new dependent account for this specific holder-dependent relationship
+                dependent_account = Account.objects.create(
+                    user=dependent_user,
+                    balance=Decimal("0.00"),
+                    account_type="dependent",
+                )
+
+                # Create the dependent relationship
+                Dependents.objects.create(
+                    holder_account=holder_account,
+                    dependent_account=dependent_account,
+                    start_date=timezone.now().date(),
+                    status="pending",
+                )
+
+                # Send invitation email
+                email_service.send_invitation_email(
+                    request.user, dependent_user, holder_account
+                )
+
+                # Return the created relationship data
+                response_data = {
+                    "message": "Invitation sent successfully",
+                }
+
+                return Response(response_data, status=status.HTTP_201_CREATED)
+
+        except Account.DoesNotExist:
+            return Response(
+                {"error": "Holder account not found or does not belong to you"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except CustomUser.DoesNotExist:
+            return Response(
+                {"error": "User with this email does not exist"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"An error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @extend_schema(
+        request=RemoveDependentSerializer,
+        responses={200: None, 400: None, 404: None, 500: None},
+        description="Remove a dependent user from a holder account",
+        summary="Remove Dependent",
+    )
+    @action(detail=False, methods=["post"], url_path="remove-dependent")
+    def remove_dependent(self, request):
+        """
+        Remove a dependent from a holder account.
+        Expects: holder_account_id, dependent_account_id
+        """
+        serializer = RemoveDependentSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        holder_account_id = serializer.validated_data["holder_account_id"]
+        dependent_account_id = serializer.validated_data["dependent_account_id"]
+
+        try:
+            # Verify the holder account belongs to the current user and is holder type
+            holder_account = get_object_or_404(
+                Account, id=holder_account_id, user=request.user, account_type="holder"
+            )
+
+            # Get the dependent account by ID
+            dependent_account = get_object_or_404(
+                Account, id=dependent_account_id, account_type="dependent"
+            )
+
+            # Prevent users from removing themselves (edge case)
+            if dependent_account.user == request.user:
+                return Response(
+                    {"error": "Invalid operation"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Find the active relationship between this holder and dependent account
+            dependent_relation = get_object_or_404(
+                Dependents,
+                holder_account=holder_account,
+                dependent_account=dependent_account,
+                end_date__isnull=True,
+            )
+
+            with transaction.atomic():
+                # Set end_date to mark as inactive instead of deleting
+                dependent_relation.end_date = timezone.now().date()
+                dependent_relation.save()
+
+                # Send removal notification email
+                email_service.send_dependent_removal_notification(
+                    request.user, dependent_account.user, holder_account
+                )
+
+                response_data = {
+                    "message": "Dependent removed successfully",
+                }
+
+                return Response(response_data, status=status.HTTP_200_OK)
+
+        except Account.DoesNotExist:
+            return Response(
+                {"error": "Holder account not found or does not belong to you"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except CustomUser.DoesNotExist:
+            return Response(
+                {"error": "User with this email does not exist"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Dependents.DoesNotExist:
+            return Response(
+                {"error": "Dependent relationship not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"An error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @extend_schema(
+        responses={200: None, 500: None},
+        description="Send a test Hello World email to bruno.spoletini@wico.com.ar",
+        summary="Send Test Email",
+    )
+    @action(detail=False, methods=["post"], url_path="test-email")
+    def test_email(self, request):
+        """
+        Send a test Hello World email.
+        """
+        try:
+            from django.core.mail import send_mail
+            from django.conf import settings
+
+            recipient = "bruno.spoletini@wico.com.ar"
+            subject = "Hello World Test Email"
+
+            html_message = """
+            <html>
+            <body>
+                <h1>Hello World!</h1>
+                <p>This is a test email from the WiCo application.</p>
+                <p>If you're reading this, the email system is working correctly!</p>
+                <hr>
+                <p><small>This is a test message from WiCo. Please do not reply to this email.</small></p>
+            </body>
+            </html>
+            """
+
+            plain_message = """
+Hello World!
+
+This is a test email from the WiCo application.
+
+If you're reading this, the email system is working correctly!
+
+---
+This is a test message from WiCo. Please do not reply to this email.
+            """
+
+            send_mail(
+                subject=subject,
+                message=plain_message,
+                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@wico.app"),
+                recipient_list=[recipient],
+                html_message=html_message,
+                fail_silently=False,
+            )
+
+            return Response(
+                {"message": f"Hello World email sent successfully to {recipient}"},
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to send test email: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

@@ -28,11 +28,21 @@ class UserViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated],
     )
     def me(self, request):
-        """Return the current authenticated user's data."""
-        serializer = self.get_serializer(request.user)
-        data = serializer.data.copy()
-        data.pop("id", None)
-        return Response(data)
+        """Return the current authenticated user's data and settings."""
+        # Get user data
+        user_serializer = self.get_serializer(request.user)
+
+        # Get or create user settings
+        setting, created = Setting.objects.get_or_create(user=request.user)
+        setting_serializer = SettingSerializer(setting)
+
+        # Combine user data and settings
+        response_data = {
+            "user": user_serializer.data,
+            "settings": setting_serializer.data,
+        }
+
+        return Response(response_data)
 
 
 class SettingViewSet(
@@ -45,14 +55,20 @@ class SettingViewSet(
 
     @action(
         detail=False,
-        methods=["get"],
+        methods=["get", "put", "patch"],
         url_path="me",
         permission_classes=[IsAuthenticated],
     )
     def me(self, request):
-        """Return the current authenticated user's settings."""
+        """Get or update the current authenticated user's settings."""
         setting, created = Setting.objects.get_or_create(user=request.user)
-        serializer = self.get_serializer(setting)
-        data = serializer.data.copy()
-        data.pop("user", None)
-        return Response(data)
+
+        if request.method == "GET":
+            serializer = self.get_serializer(setting)
+            return Response(serializer.data)
+        else:  # PUT or PATCH
+            serializer = self.get_serializer(setting, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=400)

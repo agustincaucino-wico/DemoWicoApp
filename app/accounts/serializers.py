@@ -78,3 +78,21 @@ class CompanyAssignmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = CompanyAssignment
         fields = "__all__"
+
+
+class AddDependentSerializer(serializers.Serializer):
+    holder_account_id = serializers.IntegerField(
+        help_text="ID of the holder account to add the dependent to"
+    )
+    dependent_email = serializers.EmailField(
+        help_text="Email of the user to be added as a dependent"
+    )
+
+
+class RemoveDependentSerializer(serializers.Serializer):
+    holder_account_id = serializers.IntegerField(
+        help_text="ID of the holder account to remove the dependent from"
+    )
+    dependent_account_id = serializers.IntegerField(
+        help_text="ID of the dependent account to be removed"
+    )

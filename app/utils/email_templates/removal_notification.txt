@@ -1,0 +1,18 @@
+Acceso de cuenta removido
+
+Hola {dependent_name},
+
+{holder_name} ({holder_email}) te ha removido como adherido de su cuenta de {app_name}.
+
+Detalles de la cuenta:
+- Titular de la cuenta: {holder_name}
+- ID de cuenta: {account_id}
+- Removido el: Hoy
+
+Qué significa esto:
+Ya no tendrás acceso a los servicios asociados con esta cuenta. Tu cuenta personal de {app_name} (si tienes una) no se ve afectada.
+
+Si tienes alguna pregunta sobre este cambio, contacta directamente al titular de la cuenta.
+
+---
+Este es un mensaje automatizado de {app_name}. Por favor no respondas a este correo.
