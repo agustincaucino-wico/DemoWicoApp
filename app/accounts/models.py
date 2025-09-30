@@ -1,4 +1,5 @@
-from django.db import models
+from django.db import models, transaction
+from django.utils import timezone
 from users.models import CustomUser
 from locations.models import Province
 from django.core.exceptions import ValidationError
@@ -42,7 +43,6 @@ class Dependents(models.Model):
     )
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
-    status = models.CharField(max_length=20, default="pending")
 
     class Meta:
         constraints = [
@@ -65,6 +65,101 @@ class Dependents(models.Model):
 
     def __str__(self):
         return f"Dependent {self.id} - {self.holder_account.user.email} to {self.dependent_account.user.email}"
+
+
+class DependentInvitation(models.Model):
+    INVITATION_STATUS = [
+        ("pending", "Pendiente"),
+        ("accepted", "Aceptada"),
+        ("rejected", "Rechazada"),
+        ("cancelled", "Cancelada"),
+    ]
+
+    holder_account = models.ForeignKey(
+        Account, on_delete=models.CASCADE, related_name="sent_invitations"
+    )
+    dependent_account = models.ForeignKey(
+        Account, on_delete=models.CASCADE, related_name="received_invitations"
+    )
+    invitation_date = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(
+        max_length=20, choices=INVITATION_STATUS, default="pending"
+    )
+    response_date = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["holder_account", "dependent_account"],
+                condition=models.Q(status="pending"),
+                name="unique_pending_invitation",
+                violation_error_message="Ya existe una invitación pendiente entre estas cuentas",
+            )
+        ]
+
+    def clean(self):
+        # Validar que holder_account sea de tipo 'holder'
+        if self.holder_account.account_type != "holder":
+            raise ValidationError(
+                "Solo las cuentas titulares pueden enviar invitaciones"
+            )
+
+        # Validar que dependent_account sea de tipo 'dependent'
+        if self.dependent_account.account_type != "dependent":
+            raise ValidationError("Solo se puede invitar a cuentas adherentes")
+
+        # Validar que no se invite a sí mismo
+        if self.holder_account == self.dependent_account:
+            raise ValidationError("No puedes enviarte una invitación a ti mismo")
+
+        # Validar que no exista ya una relación activa
+        existing_relationship = Dependents.objects.filter(
+            holder_account=self.holder_account,
+            dependent_account=self.dependent_account,
+            end_date__isnull=True,
+        ).exists()
+
+        if existing_relationship:
+            raise ValidationError("Ya existe una relación activa entre estas cuentas")
+
+    def accept_invitation(self):
+        """Acepta la invitación y crea la relación de dependiente"""
+        if self.status != "pending":
+            raise ValidationError("Solo se pueden aceptar invitaciones pendientes")
+
+        with transaction.atomic():
+            # Actualizar el estado de la invitación
+            self.status = "accepted"
+            self.response_date = timezone.now()
+            self.save()
+
+            # Crear la relación de dependiente
+            Dependents.objects.create(
+                holder_account=self.holder_account,
+                dependent_account=self.dependent_account,
+                start_date=timezone.now().date(),
+            )
+
+    def reject_invitation(self):
+        """Rechaza la invitación"""
+        if self.status != "pending":
+            raise ValidationError("Solo se pueden rechazar invitaciones pendientes")
+
+        self.status = "rejected"
+        self.response_date = timezone.now()
+        self.save()
+
+    def cancel_invitation(self):
+        """Cancela la invitación (solo el titular puede hacerlo)"""
+        if self.status != "pending":
+            raise ValidationError("Solo se pueden cancelar invitaciones pendientes")
+
+        self.status = "cancelled"
+        self.response_date = timezone.now()
+        self.save()
+
+    def __str__(self):
+        return f"Invitación {self.id} - {self.holder_account.user.email} invita a {self.dependent_account.user.email} ({self.status})"
 
 
 class Plates(models.Model):

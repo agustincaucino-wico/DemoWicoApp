@@ -6,6 +6,7 @@ from .models import (
     AuthorizedPlate,
     Company,
     CompanyAssignment,
+    DependentInvitation,
 )
 from myapp.admin import my_admin_site
 
@@ -72,9 +73,41 @@ class CompanyAssignmentAdmin(admin.ModelAdmin):
     list_filter = ("company",)
 
 
+class DependentInvitationAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "holder_account_email",
+        "dependent_account_email",
+        "status",
+        "invitation_date",
+        "response_date",
+    )
+    search_fields = ("holder_account__user__email", "dependent_account__user__email")
+    list_filter = ("status", "invitation_date")
+    readonly_fields = ("invitation_date", "response_date")
+
+    def holder_account_email(self, obj):
+        return (
+            obj.holder_account.user.email
+            if obj.holder_account and obj.holder_account.user
+            else None
+        )
+
+    def dependent_account_email(self, obj):
+        return (
+            obj.dependent_account.user.email
+            if obj.dependent_account and obj.dependent_account.user
+            else None
+        )
+
+    holder_account_email.short_description = "Email Cuenta Titular"
+    dependent_account_email.short_description = "Email Cuenta Dependiente"
+
+
 my_admin_site.register(Account, AccountAdmin)
 my_admin_site.register(Dependents, DependentsAdmin)
 my_admin_site.register(Plates, PlatesAdmin)
 my_admin_site.register(AuthorizedPlate, AuthorizedPlateAdmin)
 my_admin_site.register(Company, CompanyAdmin)
 my_admin_site.register(CompanyAssignment, CompanyAssignmentAdmin)
+my_admin_site.register(DependentInvitation, DependentInvitationAdmin)

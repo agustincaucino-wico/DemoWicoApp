@@ -1,9 +1,11 @@
 from django.contrib.auth.models import Group
 from django.contrib.auth import get_user_model
 from .models import Setting
+from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
+from typing import List
 
 # from django.contrib.auth.models import User
-from rest_framework import serializers
 
 UserModel = get_user_model()
 
@@ -27,7 +29,8 @@ class UserSerializer(serializers.ModelSerializer):
             "groups",
         ]
 
-    def get_groups(self, obj):
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    def get_groups(self, obj) -> List[str]:
         return [group.name for group in obj.groups.all()]
 
     def create(self, validated_data):

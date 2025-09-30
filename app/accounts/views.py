@@ -23,6 +23,7 @@ from .models import (
     AuthorizedPlate,
     Company,
     CompanyAssignment,
+    DependentInvitation,
 )
 from .serializers import (
     AccountSerializer,
@@ -33,6 +34,9 @@ from .serializers import (
     CompanyAssignmentSerializer,
     AddDependentSerializer,
     RemoveDependentSerializer,
+    DependentInvitationSerializer,
+    CreateInvitationSerializer,
+    InvitationResponseSerializer,
 )
 
 
@@ -128,109 +132,36 @@ class UserActionsViewSet(viewsets.ViewSet):
                 "end_date": company_assignment.end_date,
             }
 
+        # Get invitation data
+        user_holder_accounts = accounts.filter(account_type="holder")
+        user_dependent_accounts = accounts.filter(account_type="dependent")
+
+        # Get sent invitations (from holder accounts)
+        sent_invitations = DependentInvitation.objects.filter(
+            holder_account__in=user_holder_accounts
+        ).order_by("-invitation_date")
+        sent_invitations_data = DependentInvitationSerializer(
+            sent_invitations, many=True
+        ).data
+
+        # Get received invitations (to dependent accounts)
+        received_invitations = DependentInvitation.objects.filter(
+            dependent_account__in=user_dependent_accounts
+        ).order_by("-invitation_date")
+        received_invitations_data = DependentInvitationSerializer(
+            received_invitations, many=True
+        ).data
+
         return Response(
             {
                 "accounts": accounts_data,
                 "dependents": dependents_data,
                 "plates": plates_data,
                 "company": company_data,
+                "sent_invitations": sent_invitations_data,
+                "received_invitations": received_invitations_data,
             }
         )
-
-    @extend_schema(
-        request=AddDependentSerializer,
-        responses={201: None, 400: None, 404: None, 500: None},
-        description="Add a dependent user to a holder account",
-        summary="Add Dependent",
-    )
-    @action(detail=False, methods=["post"], url_path="add-dependent")
-    def add_dependent(self, request):
-        """
-        Add a dependent to a holder account.
-        Expects: holder_account_id, dependent_email
-        """
-        serializer = AddDependentSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        holder_account_id = serializer.validated_data["holder_account_id"]
-        dependent_email = serializer.validated_data["dependent_email"]
-
-        try:
-            # Verify the holder account belongs to the current user and is holder type
-            holder_account = get_object_or_404(
-                Account, id=holder_account_id, user=request.user, account_type="holder"
-            )
-
-            # Get the dependent user by email
-            dependent_user = get_object_or_404(CustomUser, email=dependent_email)
-
-            # Prevent users from adding themselves as dependents
-            if dependent_user == request.user:
-                return Response(
-                    {"error": "You cannot add yourself as a dependent"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Check if there's already an active relationship between this holder and dependent user
-            # A dependent user can have multiple dependent accounts, but not multiple relationships with the same holder
-            existing_relationship = Dependents.objects.filter(
-                holder_account=holder_account,
-                dependent_account__user=dependent_user,
-                end_date__isnull=True,
-            ).first()
-
-            if existing_relationship:
-                return Response(
-                    {
-                        "error": "This user is already a dependent of this holder account"
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            with transaction.atomic():
-                # Create a new dependent account for this specific holder-dependent relationship
-                dependent_account = Account.objects.create(
-                    user=dependent_user,
-                    balance=Decimal("0.00"),
-                    account_type="dependent",
-                )
-
-                # Create the dependent relationship
-                Dependents.objects.create(
-                    holder_account=holder_account,
-                    dependent_account=dependent_account,
-                    start_date=timezone.now().date(),
-                    status="pending",
-                )
-
-                # Send invitation email
-                email_service.send_invitation_email(
-                    request.user, dependent_user, holder_account
-                )
-
-                # Return the created relationship data
-                response_data = {
-                    "message": "Invitation sent successfully",
-                }
-
-                return Response(response_data, status=status.HTTP_201_CREATED)
-
-        except Account.DoesNotExist:
-            return Response(
-                {"error": "Holder account not found or does not belong to you"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        except CustomUser.DoesNotExist:
-            return Response(
-                {"error": "User with this email does not exist"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        except Exception as e:
-            return Response(
-                {"error": f"An error occurred: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
 
     @extend_schema(
         request=RemoveDependentSerializer,
@@ -313,3 +244,280 @@ class UserActionsViewSet(viewsets.ViewSet):
                 {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @extend_schema(
+        request=CreateInvitationSerializer,
+        responses={201: DependentInvitationSerializer, 400: None},
+        description="Create a new dependent invitation",
+        summary="Create Dependent Invitation",
+    )
+    @action(detail=False, methods=["post"], url_path="create-invitation")
+    def create_invitation(self, request):
+        """
+        Create a new dependent invitation using the invitation system
+        Expects: holder_account_id, dependent_email
+        """
+        serializer = CreateInvitationSerializer(
+            data=request.data, context={"request": request}
+        )
+
+        if serializer.is_valid():
+            validated_data = serializer.validated_data
+
+            try:
+                with transaction.atomic():
+                    invitation = DependentInvitation.objects.create(
+                        holder_account=validated_data["holder_account"],
+                        dependent_account=validated_data["dependent_account"],
+                    )
+
+                    # Send email notification to the dependent user
+                    try:
+                        email_service.send_invitation_email(
+                            to_email=validated_data["dependent_account"].user.email,
+                            holder_name=f"{validated_data['holder_account'].user.first_name} {validated_data['holder_account'].user.last_name}".strip(),
+                            invitation_id=invitation.id,
+                        )
+                    except Exception:
+                        # Log email error but don't fail the invitation creation
+                        pass
+
+                    response_serializer = DependentInvitationSerializer(invitation)
+                    return Response(
+                        {
+                            "message": "Invitation created successfully",
+                            "invitation": response_serializer.data,
+                        },
+                        status=status.HTTP_201_CREATED,
+                    )
+
+            except Exception as e:
+                return Response(
+                    {"error": f"Error creating invitation: {str(e)}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @extend_schema(
+        request=InvitationResponseSerializer,
+        responses={200: DependentInvitationSerializer, 400: None, 403: None, 404: None},
+        description="Respond to a dependent invitation (accept or reject)",
+        summary="Respond to Invitation",
+        parameters=[
+            {
+                "name": "invitation_id",
+                "in": "path",
+                "required": True,
+                "schema": {"type": "integer"},
+                "description": "ID of the invitation to respond to",
+            }
+        ],
+    )
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="respond-invitation/(?P<invitation_id>[^/.]+)",
+    )
+    def respond_invitation(self, request, invitation_id: int = None):
+        """
+        Accept or reject a dependent invitation
+        Expects: action (accept/reject)
+        """
+        try:
+            invitation = DependentInvitation.objects.get(id=invitation_id)
+        except DependentInvitation.DoesNotExist:
+            return Response(
+                {"error": "Invitation not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Verify that the user owns the dependent account
+        if invitation.dependent_account.user != request.user:
+            return Response(
+                {"error": "You can only respond to invitations sent to your account"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Verify invitation is still pending
+        if invitation.status != "pending":
+            return Response(
+                {"error": "This invitation has already been responded to"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = InvitationResponseSerializer(data=request.data)
+        if serializer.is_valid():
+            action = serializer.validated_data["action"]
+
+            try:
+                if action == "accept":
+                    invitation.accept_invitation()
+                    message = "Invitation accepted successfully"
+                elif action == "reject":
+                    invitation.reject_invitation()
+                    message = "Invitation rejected successfully"
+
+                # Send email notification to the holder
+                try:
+                    email_service.send_invitation_response_email(
+                        to_email=invitation.holder_account.user.email,
+                        dependent_name=f"{invitation.dependent_account.user.first_name} {invitation.dependent_account.user.last_name}".strip(),
+                        action=action,
+                    )
+                except Exception:
+                    # Log email error but don't fail the response
+                    pass
+
+                response_serializer = DependentInvitationSerializer(invitation)
+                return Response(
+                    {"message": message, "invitation": response_serializer.data},
+                    status=status.HTTP_200_OK,
+                )
+
+            except Exception as e:
+                return Response(
+                    {"error": f"Error processing invitation response: {str(e)}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @extend_schema(
+        responses={200: None, 400: None, 403: None, 404: None},
+        description="Cancel a pending invitation",
+        summary="Cancel Invitation",
+        parameters=[
+            {
+                "name": "invitation_id",
+                "in": "path",
+                "required": True,
+                "schema": {"type": "integer"},
+                "description": "ID of the invitation to cancel",
+            }
+        ],
+    )
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="cancel-invitation/(?P<invitation_id>[^/.]+)",
+    )
+    def cancel_invitation(self, request, invitation_id: int = None):
+        """
+        Cancel a pending invitation (only for holder accounts)
+        """
+        try:
+            invitation = DependentInvitation.objects.get(id=invitation_id)
+        except DependentInvitation.DoesNotExist:
+            return Response(
+                {"error": "Invitation not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Verify that the user owns the holder account
+        if invitation.holder_account.user != request.user:
+            return Response(
+                {"error": "You can only cancel invitations sent from your account"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Verify invitation is still pending
+        if invitation.status != "pending":
+            return Response(
+                {"error": "Only pending invitations can be cancelled"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            invitation.cancel_invitation()
+
+            # Send email notification to the dependent user
+            try:
+                email_service.send_invitation_cancelled_email(
+                    to_email=invitation.dependent_account.user.email,
+                    holder_name=f"{invitation.holder_account.user.first_name} {invitation.holder_account.user.last_name}".strip(),
+                )
+            except Exception:
+                # Log email error but don't fail the cancellation
+                pass
+
+            response_serializer = DependentInvitationSerializer(invitation)
+            return Response(
+                {
+                    "message": "Invitation cancelled successfully",
+                    "invitation": response_serializer.data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Error cancelling invitation: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    @extend_schema(
+        responses={200: DependentInvitationSerializer},
+        description="Get all invitations (sent and received) for the user",
+        summary="Get User Invitations",
+    )
+    @action(detail=False, methods=["get"], url_path="invitations")
+    def get_invitations(self, request):
+        """
+        Get all invitations related to the user (both sent and received)
+        """
+        user = request.user
+        user_accounts = Account.objects.filter(user=user)
+        user_holder_accounts = user_accounts.filter(account_type="holder")
+        user_dependent_accounts = user_accounts.filter(account_type="dependent")
+
+        # Get sent invitations (from holder accounts)
+        sent_invitations = DependentInvitation.objects.filter(
+            holder_account__in=user_holder_accounts
+        ).order_by("-invitation_date")
+
+        # Get received invitations (to dependent accounts)
+        received_invitations = DependentInvitation.objects.filter(
+            dependent_account__in=user_dependent_accounts
+        ).order_by("-invitation_date")
+
+        return Response(
+            {
+                "sent_invitations": DependentInvitationSerializer(
+                    sent_invitations, many=True
+                ).data,
+                "received_invitations": DependentInvitationSerializer(
+                    received_invitations, many=True
+                ).data,
+            }
+        )
+
+    @extend_schema(
+        responses={200: DependentInvitationSerializer},
+        description="Get pending invitations received by the user",
+        summary="Get Pending Received Invitations",
+    )
+    @action(detail=False, methods=["get"], url_path="pending-invitations")
+    def get_pending_invitations(self, request):
+        """
+        Get pending invitations received by the user's dependent accounts
+        """
+        user = request.user
+        user_dependent_accounts = Account.objects.filter(
+            user=user, account_type="dependent"
+        )
+
+        pending_invitations = DependentInvitation.objects.filter(
+            dependent_account__in=user_dependent_accounts, status="pending"
+        ).order_by("-invitation_date")
+
+        serializer = DependentInvitationSerializer(pending_invitations, many=True)
+        return Response(
+            {
+                "pending_invitations": serializer.data,
+                "count": pending_invitations.count(),
+            }
+        )
+
+
+class DependentInvitationViewSet(BaseLCViewSet):
+    queryset = DependentInvitation.objects.all().order_by("-invitation_date")
+    serializer_class = DependentInvitationSerializer

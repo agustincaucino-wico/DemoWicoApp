@@ -49,6 +49,10 @@ ROLES = {
         "change_companyassignment",
         "delete_companyassignment",
         "view_companyassignment",
+        "add_dependentinvitation",
+        "change_dependentinvitation",
+        "delete_dependentinvitation",
+        "view_dependentinvitation",
     ],
     "Playero": [
         "view_customuser",
