@@ -62,14 +62,18 @@ class EmailService:
             )
             return False
 
-    def send_invitation_email(self, holder_user, dependent_user, holder_account):
+    def send_invitation_email(
+        self, to_email, holder_name, holder_email, dependent_name, invitation_id
+    ):
         """
-        Send an invitation email to a user who has been added as a dependent.
+        Send an invitation email to a user who has been invited as a dependent.
 
         Args:
-            holder_user: The user who owns the holder account
-            dependent_user: The user who was added as dependent
-            holder_account: The holder account object
+            to_email: Email address of the dependent (recipient)
+            holder_name: Full name of the holder who sent the invitation
+            holder_email: Email address of the holder
+            dependent_name: Name of the dependent user (or email if name not available)
+            invitation_id: ID of the invitation
 
         Returns:
             bool: True if email was sent successfully, False otherwise
@@ -77,16 +81,13 @@ class EmailService:
         subject = "Invitación WICORED"
 
         context = {
-            "holder_name": holder_user.get_full_name(),
-            "holder_email": holder_user.email,
-            "account_id": holder_account.id,
-            "dependent_email": dependent_user.email,
-            "dependent_name": dependent_user.get_full_name(),
+            "holder_name": holder_name,
+            "holder_email": holder_email,
+            "dependent_name": dependent_name,
+            "invitation_id": invitation_id,
         }
 
-        return self.send_email(
-            "invitation_email", subject, dependent_user.email, context
-        )
+        return self.send_email("invitation_email", subject, to_email, context)
 
     def send_dependent_removal_notification(
         self, holder_user, dependent_user, holder_account
@@ -115,6 +116,48 @@ class EmailService:
         return self.send_email(
             "removal_notification", subject, dependent_user.email, context
         )
+
+    def send_invitation_response_email(self, to_email, dependent_name, action):
+        """
+        Send an email notification when a dependent responds to an invitation.
+
+        Args:
+            to_email: Email address of the holder (recipient)
+            dependent_name: Full name of the dependent who responded
+            action: The action taken ('accept' or 'reject')
+
+        Returns:
+            bool: True if email was sent successfully, False otherwise
+        """
+        action_text = "aceptó" if action == "accept" else "rechazó"
+        subject = f"Respuesta a invitación WICORED - {action_text}"
+
+        context = {
+            "dependent_name": dependent_name,
+            "action": action,
+            "action_text": action_text,
+        }
+
+        return self.send_email("invitation_response", subject, to_email, context)
+
+    def send_invitation_cancelled_email(self, to_email, holder_name):
+        """
+        Send an email notification when a holder cancels a pending invitation.
+
+        Args:
+            to_email: Email address of the dependent (recipient)
+            holder_name: Full name of the holder who cancelled the invitation
+
+        Returns:
+            bool: True if email was sent successfully, False otherwise
+        """
+        subject = "Invitación cancelada - WICORED"
+
+        context = {
+            "holder_name": holder_name,
+        }
+
+        return self.send_email("invitation_cancelled", subject, to_email, context)
 
 
 # Global instance

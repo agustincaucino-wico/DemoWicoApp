@@ -7,8 +7,7 @@ from .views import (
     AuthorizedPlateViewSet,
     CompanyViewSet,
     CompanyAssignmentViewSet,
-    UserActionsViewSet,
-    DependentInvitationViewSet,
+    DependentInvitationsViewSet,
 )
 
 
@@ -19,10 +18,9 @@ router.register(r"plates", PlatesViewSet)
 router.register(r"authorized-plates", AuthorizedPlateViewSet)
 router.register(r"companies", CompanyViewSet)
 router.register(r"company-assignments", CompanyAssignmentViewSet)
-router.register(r"user-actions", UserActionsViewSet, basename="user-actions")
 router.register(
     r"dependent-invitations",
-    DependentInvitationViewSet,
+    DependentInvitationsViewSet,
     basename="dependent-invitations",
 )
 

@@ -78,9 +78,7 @@ class DependentInvitation(models.Model):
     holder_account = models.ForeignKey(
         Account, on_delete=models.CASCADE, related_name="sent_invitations"
     )
-    dependent_account = models.ForeignKey(
-        Account, on_delete=models.CASCADE, related_name="received_invitations"
-    )
+    dependent_email = models.EmailField(default="")
     invitation_date = models.DateTimeField(auto_now_add=True)
     status = models.CharField(
         max_length=20, choices=INVITATION_STATUS, default="pending"
@@ -90,10 +88,10 @@ class DependentInvitation(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["holder_account", "dependent_account"],
+                fields=["holder_account", "dependent_email"],
                 condition=models.Q(status="pending"),
                 name="unique_pending_invitation",
-                violation_error_message="Ya existe una invitación pendiente entre estas cuentas",
+                violation_error_message="Ya existe una invitación pendiente para este correo electrónico",
             )
         ]
 
@@ -104,18 +102,10 @@ class DependentInvitation(models.Model):
                 "Solo las cuentas titulares pueden enviar invitaciones"
             )
 
-        # Validar que dependent_account sea de tipo 'dependent'
-        if self.dependent_account.account_type != "dependent":
-            raise ValidationError("Solo se puede invitar a cuentas adherentes")
-
-        # Validar que no se invite a sí mismo
-        if self.holder_account == self.dependent_account:
-            raise ValidationError("No puedes enviarte una invitación a ti mismo")
-
         # Validar que no exista ya una relación activa
         existing_relationship = Dependents.objects.filter(
             holder_account=self.holder_account,
-            dependent_account=self.dependent_account,
+            dependent_account__user__email=self.dependent_email,
             end_date__isnull=True,
         ).exists()
 
@@ -128,6 +118,13 @@ class DependentInvitation(models.Model):
             raise ValidationError("Solo se pueden aceptar invitaciones pendientes")
 
         with transaction.atomic():
+            # Crear la cuenta adherente
+            dependent_account = Account.objects.create(
+                user=CustomUser.objects.get(email=self.dependent_email),
+                balance=0,
+                account_type="dependent",
+            )
+
             # Actualizar el estado de la invitación
             self.status = "accepted"
             self.response_date = timezone.now()
@@ -136,7 +133,7 @@ class DependentInvitation(models.Model):
             # Crear la relación de dependiente
             Dependents.objects.create(
                 holder_account=self.holder_account,
-                dependent_account=self.dependent_account,
+                dependent_account=dependent_account,
                 start_date=timezone.now().date(),
             )
 
@@ -159,7 +156,7 @@ class DependentInvitation(models.Model):
         self.save()
 
     def __str__(self):
-        return f"Invitación {self.id} - {self.holder_account.user.email} invita a {self.dependent_account.user.email} ({self.status})"
+        return f"Invitación {self.id} - {self.holder_account.user.email} invita a {self.dependent_email} ({self.status})"
 
 
 class Plates(models.Model):
