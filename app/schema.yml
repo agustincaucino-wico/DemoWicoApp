@@ -236,6 +236,64 @@ paths:
       responses:
         '204':
           description: No response body
+  /accounts/dependent-invitations/:
+    get:
+      operationId: accounts_dependent_invitations_list
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DependentInvitation'
+          description: ''
+    post:
+      operationId: accounts_dependent_invitations_create
+      tags:
+      - accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DependentInvitation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DependentInvitation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DependentInvitation'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DependentInvitation'
+          description: ''
+  /accounts/dependent-invitations/{id}/:
+    delete:
+      operationId: accounts_dependent_invitations_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this dependent invitation.
+        required: true
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
   /accounts/dependents/:
     get:
       operationId: accounts_dependents_list
@@ -351,6 +409,166 @@ paths:
       - jwtAuth: []
       responses:
         '204':
+          description: No response body
+  /actions/info/:
+    get:
+      operationId: actions_info_retrieve
+      description: Get user account information including accounts, dependents, plates,
+        and company
+      summary: Get User Account Info
+      tags:
+      - actions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /actions/invitations/cancel/:
+    post:
+      operationId: actions_invitations_cancel_create
+      description: Cancel a pending invitation
+      summary: Cancel Invitation
+      tags:
+      - actions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelInvitation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CancelInvitation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CancelInvitation'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '400':
+          description: No response body
+        '403':
+          description: No response body
+        '404':
+          description: No response body
+  /actions/invitations/create/:
+    post:
+      operationId: actions_invitations_create_create
+      description: Create a new dependent invitation
+      summary: Create Dependent Invitation
+      tags:
+      - actions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvitation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CreateInvitation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateInvitation'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DependentInvitation'
+          description: ''
+        '400':
+          description: No response body
+  /actions/invitations/list/:
+    get:
+      operationId: actions_invitations_list_retrieve
+      description: Get all invitations (sent and received) for the user
+      summary: Get User Invitations (sent and received)
+      tags:
+      - actions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationsListResponse'
+          description: ''
+  /actions/invitations/respond/{invitation_id}/:
+    post:
+      operationId: actions_invitations_respond_create
+      description: Respond to a dependent invitation (accept or reject)
+      summary: Respond to Invitation
+      parameters:
+      - in: path
+        name: invitation_id
+        schema:
+          type: integer
+        description: ID of the invitation to respond to
+        required: true
+      tags:
+      - actions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InvitationResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InvitationResponse'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DependentInvitation'
+          description: ''
+        '400':
+          description: No response body
+        '403':
+          description: No response body
+        '404':
+          description: No response body
+  /actions/remove-dependent/:
+    post:
+      operationId: actions_remove_dependent_create
+      description: Remove a dependent user from a holder account
+      summary: Remove Dependent
+      tags:
+      - actions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveDependent'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RemoveDependent'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RemoveDependent'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '400':
+          description: No response body
+        '404':
+          description: No response body
+        '500':
           description: No response body
   /api/token/:
     post:
@@ -677,6 +895,122 @@ paths:
       responses:
         '204':
           description: No response body
+  /stations/attendant-assignments/:
+    get:
+      operationId: stations_attendant_assignments_list
+      tags:
+      - stations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StationAttendantAssignment'
+          description: ''
+    post:
+      operationId: stations_attendant_assignments_create
+      tags:
+      - stations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StationAttendantAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StationAttendantAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StationAttendantAssignment'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StationAttendantAssignment'
+          description: ''
+  /stations/attendant-assignments/{id}/:
+    delete:
+      operationId: stations_attendant_assignments_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Station attendant assignment.
+        required: true
+      tags:
+      - stations
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /stations/stations/:
+    get:
+      operationId: stations_stations_list
+      tags:
+      - stations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Station'
+          description: ''
+    post:
+      operationId: stations_stations_create
+      tags:
+      - stations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Station'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Station'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Station'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Station'
+          description: ''
+  /stations/stations/{id}/:
+    delete:
+      operationId: stations_stations_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Station.
+        required: true
+      tags:
+      - stations
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
   /users/:
     get:
       operationId: users_list
@@ -827,7 +1161,7 @@ paths:
   /users/me/:
     get:
       operationId: users_me_retrieve
-      description: Return the current authenticated user's data.
+      description: Return the current authenticated user's data and settings.
       tags:
       - users
       security:
@@ -838,6 +1172,150 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+          description: ''
+  /users/settings/:
+    get:
+      operationId: users_settings_list
+      tags:
+      - users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Setting'
+          description: ''
+  /users/settings/{user}/:
+    put:
+      operationId: users_settings_update
+      parameters:
+      - in: path
+        name: user
+        schema:
+          type: integer
+        description: A unique value identifying this setting.
+        required: true
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Setting'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Setting'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Setting'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+          description: ''
+    patch:
+      operationId: users_settings_partial_update
+      parameters:
+      - in: path
+        name: user
+        schema:
+          type: integer
+        description: A unique value identifying this setting.
+        required: true
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSetting'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSetting'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSetting'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+          description: ''
+  /users/settings/me/:
+    get:
+      operationId: users_settings_me_retrieve
+      description: Get or update the current authenticated user's settings.
+      tags:
+      - users
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+          description: ''
+    put:
+      operationId: users_settings_me_update
+      description: Get or update the current authenticated user's settings.
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Setting'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Setting'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Setting'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+          description: ''
+    patch:
+      operationId: users_settings_me_partial_update
+      description: Get or update the current authenticated user's settings.
+      tags:
+      - users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSetting'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSetting'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSetting'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
           description: ''
 components:
   schemas:
@@ -876,8 +1354,16 @@ components:
       - dependent
       type: string
       description: |-
-        * `holder` - Holder
-        * `dependent` - Dependent
+        * `holder` - Titular
+        * `dependent` - Adherido
+    ActionEnum:
+      enum:
+      - accept
+      - reject
+      type: string
+      description: |-
+        * `accept` - accept
+        * `reject` - reject
     Address:
       type: object
       properties:
@@ -920,18 +1406,28 @@ components:
           type: string
           format: date
           nullable: true
-        holder_account:
-          type: integer
         dependent_account:
           type: integer
         plate:
           type: integer
       required:
       - dependent_account
-      - holder_account
       - id
       - plate
       - start_date
+    CancelInvitation:
+      type: object
+      properties:
+        holder_account_id:
+          type: integer
+          description: ID of the holder account that sent the invitation
+        dependent_email:
+          type: string
+          format: email
+          description: Email of the user whose invitation should be cancelled
+      required:
+      - dependent_email
+      - holder_account_id
     City:
       type: object
       properties:
@@ -941,15 +1437,11 @@ components:
         name:
           type: string
           maxLength: 100
-        postal_code:
-          type: string
-          maxLength: 20
         province:
           type: integer
       required:
       - id
       - name
-      - postal_code
       - province
     Company:
       type: object
@@ -1000,6 +1492,55 @@ components:
       required:
       - id
       - name
+    CreateInvitation:
+      type: object
+      properties:
+        holder_account_id:
+          type: integer
+          description: ID of the holder account sending the invitation
+        dependent_email:
+          type: string
+          format: email
+          description: Email of the user to be invited as a dependent
+      required:
+      - dependent_email
+      - holder_account_id
+    DependentInvitation:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        holder_account:
+          type: integer
+        dependent_email:
+          type: string
+          format: email
+          maxLength: 254
+        invitation_date:
+          type: string
+          format: date-time
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        response_date:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        holder_account_email:
+          type: string
+          readOnly: true
+        holder_account_name:
+          type: string
+          readOnly: true
+      required:
+      - holder_account
+      - holder_account_email
+      - holder_account_name
+      - id
+      - invitation_date
+      - response_date
     Dependents:
       type: object
       properties:
@@ -1032,6 +1573,45 @@ components:
         * `M` - Masculino
         * `F` - Femenino
         * `X` - No binario
+    InvitationResponse:
+      type: object
+      properties:
+        action:
+          allOf:
+          - $ref: '#/components/schemas/ActionEnum'
+          description: |-
+            Action to take on the invitation: 'accept' or 'reject'
+
+            * `accept` - accept
+            * `reject` - reject
+      required:
+      - action
+    InvitationsListResponse:
+      type: object
+      properties:
+        sent_invitations:
+          type: array
+          items:
+            $ref: '#/components/schemas/DependentInvitation'
+          description: List of invitations sent by the user's holder accounts
+        received_invitations:
+          type: array
+          items:
+            $ref: '#/components/schemas/DependentInvitation'
+          description: List of invitations received by the user's email
+      required:
+      - received_invitations
+      - sent_invitations
+    PatchedSetting:
+      type: object
+      properties:
+        user:
+          type: integer
+          readOnly: true
+        push_notif:
+          type: boolean
+        email_notif:
+          type: boolean
     PatchedUser:
       type: object
       properties:
@@ -1063,8 +1643,17 @@ components:
         id_province:
           type: integer
           nullable: true
+        province_name:
+          type: string
+          nullable: true
+          readOnly: true
         gender:
           $ref: '#/components/schemas/GenderEnum'
+        groups:
+          type: array
+          items:
+            type: string
+          readOnly: true
     Plates:
       type: object
       properties:
@@ -1074,6 +1663,14 @@ components:
         plate_number:
           type: string
           maxLength: 10
+        brand:
+          type: string
+          nullable: true
+          maxLength: 50
+        model:
+          type: string
+          nullable: true
+          maxLength: 50
         start_date:
           type: string
           format: date
@@ -1103,6 +1700,109 @@ components:
       - country
       - id
       - name
+    RemoveDependent:
+      type: object
+      properties:
+        holder_account_id:
+          type: integer
+          description: ID of the holder account to remove the dependent from
+        dependent_account_id:
+          type: integer
+          description: ID of the dependent account to be removed
+      required:
+      - dependent_account_id
+      - holder_account_id
+    Setting:
+      type: object
+      properties:
+        user:
+          type: integer
+          readOnly: true
+        push_notif:
+          type: boolean
+        email_notif:
+          type: boolean
+      required:
+      - user
+    Station:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        province:
+          type: integer
+        province_name:
+          type: string
+          readOnly: true
+        city:
+          type: integer
+        city_name:
+          type: string
+          readOnly: true
+        street:
+          type: string
+          maxLength: 255
+        street_number:
+          type: string
+          maxLength: 10
+      required:
+      - city
+      - id
+      - name
+      - province
+      - street
+      - street_number
+    StationAttendantAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        attendant:
+          type: integer
+        attendant_email:
+          type: string
+          format: email
+          readOnly: true
+        attendant_full_name:
+          type: string
+          readOnly: true
+        station:
+          type: integer
+        station_name:
+          type: string
+          readOnly: true
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+      required:
+      - attendant
+      - attendant_email
+      - attendant_full_name
+      - id
+      - start_date
+      - station
+      - station_name
+    StatusEnum:
+      enum:
+      - pending
+      - accepted
+      - rejected
+      - cancelled
+      type: string
+      description: |-
+        * `pending` - Pendiente
+        * `accepted` - Aceptada
+        * `rejected` - Rechazada
+        * `cancelled` - Cancelada
     TokenObtainPair:
       type: object
       properties:
@@ -1174,11 +1874,21 @@ components:
         id_province:
           type: integer
           nullable: true
+        province_name:
+          type: string
+          nullable: true
+          readOnly: true
         gender:
           $ref: '#/components/schemas/GenderEnum'
+        groups:
+          type: array
+          items:
+            type: string
+          readOnly: true
       required:
       - dni
       - email
+      - groups
       - id
       - password
   securitySchemes:

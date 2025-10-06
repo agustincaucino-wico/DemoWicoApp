@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "users",
     "locations",
     "accounts",
+    "stations",
 ]
 
 REST_FRAMEWORK = {

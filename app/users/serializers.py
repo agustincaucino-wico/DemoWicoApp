@@ -13,6 +13,7 @@ UserModel = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     groups = serializers.SerializerMethodField()
+    province_name = serializers.SerializerMethodField()
 
     class Meta:
         model = UserModel
@@ -25,6 +26,7 @@ class UserSerializer(serializers.ModelSerializer):
             "dni",
             "phone_number",
             "id_province",
+            "province_name",
             "gender",
             "groups",
         ]
@@ -38,6 +40,10 @@ class UserSerializer(serializers.ModelSerializer):
         group, created = Group.objects.get_or_create(name="Cliente")
         user.groups.add(group)
         return user
+
+    def get_province_name(self, obj):
+        province = getattr(obj, "id_province", None)
+        return province.name if province else None
 
 
 class SettingSerializer(serializers.ModelSerializer):
