@@ -6,6 +6,8 @@ from .models import Station, StationAttendantAssignment
 class StationSerializer(serializers.ModelSerializer):
     province_name = serializers.CharField(source="province.name", read_only=True)
     city_name = serializers.CharField(source="city.name", read_only=True)
+    lat = serializers.FloatField(required=False, allow_null=True)
+    lon = serializers.FloatField(required=False, allow_null=True)
 
     class Meta:
         model = Station
@@ -18,6 +20,8 @@ class StationSerializer(serializers.ModelSerializer):
             "city_name",
             "street",
             "street_number",
+            "lat",
+            "lon",
         )
         read_only_fields = ("id", "province_name", "city_name")
 

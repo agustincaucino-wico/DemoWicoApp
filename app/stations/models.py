@@ -6,8 +6,10 @@ class Station(models.Model):
     name = models.CharField(max_length=255)
     province = models.ForeignKey("locations.Province", on_delete=models.CASCADE)
     city = models.ForeignKey("locations.City", on_delete=models.CASCADE)
-    street = models.CharField(max_length=255)
-    street_number = models.CharField(max_length=10)
+    street = models.CharField(max_length=255, null=True, blank=True)
+    street_number = models.CharField(max_length=10, null=True, blank=True)
+    lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    lon = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 
     class Meta:
         verbose_name = "Station"

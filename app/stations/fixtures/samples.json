@@ -1,0 +1,184 @@
+[
+    {
+        "model": "stations.station",
+        "pk": 1,
+        "fields": {
+            "name": "Las Heras (Lisandro Moyano 901)",
+            "province": 12,
+            "city": 1722,
+            "street": "Lisandro Moyano",
+            "street_number": "901",
+            "lat": -32.8569229,
+            "lon": -68.821103
+        }
+    },
+    {
+        "model": "stations.station",
+        "pk": 2,
+        "fields": {
+            "name": "Godoy Cruz (Joaquín V. González 1285)",
+            "province": 12,
+            "city": 1296,
+            "street": "Joaquín V. González",
+            "street_number": "1285",
+            "lat": -32.9379398,
+            "lon": -68.8583678
+        }
+    },
+    {
+        "model": "stations.station",
+        "pk": 3,
+        "fields": {
+            "name": "Mendoza (Perito Moreno 1350)",
+            "province": 12,
+            "city": 2016,
+            "street": "Perito Moreno",
+            "street_number": "1350",
+            "lat": -32.9402826,
+            "lon": -68.847521
+        }
+    },
+    {
+        "model": "stations.station",
+        "pk": 4,
+        "fields": {
+            "name": "San Luis (Av. Lafinur 1335)",
+            "province": 18,
+            "city": 2712,
+            "street": "Av. Lafinur",
+            "street_number": null,
+            "lat": null,
+            "lon": null
+        }
+    },
+    {
+        "model": "stations.station",
+        "pk": 5,
+        "fields": {
+            "name": "Chamical (Nicolás Majul Ayan)",
+            "province": 11,
+            "city": 599,
+            "street": "Nicolás Majul Ayan",
+            "street_number": null,
+            "lat": -30.3602008,
+            "lon": -66.3150288
+        }
+    },
+    {
+        "model": "stations.station",
+        "pk": 6,
+        "fields": {
+            "name": "Andalgalá (RP46)",
+            "province": 2,
+            "city": 138,
+            "street": "RP46",
+            "street_number": null,
+            "lat": -28.2311191,
+            "lon": -66.2374538
+        }
+    },
+    {
+        "model": "stations.station",
+        "pk": 7,
+        "fields": {
+            "name": "Córdoba (Av. Rancagua 2609)",
+            "province": 5,
+            "city": 870,
+            "street": "Av. Rancagua",
+            "street_number": "2609",
+            "lat": -31.379513,
+            "lon": -64.14802
+        }
+    },
+    {
+        "model": "stations.station",
+        "pk": 8,
+        "fields": {
+            "name": "Villa Carlos Paz (Bv. Sarmiento 1885)",
+            "province": 5,
+            "city": 3113,
+            "street": "Bv. Sarmiento",
+            "street_number": "1885",
+            "lat": -31.3955312,
+            "lon": -64.5021947
+        }
+    },
+    {
+        "model": "stations.station",
+        "pk": 9,
+        "fields": {
+            "name": "Río Cuarto (Fray Quirico Porreca)",
+            "province": 5,
+            "city": 2551,
+            "street": "Fray Quirico Porreca",
+            "street_number": null,
+            "lat": -33.1156616,
+            "lon": -64.3300247
+        }
+    },
+    {
+        "model": "stations.station",
+        "pk": 10,
+        "fields": {
+            "name": "Las Acequias (Elias Moyano 152)",
+            "province": 5,
+            "city": 1687,
+            "street": "Elias Moyano",
+            "street_number": "152",
+            "lat": -33.280134,
+            "lon": -63.9773874
+        }
+    },
+    {
+        "model": "stations.station",
+        "pk": 11,
+        "fields": {
+            "name": "Canals (Centro)",
+            "province": 5,
+            "city": 474,
+            "street": null,
+            "street_number": null,
+            "lat": null,
+            "lon": null
+        }
+    },
+    {
+        "model": "stations.station",
+        "pk": 12,
+        "fields": {
+            "name": "Tortugas (Santa Fe)",
+            "province": 20,
+            "city": 2994,
+            "street": null,
+            "street_number": null,
+            "lat": -32.745267,
+            "lon": -61.8205509
+        }
+    },
+    {
+        "model": "stations.station",
+        "pk": 13,
+        "fields": {
+            "name": "Villa Eloísa (Av. Libertad 480)",
+            "province": 20,
+            "city": 3163,
+            "street": "Av. Libertad",
+            "street_number": "480",
+            "lat": -32.9612767,
+            "lon": -61.5503975
+        }
+    },
+    {
+        "model": "stations.station",
+        "pk": 14,
+        "fields": {
+            "name": "Ugarteche (RN40 - Estación Neutrón)",
+            "province": 12,
+            "city": 3035,
+            "street": "Ruta Nacional 40",
+            "street_number": null,
+            "lat": -33.210705,
+            "lon": -68.888953
+        }
+    }
+]
