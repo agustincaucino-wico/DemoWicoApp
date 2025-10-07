@@ -322,7 +322,24 @@ class UserInfoView(APIView):
         user = request.user
         # Get accounts associated to user
         accounts = Account.objects.filter(user=user)
-        accounts_data = AccountSerializer(accounts, many=True).data
+        accounts_data = []
+
+        for account in accounts:
+            account_data = AccountSerializer(account).data
+
+            if account.account_type == "dependent":
+                # Find the holder account related to this dependent account
+                holder_relation = Dependents.objects.filter(
+                    dependent_account=account, end_date__isnull=True
+                ).first()
+                if holder_relation:
+                    holder_account_user = holder_relation.holder_account.user
+                    # TODO: use the company name related to the holder_account_user if any
+                    account_data["fleet_owner"] = (
+                        f"{holder_account_user.first_name} {holder_account_user.last_name}".strip()
+                    )
+
+            accounts_data.append(account_data)
 
         # Get dependents data for those accounts (only active ones)
         dependent_relations = Dependents.objects.filter(
