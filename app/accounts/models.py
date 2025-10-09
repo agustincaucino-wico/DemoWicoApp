@@ -15,6 +15,9 @@ class Account(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        ordering = [
+            "-created_at"
+        ]  # Ordenar por fecha de creación, más recientes primero
         constraints = [
             models.UniqueConstraint(
                 fields=["user"],

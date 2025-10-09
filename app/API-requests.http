@@ -1,3 +1,22 @@
+### POST Requesting a token ADMIN
+POST http://127.0.0.1:8000/api/token/ HTTP/1.1
+content-type: application/json
+
+{
+    "email": "playero@example.com", 
+    "password": "ADSqew132"
+}
+
+### POST Requesting a token ADMIN
+POST http://127.0.0.1:8000/api/token/ HTTP/1.1
+content-type: application/json
+
+{
+    "email": "playero@example.com", 
+    "password": "ADSqew132"
+}
+###
+
 # Pruebas usuarios
 
 POST http://back-appmobile-tst.wico.com.ar:5000/users/ HTTP/1.1
@@ -152,3 +171,8 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiY
     "plate": 1,
     "start_date": "2025-09-02"
 }
+### OPERATIONS ###
+
+GET http://127.0.0.1:8000/operations/fuel-load-operations?status=completed HTTP/1.1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzYwMDIxMDAzLCJpYXQiOjE3NjAwMTM4MDMsImp0aSI6IjQyZDc3NDIyMjgwZTQ5ZDRiNGU1NDkyY2M4MTAwMDdiIiwidXNlcl9pZCI6MX0.0Yzw-JoDbfTUCMAjmnE6ToKzCXA5Vsr0vyjuLTmsrkQ
+

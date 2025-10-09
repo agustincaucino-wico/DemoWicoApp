@@ -41,7 +41,8 @@ class UserSerializer(serializers.ModelSerializer):
         user.groups.add(group)
         return user
 
-    def get_province_name(self, obj):
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_province_name(self, obj) -> str | None:
         province = getattr(obj, "id_province", None)
         return province.name if province else None
 
