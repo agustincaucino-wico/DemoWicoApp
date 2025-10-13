@@ -124,3 +124,18 @@ class RemoveDependentSerializer(serializers.Serializer):
     dependent_account_id = serializers.IntegerField(
         help_text="ID of the dependent account to be removed"
     )
+
+
+class UserPlateSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    plate_number = serializers.CharField()
+    brand = serializers.CharField(allow_null=True)
+    model = serializers.CharField(allow_null=True)
+    ownership_type = serializers.CharField(
+        help_text="Type of ownership: 'owned' for plates owned by user's holder account, 'authorized' for plates with authorization"
+    )
+    is_active = serializers.BooleanField(
+        help_text="True if the plate is currently active (end_date is null)"
+    )
+    start_date = serializers.DateField()
+    end_date = serializers.DateField(allow_null=True)

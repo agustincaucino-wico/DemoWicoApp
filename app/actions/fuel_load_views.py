@@ -344,7 +344,7 @@ def complete_fuel_load(request):
 )
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
-def check_operation_status(request):
+def check_last_operation_status(request):
     """
     Client checks the status of their most recent fuel load operation.
     Returns state and final_amount.

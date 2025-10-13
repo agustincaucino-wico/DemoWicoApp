@@ -1,7 +1,11 @@
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework.decorators import action
+from rest_framework.decorators import (
+    action,
+    api_view,
+    permission_classes as permission_classes_decorator,
+)
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db import transaction
@@ -15,6 +19,7 @@ from accounts.models import (
     Dependents,
     Plates,
     CompanyAssignment,
+    AuthorizedPlate,
 )
 from accounts.serializers import (
     AccountSerializer,
@@ -31,6 +36,7 @@ from .serializers import (
     CancelInvitationSerializer,
     InvitationsListResponseSerializer,
     RemoveDependentSerializer,
+    UserPlateSerializer,
 )
 
 
@@ -493,3 +499,67 @@ class RemoveDependentView(APIView):
                 {"error": f"An error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+@extend_schema(
+    responses={200: UserPlateSerializer(many=True)},
+    description="Get all plates accessible by the user, including owned plates and authorized plates (both active and inactive).",
+    summary="Get User Plates",
+)
+@api_view(["GET"])
+@permission_classes_decorator([IsAuthenticated])
+def get_user_plates(request):
+    """
+    Returns all plates accessible by the authenticated user.
+    Includes:
+    - Plates owned by the user's holder account
+    - Plates for which the user has authorization through dependent accounts
+    Both active and inactive plates are returned.
+    """
+    user = request.user
+    plates_data = []
+
+    # Get all accounts for the user (holder and dependent)
+    user_accounts = Account.objects.filter(user=user)
+
+    for account in user_accounts:
+        if account.account_type == "holder":
+            # Get all plates owned by this holder account (active and inactive)
+            owned_plates = Plates.objects.filter(holder_account=account)
+
+            for plate in owned_plates:
+                plates_data.append(
+                    {
+                        "id": plate.id,
+                        "plate_number": plate.plate_number,
+                        "brand": plate.brand,
+                        "model": plate.model,
+                        "ownership_type": "owned",
+                        "is_active": plate.end_date is None,
+                        "start_date": plate.start_date,
+                        "end_date": plate.end_date,
+                    }
+                )
+
+        elif account.account_type == "dependent":
+            # Get all authorized plates for this dependent account (active and inactive)
+            authorized_plates = AuthorizedPlate.objects.filter(
+                dependent_account=account
+            ).select_related("plate")
+
+            for auth in authorized_plates:
+                plates_data.append(
+                    {
+                        "id": auth.plate.id,
+                        "plate_number": auth.plate.plate_number,
+                        "brand": auth.plate.brand,
+                        "model": auth.plate.model,
+                        "ownership_type": "authorized",
+                        "is_active": auth.end_date is None,
+                        "start_date": auth.start_date,
+                        "end_date": auth.end_date,
+                    }
+                )
+
+    serializer = UserPlateSerializer(plates_data, many=True)
+    return Response(serializer.data)

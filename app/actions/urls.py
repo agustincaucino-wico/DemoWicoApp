@@ -1,6 +1,6 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
-from .views import InvitationViewSet, UserInfoView, RemoveDependentView
+from .views import InvitationViewSet, UserInfoView, RemoveDependentView, get_user_plates
 from . import fuel_load_views
 
 
@@ -11,6 +11,12 @@ urlpatterns = [
     path("", include(router.urls)),
     path("info/", UserInfoView.as_view(), name="user-info"),
     path("remove-dependent/", RemoveDependentView.as_view(), name="remove-dependent"),
+    # User Actions
+    path(
+        "user/plates/",
+        get_user_plates,
+        name="get-user-plates",
+    ),
     # Fuel Load - Cliente
     path(
         "fuel-load/initiate-fuel-load/",
@@ -23,9 +29,9 @@ urlpatterns = [
         name="cancel-fuel-load",
     ),
     path(
-        "fuel-load/check-operation-status/",
-        fuel_load_views.check_operation_status,
-        name="check-operation-status",
+        "fuel-load/check-last-operation-status/",
+        fuel_load_views.check_last_operation_status,
+        name="check-last-operation-status",
     ),
     # Fuel Load - attendant (playero)
     path(
