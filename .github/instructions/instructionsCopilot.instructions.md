@@ -19,6 +19,7 @@ Remember to add the app name into the INSTALLED_APPS setting in settings.py.
 Remember to take into account the authentication and permissions for each view.
 Always use JWT for authentications, and take in consideration the business logic for the views permissions.
 When doing models, add violation_error_message to the constrains of the models.
+When adding a model to the admin, use my_admin_site from myapp.admin.
 
 **Backend and Frontend**
 Do not create innesesary explanatory files for each action taken.
