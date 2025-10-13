@@ -13,12 +13,16 @@ from actions.fuel_load_serializers import (
     CompleteFuelLoadSerializer,
     PendingFuelLoadSerializer,
     CancelFuelLoadResponseSerializer,
+    CheckOperationStatusSerializer,
 )
 from stations.models import StationAttendantAssignment, Station
 from accounts.models import Plates
 
+#####################
+### Client endpoints
+#####################
 
-# Cliente endpoints
+
 @extend_schema(
     request=InitiateFuelLoadSerializer,
     responses={201: FuelLoadOperationSerializer, 400: None},
@@ -180,7 +184,11 @@ def cancel_fuel_load(request, operation_id):
         )
 
 
-# Attendant endpoints
+###########################
+### Attendant endpoints ###
+###########################
+
+
 @extend_schema(
     responses={200: PendingFuelLoadSerializer(many=True)},
     tags=["actions - fuel load - attendant"],
@@ -326,3 +334,38 @@ def complete_fuel_load(request):
             )
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@extend_schema(
+    responses={200: CheckOperationStatusSerializer, 404: None},
+    tags=["actions - fuel load - client"],
+    description="Check the status and final amount of a fuel load operation.",
+    summary="Check Operation Status",
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def check_operation_status(request):
+    """
+    Client checks the status of their most recent fuel load operation.
+    Returns state and final_amount.
+    """
+    try:
+        # Get the most recent operation for the user across all their accounts
+        operation = (
+            FuelLoadOperation.objects.filter(account__user=request.user)
+            .order_by("-timestamp_started")
+            .first()
+        )
+
+        if not operation:
+            return Response(
+                {"error": "No fuel load operation found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = CheckOperationStatusSerializer(
+            {"state": operation.status, "final_amount": operation.final_amount}
+        )
+        return Response(serializer.data)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -33,3 +33,10 @@ class PendingFuelLoadSerializer(serializers.Serializer):
         if user.first_name and user.last_name:
             return f"{user.first_name} {user.last_name}"
         return user.email
+
+
+class CheckOperationStatusSerializer(serializers.Serializer):
+    state = serializers.CharField()
+    final_amount = serializers.DecimalField(
+        max_digits=12, decimal_places=2, allow_null=True
+    )

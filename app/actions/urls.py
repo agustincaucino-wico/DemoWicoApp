@@ -22,6 +22,11 @@ urlpatterns = [
         fuel_load_views.cancel_fuel_load,
         name="cancel-fuel-load",
     ),
+    path(
+        "fuel-load/check-operation-status/",
+        fuel_load_views.check_operation_status,
+        name="check-operation-status",
+    ),
     # Fuel Load - attendant (playero)
     path(
         "fuel-load/attendant/pending-loads/",
