@@ -12,6 +12,7 @@ Always try to use the predefined text sizes from Commons instead of new values.
 Always use existing components and patterns in the codebase to maintain consistency.
 Always use the back/dev/schema.yml when using endpoints
 Always use router for navigation
+Always try to use the predefined functions from the utils folder.
 
 **Backend**
 When making views, only implement GET, POST, and DELETE methods unless specified otherwise.
