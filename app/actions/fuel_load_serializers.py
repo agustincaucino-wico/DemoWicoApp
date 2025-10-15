@@ -7,6 +7,7 @@ class InitiateFuelLoadSerializer(serializers.Serializer):
     amount = serializers.DecimalField(max_digits=12, decimal_places=2)
     station = serializers.IntegerField()
     plate = serializers.IntegerField()
+    fill_full_tank = serializers.BooleanField(default=False)
 
 
 class StartFuelLoadSerializer(serializers.Serializer):

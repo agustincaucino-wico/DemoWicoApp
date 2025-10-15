@@ -21,11 +21,12 @@ class FuelLoadOperationAdmin(admin.ModelAdmin):
         "attendant",
         "initial_amount",
         "final_amount",
+        "fill_full_tank",
         "status",
         "payment_method",
         "timestamp_started",
     )
-    list_filter = ("status", "payment_method", "timestamp_started")
+    list_filter = ("status", "fill_full_tank", "payment_method", "timestamp_started")
     search_fields = (
         "account__user__email",
         "plate__plate_number",

@@ -14,7 +14,9 @@ from myapp.admin import my_admin_site
 class AccountAdmin(admin.ModelAdmin):
     list_display = ("id", "user", "balance", "account_type", "created_at", "updated_at")
     search_fields = ("user__email", "user__first_name", "user__last_name")
-    list_filter = ("account_type",)
+    list_filter = ("account_type", "created_at")
+    readonly_fields = ("created_at", "updated_at")
+    autocomplete_fields = ("user",)
 
 
 class DependentsAdmin(admin.ModelAdmin):
@@ -26,6 +28,8 @@ class DependentsAdmin(admin.ModelAdmin):
         "end_date",
     )
     search_fields = ("holder_account__user__email", "dependent_account__user__email")
+    list_filter = ("start_date", "end_date")
+    autocomplete_fields = ("holder_account", "dependent_account")
 
 
 class PlatesAdmin(admin.ModelAdmin):
@@ -38,7 +42,9 @@ class PlatesAdmin(admin.ModelAdmin):
         "start_date",
         "end_date",
     )
-    search_fields = ("plate_number", "holder_account__user__email")
+    search_fields = ("plate_number", "holder_account__user__email", "brand", "model")
+    list_filter = ("start_date", "end_date")
+    autocomplete_fields = ("holder_account",)
 
 
 class AuthorizedPlateAdmin(admin.ModelAdmin):
@@ -54,6 +60,8 @@ class AuthorizedPlateAdmin(admin.ModelAdmin):
         "dependent_account__user__email",
         "plate__plate_number",
     )
+    list_filter = ("start_date", "end_date")
+    autocomplete_fields = ("dependent_account", "plate")
 
     def holder_account(self, obj):
         return obj.plate.holder_account if obj.plate else None
@@ -65,26 +73,29 @@ class CompanyAdmin(admin.ModelAdmin):
     list_display = ("id", "name", "province")
     search_fields = ("name", "province__name")
     list_filter = ("province",)
+    autocomplete_fields = ("province",)
 
 
 class CompanyAssignmentAdmin(admin.ModelAdmin):
     list_display = ("id", "user", "company", "start_date", "end_date")
     search_fields = ("user__email", "company__name")
-    list_filter = ("company",)
+    list_filter = ("company", "start_date", "end_date")
+    autocomplete_fields = ("user", "company")
 
 
 class DependentInvitationAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "holder_account_email",
-        "dependent_account_email",
+        "dependent_email",
         "status",
         "invitation_date",
         "response_date",
     )
-    search_fields = ("holder_account__user__email", "dependent_account__user__email")
-    list_filter = ("status", "invitation_date")
+    search_fields = ("holder_account__user__email", "dependent_email")
+    list_filter = ("status", "invitation_date", "response_date")
     readonly_fields = ("invitation_date", "response_date")
+    autocomplete_fields = ("holder_account",)
 
     def holder_account_email(self, obj):
         return (
@@ -93,15 +104,7 @@ class DependentInvitationAdmin(admin.ModelAdmin):
             else None
         )
 
-    def dependent_account_email(self, obj):
-        return (
-            obj.dependent_account.user.email
-            if obj.dependent_account and obj.dependent_account.user
-            else None
-        )
-
     holder_account_email.short_description = "Email Cuenta Titular"
-    dependent_account_email.short_description = "Email Cuenta Dependiente"
 
 
 my_admin_site.register(Account, AccountAdmin)

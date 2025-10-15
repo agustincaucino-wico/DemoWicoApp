@@ -43,6 +43,7 @@ def initiate_fuel_load(request):
         amount = serializer.validated_data["amount"]
         station_id = serializer.validated_data["station"]
         plate_id = serializer.validated_data["plate"]
+        fill_full_tank = serializer.validated_data.get("fill_full_tank", False)
 
         # Validate account exists and belongs to user
         from accounts.models import Account
@@ -51,7 +52,7 @@ def initiate_fuel_load(request):
             account = Account.objects.get(id=account_id, user=request.user)
         except Account.DoesNotExist:
             return Response(
-                {"error": "Account not found or does not belong to you"},
+                {"error": "Cuenta no encontrada o no te pertenece"},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -67,7 +68,7 @@ def initiate_fuel_load(request):
         if existing_operation:
             return Response(
                 {
-                    "error": "You already have a fuel load operation in progress",
+                    "error": "Ya tenés una operación de carga de combustible en progreso",
                     "operation_id": existing_operation.id,
                     "status": existing_operation.status,
                 },
@@ -79,7 +80,7 @@ def initiate_fuel_load(request):
             station = Station.objects.get(id=station_id)
         except Station.DoesNotExist:
             return Response(
-                {"error": "Station not found"}, status=status.HTTP_404_NOT_FOUND
+                {"error": "Estación no encontrada"}, status=status.HTTP_404_NOT_FOUND
             )
 
         # Validate plate exists and is accessible by the user through the specified account
@@ -87,12 +88,12 @@ def initiate_fuel_load(request):
             plate = Plates.objects.get(id=plate_id)
         except Plates.DoesNotExist:
             return Response(
-                {"error": "Plate not found"}, status=status.HTTP_404_NOT_FOUND
+                {"error": "Patente no encontrada"}, status=status.HTTP_404_NOT_FOUND
             )
 
         # Check if user has access to this plate through the specified account
         has_access = False
-
+        print(account.account_type)
         if account.account_type == "holder":
             # If it's a holder account, check if the plate belongs to this account
             if plate.holder_account == account:
@@ -111,14 +112,24 @@ def initiate_fuel_load(request):
 
         if not has_access:
             return Response(
-                {
-                    "error": "The specified account does not have permission to use this plate"
-                },
+                {"error": "La cuenta no tiene permisos para usar esta patente"},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
         if account.balance < amount:
             operation_status = "no_balance"
+            operation = FuelLoadOperation.objects.create(
+                account=account,
+                station=station,
+                plate=plate,
+                initial_amount=amount,
+                status=operation_status,
+                fill_full_tank=fill_full_tank,
+            )
+            return Response(
+                {"error": "No tenés saldo suficiente para realizar esta carga."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         else:
             operation_status = "pending"
 
@@ -145,6 +156,7 @@ def initiate_fuel_load(request):
             plate=plate,
             initial_amount=amount,
             status=operation_status,
+            fill_full_tank=fill_full_tank,
         )
 
         response_serializer = FuelLoadOperationSerializer(operation)
@@ -173,14 +185,16 @@ def cancel_fuel_load(request, operation_id):
         if operation.status == FuelLoadOperation.STATUS_PENDING:
             operation.status = FuelLoadOperation.STATUS_CANCELED
             operation.save()
-            return Response({"message": "Operation cancelled successfully"})
+            return Response({"message": "Operación cancelada exitosamente"})
         return Response(
-            {"error": f"Cannot cancel operation with status: {operation.status}"},
+            {
+                "error": f"No se puede cancelar la operación con estado: {operation.status}"
+            },
             status=status.HTTP_400_BAD_REQUEST,
         )
     except FuelLoadOperation.DoesNotExist:
         return Response(
-            {"error": "Operation not found"}, status=status.HTTP_404_NOT_FOUND
+            {"error": "Operación no encontrada"}, status=status.HTTP_404_NOT_FOUND
         )
 
 
@@ -210,7 +224,7 @@ def pending_fuel_loads(request):
 
         if not assignment:
             return Response(
-                {"error": "No active station assigned to this attendant"},
+                {"error": "No hay estación activa asignada a este playero"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -259,7 +273,7 @@ def start_fuel_load(request):
 
             if not assignment:
                 return Response(
-                    {"error": "No active station assigned to this attendant"},
+                    {"error": "No hay estación activa asignada a este playero"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -284,7 +298,7 @@ def start_fuel_load(request):
         except FuelLoadOperation.DoesNotExist:
             return Response(
                 {
-                    "error": "Operation not found, not pending, or not for your assigned station"
+                    "error": "Operación no encontrada, no está pendiente, o no pertenece a tu estación asignada"
                 },
                 status=status.HTTP_404_NOT_FOUND,
             )
@@ -328,7 +342,7 @@ def complete_fuel_load(request):
         except FuelLoadOperation.DoesNotExist:
             return Response(
                 {
-                    "error": "Operation not found, not in progress, or not assigned to you"
+                    "error": "Operación no encontrada, no está en progreso, o no está asignada a vos"
                 },
                 status=status.HTTP_404_NOT_FOUND,
             )
@@ -359,7 +373,7 @@ def check_last_operation_status(request):
 
         if not operation:
             return Response(
-                {"error": "No fuel load operation found"},
+                {"error": "No se encontró ninguna operación de carga de combustible"},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
