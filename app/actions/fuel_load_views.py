@@ -353,7 +353,7 @@ def complete_fuel_load(request):
 @extend_schema(
     responses={200: CheckOperationStatusSerializer, 404: None},
     tags=["actions - fuel load - client"],
-    description="Check the status and final amount of a fuel load operation.",
+    description="Check the status, operation ID, and final amount of a fuel load operation.",
     summary="Check Operation Status",
 )
 @api_view(["GET"])
@@ -361,10 +361,10 @@ def complete_fuel_load(request):
 def check_last_operation_status(request):
     """
     Client checks the status of their most recent fuel load operation.
-    Returns state and final_amount.
+    Returns status, operation_id, and final_amount.
     """
     try:
-        # Get the most recent operation for the user across all their accounts
+        # Get the most recent operation for the user
         operation = (
             FuelLoadOperation.objects.filter(account__user=request.user)
             .order_by("-timestamp_started")
@@ -378,7 +378,11 @@ def check_last_operation_status(request):
             )
 
         serializer = CheckOperationStatusSerializer(
-            {"state": operation.status, "final_amount": operation.final_amount}
+            {
+                "status": operation.status,
+                "operation_id": operation.id,
+                "final_amount": operation.final_amount,
+            }
         )
         return Response(serializer.data)
     except Exception as e:

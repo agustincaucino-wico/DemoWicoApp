@@ -37,7 +37,8 @@ class PendingFuelLoadSerializer(serializers.Serializer):
 
 
 class CheckOperationStatusSerializer(serializers.Serializer):
-    state = serializers.CharField()
+    status = serializers.CharField()
+    operation_id = serializers.IntegerField()
     final_amount = serializers.DecimalField(
         max_digits=12, decimal_places=2, allow_null=True
     )
