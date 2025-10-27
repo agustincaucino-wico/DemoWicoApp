@@ -29,19 +29,24 @@ def create_notification_preferences(sender, instance, created, **kwargs):
         )
 
 
-# Example signal handlers - Uncomment and modify as needed
+# @receiver(post_save, sender="actions.FuelLoad")
+def notify_fuel_load_completed(sender, instance, created, **kwargs):
+    """Create notification when a fuel load is completed"""
+    # Only create notification when timestamp_finished is set (operation completed)
+    if not created and instance.timestamp_finished is not None:
+        # Check if we already notified about this fuel load to avoid duplicates
+        existing_notification = Notification.objects.filter(
+            user=instance.user,
+            notification_type="fuel",
+        ).exists()
 
-# @receiver(post_save, sender='actions.FuelLoad')
-# def notify_fuel_load_completed(sender, instance, created, **kwargs):
-#     """Create notification when a fuel load is completed"""
-#     if created:
-#         Notification.create_notification(
-#             user=instance.user,
-#             title="Carga de combustible exitosa",
-#             message=f"Se cargaron {instance.liters} litros en {instance.station.name}",
-#             notification_type='fuel',
-#             action_url=f'/(app)/wicored/fuelLoadDetails?id={instance.id}'
-#         )
+        if not existing_notification:
+            Notification.create_notification(
+                user=instance.user,
+                title="Carga de combustible exitosa",
+                message=f"Se cargo ${instance.final_amount} en {instance.station.name}",
+                notification_type="fuel",
+            )
 
 
 # @receiver(post_save, sender='accounts.Account')

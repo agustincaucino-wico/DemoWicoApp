@@ -27,6 +27,9 @@ class PendingFuelLoadSerializer(serializers.Serializer):
     id_operation = serializers.IntegerField(source="id")
     client_full_name = serializers.SerializerMethodField()
     plate = serializers.CharField(source="plate.plate_number")
+    status = serializers.CharField()
+    initial_amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    fill_full_tank = serializers.BooleanField()
 
     @extend_schema_field(serializers.CharField)
     def get_client_full_name(self, obj) -> str:
