@@ -46,12 +46,3 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
-
-
-class Setting(models.Model):
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, primary_key=True)
-    push_notif = models.BooleanField(default=True)
-    email_notif = models.BooleanField(default=True)
-
-    def __str__(self):
-        return f"Settings for {self.user.email}"

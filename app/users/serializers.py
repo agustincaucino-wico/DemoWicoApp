@@ -1,6 +1,5 @@
 from django.contrib.auth.models import Group
 from django.contrib.auth import get_user_model
-from .models import Setting
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from typing import List
@@ -45,11 +44,3 @@ class UserSerializer(serializers.ModelSerializer):
     def get_province_name(self, obj) -> str | None:
         province = getattr(obj, "id_province", None)
         return province.name if province else None
-
-
-class SettingSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(read_only=True)
-
-    class Meta:
-        model = Setting
-        fields = "__all__"
