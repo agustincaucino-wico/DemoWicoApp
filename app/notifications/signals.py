@@ -10,23 +10,23 @@ from notifications.models import Notification, NotificationPreference
 User = get_user_model()
 
 
-@receiver(post_save, sender=User)
-def create_notification_preferences(sender, instance, created, **kwargs):
-    """
-    Create default notification preferences when a new user is created.
-    """
-    if created:
-        NotificationPreference.objects.get_or_create(
-            user=instance,
-            defaults={
-                "push_enabled": True,
-                "email_enabled": True,
-                "fuel_load_notifications": True,
-                "balance_notifications": True,
-                "account_notifications": True,
-                "system_notifications": True,
-            },
-        )
+# @receiver(post_save, sender=User)
+# def create_notification_preferences(sender, instance, created, **kwargs):
+#     """
+#     Create default notification preferences when a new user is created.
+#     """
+#     if created:
+#         NotificationPreference.objects.get_or_create(
+#             user=instance,
+#             defaults={
+#                 "push_enabled": True,
+#                 "email_enabled": True,
+#                 "fuel_load_notifications": True,
+#                 "balance_notifications": True,
+#                 "account_notifications": True,
+#                 "system_notifications": True,
+#             },
+#         )
 
 
 # @receiver(post_save, sender="actions.FuelLoad")
