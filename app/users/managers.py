@@ -10,11 +10,13 @@ class CustomUserManager(BaseUserManager):
         user.set_password(password)
         user.save(using=self._db)
 
-        # Create Setting for user (avoid circular import)
+        # Create NotificationPreference for user (avoid circular import)
         from django.apps import apps
 
-        Setting = apps.get_model("users", "Setting")
-        Setting.objects.get_or_create(user=user)
+        NotificationPreference = apps.get_model(
+            "notifications", "NotificationPreference"
+        )
+        NotificationPreference.objects.get_or_create(user=user)
 
         return user
 

@@ -13,6 +13,7 @@ Always use existing components and patterns in the codebase to maintain consiste
 Always use the back/dev/schema.yml when using endpoints
 Always use router for navigation
 Always try to use the predefined functions from the utils folder.
+Instead of using alert's for comunicating information to the user or asking for confirmations, use the modals already created in the components folder.
 
 **Backend**
 When making views, only implement GET, POST, and DELETE methods unless specified otherwise.
@@ -21,6 +22,7 @@ Remember to take into account the authentication and permissions for each view.
 Always use JWT for authentications, and take in consideration the business logic for the views permissions.
 When doing models, add violation_error_message to the constrains of the models.
 When adding a model to the admin, use my_admin_site from myapp.admin.
+Always writte the error messeges returned by the API in spanish.
 
 **Backend and Frontend**
 Do not create innesesary explanatory files for each action taken.
