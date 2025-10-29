@@ -26,7 +26,12 @@ class FuelLoadOperationViewSet(BaseLCDViewSet):
     def get_queryset(self):
         queryset = (
             FuelLoadOperation.objects.select_related(
-                "account__user", "plate", "attendant", "station", "payment_method"
+                "account__user",
+                "plate",
+                "attendant",
+                "station",
+                "payment_method",
+                "comments",
             )
             .all()
             .order_by("-timestamp_started")

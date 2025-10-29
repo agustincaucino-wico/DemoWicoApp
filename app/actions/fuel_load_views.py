@@ -183,9 +183,11 @@ def cancel_fuel_load(request, operation_id):
             id=operation_id, account__user=request.user
         )
         if operation.status == FuelLoadOperation.STATUS_PENDING:
-            operation.status = FuelLoadOperation.STATUS_CANCELED
+            operation.status = FuelLoadOperation.CANCELED_BY_USER
             operation.save()
-            return Response({"message": "Operación cancelada exitosamente"})
+            return Response(
+                {"message": "Operación cancelada exitosamente por el usuario"}
+            )
         return Response(
             {
                 "error": f"No se puede cancelar la operación con estado: {operation.status}"
@@ -351,6 +353,59 @@ def complete_fuel_load(request):
 
 
 @extend_schema(
+    request=CancelFuelLoadResponseSerializer,
+    responses={
+        200: {"message": "Operación cancelada exitosamente"},
+        404: None,
+        400: None,
+    },
+    tags=["actions - fuel load - attendant"],
+    description="Attendant cancels a fuel load operation with a reason.",
+    summary="Cancel Fuel Load by Attendant",
+)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def cancel_fuel_load_by_attendant(request, operation_id):
+    """
+    Attendant cancels a fuel load operation with a reason.
+    """
+    try:
+        operation = FuelLoadOperation.objects.get(id=operation_id)
+
+        # Ensure the operation is at the attendant's assigned station
+        assignment = StationAttendantAssignment.objects.filter(
+            attendant=request.user, station=operation.station, end_date__isnull=True
+        ).first()
+
+        if not assignment:
+            return Response(
+                {"error": "No tienes permiso para cancelar esta operación."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if operation.status in [
+            FuelLoadOperation.STATUS_IN_PROGRESS,
+        ]:
+            comment = request.data.get("message", "")
+            operation.status = FuelLoadOperation.CANCELED_BY_ATENDEE
+            operation.comments = comment
+            operation.timestamp_finished = timezone.now()
+            operation.save()
+            return Response({"message": "Operación cancelada exitosamente"})
+
+        return Response(
+            {
+                "error": f"No se puede cancelar la operación con estado: {operation.status}"
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    except FuelLoadOperation.DoesNotExist:
+        return Response(
+            {"error": "Operación no encontrada"}, status=status.HTTP_404_NOT_FOUND
+        )
+
+
+@extend_schema(
     responses={200: CheckOperationStatusSerializer, 404: None},
     tags=["actions - fuel load - client"],
     description="Check the status, operation ID, and final amount of a fuel load operation.",
@@ -374,7 +429,7 @@ def check_last_operation_status(request):
         if not operation:
             return Response(
                 {"error": "No se encontró ninguna operación de carga de combustible"},
-                status=status.HTTP_404_NOT_FOUND,
+                status=status.HTTP_204_NO_CONTENT,
             )
 
         serializer = CheckOperationStatusSerializer(

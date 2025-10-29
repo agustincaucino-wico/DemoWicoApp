@@ -27,6 +27,9 @@ class FuelLoadOperation(models.Model):
     STATUS_NO_BALANCE = "no_balance"
     STATUS_CANCELED = "canceled"
     STATUS_TIMED_OUT = "timed_out"
+    WAITING_CANCELED = "waiting_canceled"
+    CANCELED_BY_ATENDEE = "canceled_by_attendee"
+    CANCELED_BY_USER = "canceled_by_user"
 
     STATUS_CHOICES = [
         (STATUS_PENDING, "Pendiente"),
@@ -35,6 +38,9 @@ class FuelLoadOperation(models.Model):
         (STATUS_NO_BALANCE, "Sin saldo"),
         (STATUS_CANCELED, "Cancelada"),
         (STATUS_TIMED_OUT, "Expirada"),
+        (WAITING_CANCELED, "Espera cancelada"),
+        (CANCELED_BY_ATENDEE, "Cancelada por el playero"),
+        (CANCELED_BY_USER, "Cancelada por el usuario"),
     ]
 
     account = models.ForeignKey(
@@ -65,6 +71,7 @@ class FuelLoadOperation(models.Model):
     timestamp_started = models.DateTimeField(auto_now_add=True)
     timestamp_atended = models.DateTimeField(null=True, blank=True)
     timestamp_finished = models.DateTimeField(null=True, blank=True)
+    comments = models.TextField(null=True, blank=True)
     payment_method = models.ForeignKey(
         PaymentMethod, on_delete=models.PROTECT, null=True, blank=True
     )

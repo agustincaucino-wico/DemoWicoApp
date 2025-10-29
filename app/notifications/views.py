@@ -3,6 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
 
 from notifications.models import Notification, NotificationPreference
 from notifications.serializers import (
@@ -13,6 +15,17 @@ from notifications.serializers import (
 )
 
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name="id",
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.PATH,
+            required=True,
+            description="ID of the notification",
+        )
+    ]
+)
 class NotificationViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing user notifications.
@@ -160,6 +173,17 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response({"unread_count": count})
 
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name="id",
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.PATH,
+            required=True,
+            description="ID of the notification preference",
+        )
+    ]
+)
 class NotificationPreferenceViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing user notification preferences.

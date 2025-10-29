@@ -49,5 +49,10 @@ urlpatterns = [
         fuel_load_views.complete_fuel_load,
         name="complete-fuel-load",
     ),
+    path(
+        "fuel-load/attendant/cancel-load/<int:operation_id>/",
+        fuel_load_views.cancel_fuel_load_by_attendant,
+        name="cancel-fuel-load-by-attendant",
+    ),
     # TODO endpoint para el cliente para consultar el estado de la carga
 ]
