@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.auth.models import BaseUserManager
 
 
@@ -17,6 +19,13 @@ class CustomUserManager(BaseUserManager):
             "notifications", "NotificationPreference"
         )
         NotificationPreference.objects.get_or_create(user=user)
+
+        Account = apps.get_model("accounts", "Account")
+        Account.objects.get_or_create(
+            user=user,
+            account_type="holder",
+            defaults={"balance": Decimal("0")},
+        )
 
         return user
 
