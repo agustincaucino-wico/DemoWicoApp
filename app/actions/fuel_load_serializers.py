@@ -19,6 +19,10 @@ class CompleteFuelLoadSerializer(serializers.Serializer):
     final_amount = serializers.DecimalField(max_digits=12, decimal_places=2)
 
 
+class CancelFuelLoadRequestSerializer(serializers.Serializer):
+    message = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+
 class CancelFuelLoadResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
 

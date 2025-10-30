@@ -12,6 +12,7 @@ from actions.fuel_load_serializers import (
     StartFuelLoadSerializer,
     CompleteFuelLoadSerializer,
     PendingFuelLoadSerializer,
+    CancelFuelLoadRequestSerializer,
     CancelFuelLoadResponseSerializer,
     CheckOperationStatusSerializer,
 )
@@ -166,7 +167,7 @@ def initiate_fuel_load(request):
 
 
 @extend_schema(
-    request=None,  # No request body needed
+    request=CancelFuelLoadRequestSerializer,
     responses={200: CancelFuelLoadResponseSerializer, 404: None, 400: None},
     tags=["actions - fuel load - client"],
     description="Client cancels a pending fuel load operation.",
@@ -178,12 +179,20 @@ def cancel_fuel_load(request, operation_id):
     """
     Client cancels a pending fuel load operation.
     """
+    serializer = CancelFuelLoadRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    comment = serializer.validated_data.get("message") or ""
+
     try:
         operation = FuelLoadOperation.objects.get(
             id=operation_id, account__user=request.user
         )
         if operation.status == FuelLoadOperation.STATUS_PENDING:
             operation.status = FuelLoadOperation.CANCELED_BY_USER
+            operation.comments = comment
+            operation.timestamp_finished = timezone.now()
             operation.save()
             return Response(
                 {"message": "Operación cancelada exitosamente por el usuario"}
