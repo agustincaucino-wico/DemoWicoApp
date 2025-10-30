@@ -18,11 +18,11 @@ ALLOWED_HOSTS = [
     "174.84.21.3",
 ]
 
-# # -- Quitar CORS en producción
-# MIDDLEWARE = [
-#     "corsheaders.middleware.CorsMiddleware",
-#     *MIDDLEWARE,
-# ]
+# -- Quitar CORS en producción
+MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
+    *MIDDLEWARE,
+]
 
 # CORS_ALLOW_ALL_ORIGINS = True
 # ---
