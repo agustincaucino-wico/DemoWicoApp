@@ -45,14 +45,14 @@ SECURE_PROXY_SSL_HEADER = (
 USE_X_FORWARDED_HOST = True  # allow Host from proxy
 SECURE_SSL_REDIRECT = True  # Redirigir todo el tráfico HTTP a HTTPS
 CORS_ALLOWED_ORIGINS = [
-    "https://back-appmobile-tst.wico.com.ar",
-    "http://localhost:8081",
+    "http://localhost:8081",  # quitar en prod
 ]
 
 # CSRF Settings for HTTPS
 CSRF_TRUSTED_ORIGINS = [
     "https://back-appmobile-tst.wico.com.ar",
     "http://localhost:5000",
+    "http://localhost:8081",  # quitar en prod
 ]
 
 SESSION_COOKIE_SECURE = True
