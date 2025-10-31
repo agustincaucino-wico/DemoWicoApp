@@ -2,7 +2,7 @@ name: Deploy Backend
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, PROD ]
 
 jobs:
 
@@ -17,6 +17,25 @@ jobs:
         uses: appleboy/ssh-action@v0.1.5
         with:
           host: ${{ secrets.SERVER_IP }}
+          username: ubuntu
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /home/ubuntu/myapp/backend
+            git pull origin main
+            docker-compose build backend
+            docker-compose up -d backend
+
+  deploy-prod:
+    if: github.ref == 'refs/heads/PROD'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Deploy to Test Server
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.SERVER_IP_PROD }}
           username: ubuntu
           key: ${{ secrets.SSH_KEY }}
           script: |
