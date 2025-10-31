@@ -40,6 +40,6 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             cd /home/ubuntu/myapp/backend
-            git reset --hard origin/PROD
+            git pull origin PROD
             docker-compose build backend
             docker-compose up -d backend
