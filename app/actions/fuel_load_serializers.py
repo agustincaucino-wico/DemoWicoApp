@@ -6,7 +6,7 @@ class InitiateFuelLoadSerializer(serializers.Serializer):
     account = serializers.IntegerField()
     amount = serializers.DecimalField(max_digits=12, decimal_places=2)
     station = serializers.IntegerField()
-    plate = serializers.IntegerField()
+    plate = serializers.IntegerField(required=False, allow_null=True)
     fill_full_tank = serializers.BooleanField(default=False)
 
 
@@ -30,7 +30,7 @@ class CancelFuelLoadResponseSerializer(serializers.Serializer):
 class PendingFuelLoadSerializer(serializers.Serializer):
     id_operation = serializers.IntegerField(source="id")
     client_full_name = serializers.SerializerMethodField()
-    plate = serializers.CharField(source="plate.plate_number")
+    plate = serializers.SerializerMethodField()
     status = serializers.CharField()
     initial_amount = serializers.DecimalField(max_digits=12, decimal_places=2)
     fill_full_tank = serializers.BooleanField()
@@ -41,6 +41,12 @@ class PendingFuelLoadSerializer(serializers.Serializer):
         if user.first_name and user.last_name:
             return f"{user.first_name} {user.last_name}"
         return user.email
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_plate(self, obj) -> str | None:
+        if obj.plate:
+            return obj.plate.plate_number
+        return None
 
 
 class CheckOperationStatusSerializer(serializers.Serializer):

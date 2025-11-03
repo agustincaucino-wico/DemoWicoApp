@@ -43,7 +43,7 @@ def initiate_fuel_load(request):
         account_id = serializer.validated_data["account"]
         amount = serializer.validated_data["amount"]
         station_id = serializer.validated_data["station"]
-        plate_id = serializer.validated_data["plate"]
+        plate_id = serializer.validated_data.get("plate")
         fill_full_tank = serializer.validated_data.get("fill_full_tank", False)
 
         # Validate account exists and belongs to user
@@ -55,6 +55,13 @@ def initiate_fuel_load(request):
             return Response(
                 {"error": "Cuenta no encontrada o no te pertenece"},
                 status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Check if plate is required (dependent accounts must provide a plate)
+        if account.account_type == "dependent" and not plate_id:
+            return Response(
+                {"error": "Las cuentas adherentes deben especificar una patente"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Check if user already has a pending or in-progress fuel load operation
@@ -84,38 +91,39 @@ def initiate_fuel_load(request):
                 {"error": "Estación no encontrada"}, status=status.HTTP_404_NOT_FOUND
             )
 
-        # Validate plate exists and is accessible by the user through the specified account
-        try:
-            plate = Plates.objects.get(id=plate_id)
-        except Plates.DoesNotExist:
-            return Response(
-                {"error": "Patente no encontrada"}, status=status.HTTP_404_NOT_FOUND
-            )
+        # Validate plate if provided
+        plate = None
+        if plate_id:
+            try:
+                plate = Plates.objects.get(id=plate_id)
+            except Plates.DoesNotExist:
+                return Response(
+                    {"error": "Patente no encontrada"}, status=status.HTTP_404_NOT_FOUND
+                )
 
-        # Check if user has access to this plate through the specified account
-        has_access = False
-        print(account.account_type)
-        if account.account_type == "holder":
-            # If it's a holder account, check if the plate belongs to this account
-            if plate.holder_account == account:
-                has_access = True
-        elif account.account_type == "dependent":
-            # If it's a dependent account, check if there's an active authorization
-            from accounts.models import AuthorizedPlate
+            # Check if user has access to this plate through the specified account
+            has_access = False
+            if account.account_type == "holder":
+                # If it's a holder account, check if the plate belongs to this account
+                if plate.holder_account == account:
+                    has_access = True
+            elif account.account_type == "dependent":
+                # If it's a dependent account, check if there's an active authorization
+                from accounts.models import AuthorizedPlate
 
-            has_authorization = AuthorizedPlate.objects.filter(
-                dependent_account=account,
-                plate=plate,
-                end_date__isnull=True,  # Active authorization
-            ).exists()
-            if has_authorization:
-                has_access = True
+                has_authorization = AuthorizedPlate.objects.filter(
+                    dependent_account=account,
+                    plate=plate,
+                    end_date__isnull=True,  # Active authorization
+                ).exists()
+                if has_authorization:
+                    has_access = True
 
-        if not has_access:
-            return Response(
-                {"error": "La cuenta no tiene permisos para usar esta patente"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+            if not has_access:
+                return Response(
+                    {"error": "La cuenta no tiene permisos para usar esta patente"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
 
         if account.balance < amount:
             operation_status = "no_balance"

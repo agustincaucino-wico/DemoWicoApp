@@ -16,6 +16,8 @@ ALLOWED_HOSTS = [
     "172.31.25.8",
     "3.21.84.174",
     "174.84.21.3",
+    "172.20.0.3",
+    "ec2-3-21-84-174.us-east-2.compute.amazonaws.com",
 ]
 
 # -- Quitar CORS en producción
