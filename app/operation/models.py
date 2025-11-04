@@ -38,7 +38,7 @@ class FuelLoadOperation(models.Model):
         (STATUS_NO_BALANCE, "Sin saldo"),
         (STATUS_CANCELED, "Cancelada"),
         (STATUS_TIMED_OUT, "Expirada"),
-        (WAITING_CANCELED, "Espera cancelada"),
+        (WAITING_CANCELED, "Espera cancelada por el usuario"),
         (CANCELED_BY_ATENDEE, "Cancelada por el playero"),
         (CANCELED_BY_USER, "Cancelada por el usuario"),
     ]

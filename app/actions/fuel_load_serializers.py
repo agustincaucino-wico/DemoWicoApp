@@ -55,3 +55,36 @@ class CheckOperationStatusSerializer(serializers.Serializer):
     final_amount = serializers.DecimalField(
         max_digits=12, decimal_places=2, allow_null=True
     )
+    initial_amount = serializers.DecimalField(
+        max_digits=12, decimal_places=2, allow_null=True
+    )
+    balance = serializers.DecimalField(max_digits=12, decimal_places=2, allow_null=True)
+    station_name = serializers.CharField(allow_null=True)
+    plate = serializers.CharField(allow_null=True)
+
+
+class FuelLoadStatusSerializer(serializers.Serializer):
+    """Serializer for fuel load status check by attendant"""
+
+    status = serializers.CharField()
+    operation_id = serializers.IntegerField(source="id")
+    client_full_name = serializers.SerializerMethodField()
+    plate = serializers.SerializerMethodField()
+    initial_amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    final_amount = serializers.DecimalField(
+        max_digits=12, decimal_places=2, allow_null=True
+    )
+    fill_full_tank = serializers.BooleanField()
+
+    @extend_schema_field(serializers.CharField)
+    def get_client_full_name(self, obj) -> str:
+        user = obj.account.user
+        if user.first_name and user.last_name:
+            return f"{user.first_name} {user.last_name}"
+        return user.email
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_plate(self, obj) -> str | None:
+        if obj.plate:
+            return obj.plate.plate_number
+        return None
