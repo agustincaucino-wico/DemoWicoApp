@@ -13,6 +13,7 @@ class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     groups = serializers.SerializerMethodField()
     province_name = serializers.SerializerMethodField()
+    city_name = serializers.SerializerMethodField()
 
     class Meta:
         model = UserModel
@@ -26,6 +27,8 @@ class UserSerializer(serializers.ModelSerializer):
             "phone_number",
             "id_province",
             "province_name",
+            "id_city",
+            "city_name",
             "gender",
             "groups",
         ]
@@ -44,3 +47,8 @@ class UserSerializer(serializers.ModelSerializer):
     def get_province_name(self, obj) -> str | None:
         province = getattr(obj, "id_province", None)
         return province.name if province else None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_city_name(self, obj) -> str | None:
+        city = getattr(obj, "id_city", None)
+        return city.name if city else None
