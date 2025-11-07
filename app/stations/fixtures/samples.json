@@ -18,7 +18,7 @@
         "fields": {
             "name": "Godoy Cruz (Joaquín V. González 1285)",
             "province": 12,
-            "city": 1296,
+            "city": 1297,
             "street": "Joaquín V. González",
             "street_number": "1285",
             "lat": -32.9379398,
@@ -31,7 +31,7 @@
         "fields": {
             "name": "Mendoza (Perito Moreno 1350)",
             "province": 12,
-            "city": 2016,
+            "city": 1297,
             "street": "Perito Moreno",
             "street_number": "1350",
             "lat": -32.9402826,
@@ -46,7 +46,7 @@
             "province": 18,
             "city": 2712,
             "street": "Av. Lafinur",
-            "street_number": null,
+            "street_number": "1335",
             "lat": null,
             "lon": null
         }
