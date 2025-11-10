@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from typing import List
+from locations.models import Province, City
 
 # from django.contrib.auth.models import User
 
@@ -11,6 +12,17 @@ UserModel = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
+    dni = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    gender = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    phone_number = serializers.CharField(
+        required=False, allow_null=True, allow_blank=True
+    )
+    id_province = serializers.PrimaryKeyRelatedField(
+        queryset=Province.objects.all(), required=False, allow_null=True
+    )
+    id_city = serializers.PrimaryKeyRelatedField(
+        queryset=City.objects.all(), required=False, allow_null=True
+    )
     groups = serializers.SerializerMethodField()
     province_name = serializers.SerializerMethodField()
     city_name = serializers.SerializerMethodField()
