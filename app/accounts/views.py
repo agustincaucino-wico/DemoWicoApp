@@ -1,6 +1,9 @@
-from rest_framework import mixins, viewsets
+from rest_framework import mixins, viewsets, status
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import DjangoModelPermissions
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema, OpenApiExample
 
 from .permissions import DjangoModelOrObjectOwner
 
@@ -16,6 +19,7 @@ from .models import (
 )
 from .serializers import (
     AccountSerializer,
+    AccountBalanceUpdateSerializer,
     DependentsSerializer,
     PlatesSerializer,
     AuthorizedPlateSerializer,
@@ -38,6 +42,41 @@ class BaseLCViewSet(
 class AccountViewSet(BaseLCViewSet):
     queryset = Account.objects.all().order_by("id")
     serializer_class = AccountSerializer
+
+    @extend_schema(
+        request=AccountBalanceUpdateSerializer,
+        responses={200: AccountBalanceUpdateSerializer},
+        description="Actualiza el balance de una cuenta específica.",
+        examples=[
+            OpenApiExample(
+                "Ejemplo de actualización de balance",
+                value={"balance": 1000.50},
+                request_only=True,
+            )
+        ],
+    )
+    @action(detail=True, methods=["patch"], url_path="update-balance")
+    def update_balance(self, request, pk=None):
+        """
+        Actualiza únicamente el balance de una cuenta.
+        """
+        account = self.get_object()
+        serializer = AccountBalanceUpdateSerializer(
+            account, data=request.data, partial=True
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                {
+                    "id": account.id,
+                    "balance": account.balance,
+                    "message": "Balance actualizado correctamente",
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class DependentsViewSet(BaseLCViewSet):

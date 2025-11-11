@@ -87,3 +87,17 @@ class AddDependentSerializer(serializers.Serializer):
     dependent_email = serializers.EmailField(
         help_text="Email of the user to be added as a dependent"
     )
+
+
+class AccountBalanceUpdateSerializer(serializers.ModelSerializer):
+    """Serializer específico para actualizar solo el balance de una cuenta"""
+
+    class Meta:
+        model = Account
+        fields = ["balance"]
+
+    def validate_balance(self, value):
+        """Validar que el balance sea un valor positivo o cero"""
+        if value < 0:
+            raise serializers.ValidationError("El balance no puede ser negativo")
+        return value
