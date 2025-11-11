@@ -8,7 +8,7 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = [
     "back-appmobile-tst.wico.com.ar",
