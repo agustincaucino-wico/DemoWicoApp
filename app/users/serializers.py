@@ -26,6 +26,7 @@ class UserSerializer(serializers.ModelSerializer):
     groups = serializers.SerializerMethodField()
     province_name = serializers.SerializerMethodField()
     city_name = serializers.SerializerMethodField()
+    date_joined = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = UserModel
@@ -43,6 +44,7 @@ class UserSerializer(serializers.ModelSerializer):
             "city_name",
             "gender",
             "groups",
+            "date_joined",
         ]
 
     @extend_schema_field(serializers.ListField(child=serializers.CharField()))
