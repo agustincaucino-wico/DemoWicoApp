@@ -62,6 +62,44 @@ paths:
       responses:
         '204':
           description: No response body
+  /accounts/accounts/{id}/update-balance/:
+    patch:
+      operationId: accounts_accounts_update_balance_partial_update
+      description: Actualiza el balance de una cuenta específica.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this account.
+        required: true
+      tags:
+      - accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAccountBalanceUpdate'
+            examples:
+              EjemploDeActualizaciónDeBalance:
+                value:
+                  balance: 1000.5
+                summary: Ejemplo de actualización de balance
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAccountBalanceUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAccountBalanceUpdate'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountBalanceUpdate'
+          description: ''
   /accounts/authorized-plates/:
     get:
       operationId: accounts_authorized_plates_list
@@ -410,6 +448,263 @@ paths:
       responses:
         '204':
           description: No response body
+  /actions/fuel-load/attendant/cancel-load/{operation_id}/:
+    post:
+      operationId: actions_fuel_load_attendant_cancel_load_create
+      description: Attendant cancels a fuel load operation with a reason.
+      summary: Cancel Fuel Load by Attendant
+      parameters:
+      - in: path
+        name: operation_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - actions - fuel load - attendant
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelFuelLoadResponse'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CancelFuelLoadResponse'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CancelFuelLoadResponse'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                message: Operación cancelada exitosamente
+          description: ''
+        '404':
+          description: No response body
+        '400':
+          description: No response body
+  /actions/fuel-load/attendant/confirm-load/:
+    post:
+      operationId: actions_fuel_load_attendant_confirm_load_create
+      description: Attendant completes a fuel load operation. Changes status to completed,
+        sets timestamp_finished, and deducts the amount from the account balance.
+      summary: Complete Fuel Load
+      tags:
+      - actions - fuel load - attendant
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteFuelLoad'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CompleteFuelLoad'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CompleteFuelLoad'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FuelLoadOperation'
+          description: ''
+        '400':
+          description: No response body
+        '404':
+          description: No response body
+  /actions/fuel-load/attendant/pending-loads/:
+    get:
+      operationId: actions_fuel_load_attendant_pending_loads_list
+      description: Get pending and in-progress fuel loads for the attendant's assigned
+        station.
+      summary: Get Pending Loads
+      tags:
+      - actions - fuel load - attendant
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PendingFuelLoad'
+          description: ''
+  /actions/fuel-load/attendant/start-fuel-load/:
+    post:
+      operationId: actions_fuel_load_attendant_start_fuel_load_create
+      description: Attendant starts processing a fuel load. Changes status to in_progress
+        and sets timestamp_atended.
+      summary: Start Fuel Load
+      tags:
+      - actions - fuel load - attendant
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartFuelLoad'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StartFuelLoad'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StartFuelLoad'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FuelLoadOperation'
+          description: ''
+        '400':
+          description: No response body
+        '404':
+          description: No response body
+  /actions/fuel-load/cancel-fuel-load/{operation_id}/:
+    post:
+      operationId: actions_fuel_load_cancel_fuel_load_create
+      description: Client cancels a pending fuel load operation.
+      summary: Cancel Fuel Load
+      parameters:
+      - in: path
+        name: operation_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - actions - fuel load - client
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelFuelLoadRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CancelFuelLoadRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CancelFuelLoadRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelFuelLoadResponse'
+          description: ''
+        '404':
+          description: No response body
+        '400':
+          description: No response body
+  /actions/fuel-load/cancel-waiting/:
+    post:
+      operationId: actions_fuel_load_cancel_waiting_create
+      description: Client cancels waiting for attendant without a message.
+      summary: Cancel Waiting for Attendant
+      tags:
+      - actions - fuel load - client
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelFuelLoadResponse'
+          description: ''
+        '404':
+          description: No response body
+        '400':
+          description: No response body
+  /actions/fuel-load/check-last-operation-status/:
+    get:
+      operationId: actions_fuel_load_check_last_operation_status_retrieve
+      description: Check the status, operation ID, final amount, and other details
+        of a fuel load operation.
+      summary: Check Operation Status
+      tags:
+      - actions - fuel load - client
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckOperationStatus'
+          description: ''
+        '404':
+          description: No response body
+  /actions/fuel-load/get-fuel-load-status/{operation_id}/:
+    get:
+      operationId: actions_fuel_load_get_fuel_load_status_retrieve
+      description: Attendant checks the status of a specific fuel load operation by
+        operation ID.
+      summary: Get Fuel Load Status
+      parameters:
+      - in: path
+        name: operation_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - actions - fuel load - attendant
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FuelLoadStatus'
+          description: ''
+        '404':
+          description: No response body
+        '403':
+          description: No response body
+  /actions/fuel-load/initiate-fuel-load/:
+    post:
+      operationId: actions_fuel_load_initiate_fuel_load_create
+      description: Client initiates a fuel load operation. Creates FuelLoadOperation
+        with pending or no_balance status.
+      summary: Initiate Fuel Load
+      tags:
+      - actions - fuel load - client
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitiateFuelLoad'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InitiateFuelLoad'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InitiateFuelLoad'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FuelLoadOperation'
+          description: ''
+        '400':
+          description: No response body
   /actions/info/:
     get:
       operationId: actions_info_retrieve
@@ -570,6 +865,25 @@ paths:
           description: No response body
         '500':
           description: No response body
+  /actions/user/plates/:
+    get:
+      operationId: actions_user_plates_list
+      description: Get all plates accessible by the user, including owned plates and
+        authorized plates (both active and inactive).
+      summary: Get User Plates
+      tags:
+      - actions
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserPlate'
+          description: ''
   /api/token/:
     post:
       operationId: api_token_create
@@ -895,6 +1209,570 @@ paths:
       responses:
         '204':
           description: No response body
+  /notifications/:
+    get:
+      operationId: notifications_list
+      description: List notifications with pagination and unread count
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: ID of the notification
+        required: true
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotificationList'
+          description: ''
+    post:
+      operationId: notifications_create
+      description: |-
+        ViewSet for managing user notifications.
+
+        list: Get all notifications for the authenticated user
+        retrieve: Get a specific notification
+        update/partial_update: Mark a notification as read/unread
+        destroy: Delete a notification
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: ID of the notification
+        required: true
+      tags:
+      - notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Notification'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+  /notifications/{id}/:
+    get:
+      operationId: notifications_retrieve
+      description: Get a specific notification and mark it as read automatically
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: ID of the notification
+        required: true
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+    put:
+      operationId: notifications_update
+      description: Update notification (mainly for marking as read/unread)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: ID of the notification
+        required: true
+      tags:
+      - notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Notification'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+    patch:
+      operationId: notifications_partial_update
+      description: |-
+        ViewSet for managing user notifications.
+
+        list: Get all notifications for the authenticated user
+        retrieve: Get a specific notification
+        update/partial_update: Mark a notification as read/unread
+        destroy: Delete a notification
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: ID of the notification
+        required: true
+      tags:
+      - notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedNotification'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedNotification'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedNotification'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+    delete:
+      operationId: notifications_destroy
+      description: |-
+        ViewSet for managing user notifications.
+
+        list: Get all notifications for the authenticated user
+        retrieve: Get a specific notification
+        update/partial_update: Mark a notification as read/unread
+        destroy: Delete a notification
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: ID of the notification
+        required: true
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /notifications/delete_all_read/:
+    delete:
+      operationId: notifications_delete_all_read_destroy
+      description: Delete all read notifications for the current user
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: ID of the notification
+        required: true
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /notifications/mark_all_read/:
+    post:
+      operationId: notifications_mark_all_read_create
+      description: Mark all unread notifications as read for the current user
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: ID of the notification
+        required: true
+      tags:
+      - notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Notification'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+  /notifications/mark_as_read/:
+    post:
+      operationId: notifications_mark_as_read_create
+      description: Mark specific notifications as read
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: ID of the notification
+        required: true
+      tags:
+      - notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Notification'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Notification'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+  /notifications/preferences/:
+    get:
+      operationId: notifications_preferences_list
+      description: |-
+        ViewSet for managing user notification preferences.
+
+        list/retrieve: Get notification preferences
+        update/partial_update: Update notification preferences
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: ID of the notification preference
+        required: true
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotificationPreference'
+          description: ''
+  /notifications/preferences/{id}/:
+    get:
+      operationId: notifications_preferences_retrieve
+      description: |-
+        ViewSet for managing user notification preferences.
+
+        list/retrieve: Get notification preferences
+        update/partial_update: Update notification preferences
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: ID of the notification preference
+        required: true
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreference'
+          description: ''
+    put:
+      operationId: notifications_preferences_update
+      description: |-
+        ViewSet for managing user notification preferences.
+
+        list/retrieve: Get notification preferences
+        update/partial_update: Update notification preferences
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: ID of the notification preference
+        required: true
+      tags:
+      - notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationPreference'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NotificationPreference'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NotificationPreference'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreference'
+          description: ''
+    patch:
+      operationId: notifications_preferences_partial_update
+      description: |-
+        ViewSet for managing user notification preferences.
+
+        list/retrieve: Get notification preferences
+        update/partial_update: Update notification preferences
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: ID of the notification preference
+        required: true
+      tags:
+      - notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationPreference'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationPreference'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationPreference'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreference'
+          description: ''
+  /notifications/preferences/me/:
+    get:
+      operationId: notifications_preferences_me_retrieve
+      description: Get current user's notification preferences
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: ID of the notification preference
+        required: true
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreference'
+          description: ''
+  /notifications/preferences/update_preferences/:
+    put:
+      operationId: notifications_preferences_update_preferences_update
+      description: Update current user's notification preferences
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: ID of the notification preference
+        required: true
+      tags:
+      - notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationPreference'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NotificationPreference'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NotificationPreference'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreference'
+          description: ''
+    patch:
+      operationId: notifications_preferences_update_preferences_partial_update
+      description: Update current user's notification preferences
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: ID of the notification preference
+        required: true
+      tags:
+      - notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationPreference'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationPreference'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedNotificationPreference'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreference'
+          description: ''
+  /notifications/unread_count/:
+    get:
+      operationId: notifications_unread_count_retrieve
+      description: Get the count of unread notifications
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: ID of the notification
+        required: true
+      tags:
+      - notifications
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+          description: ''
+  /operations/fuel-load-operations/:
+    get:
+      operationId: operations_fuel_load_operations_list
+      description: API endpoint allowing creation, listing and deletion of fuel load
+        operations.
+      tags:
+      - operations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FuelLoadOperation'
+          description: ''
+    post:
+      operationId: operations_fuel_load_operations_create
+      description: API endpoint allowing creation, listing and deletion of fuel load
+        operations.
+      tags:
+      - operations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FuelLoadOperation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FuelLoadOperation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FuelLoadOperation'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FuelLoadOperation'
+          description: ''
+  /operations/fuel-load-operations/{id}/:
+    delete:
+      operationId: operations_fuel_load_operations_destroy
+      description: API endpoint allowing creation, listing and deletion of fuel load
+        operations.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this fuel load operation.
+        required: true
+      tags:
+      - operations
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
   /stations/attendant-assignments/:
     get:
       operationId: stations_attendant_assignments_list
@@ -995,6 +1873,69 @@ paths:
                 $ref: '#/components/schemas/Station'
           description: ''
   /stations/stations/{id}/:
+    put:
+      operationId: stations_stations_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Station.
+        required: true
+      tags:
+      - stations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Station'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Station'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Station'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Station'
+          description: ''
+    patch:
+      operationId: stations_stations_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Station.
+        required: true
+      tags:
+      - stations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStation'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Station'
+          description: ''
     delete:
       operationId: stations_stations_destroy
       parameters:
@@ -1010,6 +1951,159 @@ paths:
       - jwtAuth: []
       responses:
         '204':
+          description: No response body
+  /support/error-reports/:
+    get:
+      operationId: support_error_reports_list
+      description: Los gestores pueden ver todos los reportes.
+      summary: Listar reportes de errores
+      tags:
+      - soporte - reportes de errores
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ErrorReport'
+          description: ''
+        '403':
+          description: No response body
+    post:
+      operationId: support_error_reports_create
+      description: Cualquier usuario autenticado puede crear un reporte de error.
+        El usuario se asigna automáticamente.
+      summary: Crear un reporte de error
+      tags:
+      - soporte - reportes de errores
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorReport'
+            examples:
+              EjemploDeReporte:
+                value:
+                  category: fuel_load
+                  description: No puedo cargar combustible, la app se cierra al intentar
+                    escanear el QR de la estación.
+                summary: Ejemplo de reporte
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ErrorReport'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ErrorReport'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorReport'
+          description: ''
+        '400':
+          description: No response body
+  /support/error-reports/{id}/:
+    get:
+      operationId: support_error_reports_retrieve
+      description: Solo los gestores pueden ver el detalle de cualquier reporte.
+      summary: Obtener detalle de un reporte
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this error report.
+        required: true
+      tags:
+      - soporte - reportes de errores
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorReport'
+          description: ''
+        '403':
+          description: No response body
+        '404':
+          description: No response body
+    patch:
+      operationId: support_error_reports_partial_update
+      description: Solo los gestores pueden actualizar el estado de un reporte (pending,
+        in_progress, resolved, closed).
+      summary: Actualizar estado del reporte
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this error report.
+        required: true
+      tags:
+      - soporte - reportes de errores
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedErrorReport'
+            examples:
+              ActualizarEstadoA'enProgreso':
+                value:
+                  status: in_progress
+                summary: Actualizar estado a 'en progreso'
+              MarcarComoResuelto:
+                value:
+                  status: resolved
+                summary: Marcar como resuelto
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedErrorReport'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedErrorReport'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorReport'
+          description: ''
+        '403':
+          description: No response body
+        '404':
+          description: No response body
+    delete:
+      operationId: support_error_reports_destroy
+      description: Solo los gestores pueden eliminar reportes de errores.
+      summary: Eliminar un reporte
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this error report.
+        required: true
+      tags:
+      - soporte - reportes de errores
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '403':
+          description: No response body
+        '404':
           description: No response body
   /users/:
     get:
@@ -1161,7 +2255,7 @@ paths:
   /users/me/:
     get:
       operationId: users_me_retrieve
-      description: Return the current authenticated user's data and settings.
+      description: Return the current authenticated user's data.
       tags:
       - users
       security:
@@ -1172,150 +2266,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
-          description: ''
-  /users/settings/:
-    get:
-      operationId: users_settings_list
-      tags:
-      - users
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Setting'
-          description: ''
-  /users/settings/{user}/:
-    put:
-      operationId: users_settings_update
-      parameters:
-      - in: path
-        name: user
-        schema:
-          type: integer
-        description: A unique value identifying this setting.
-        required: true
-      tags:
-      - users
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Setting'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Setting'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Setting'
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Setting'
-          description: ''
-    patch:
-      operationId: users_settings_partial_update
-      parameters:
-      - in: path
-        name: user
-        schema:
-          type: integer
-        description: A unique value identifying this setting.
-        required: true
-      tags:
-      - users
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedSetting'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedSetting'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedSetting'
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Setting'
-          description: ''
-  /users/settings/me/:
-    get:
-      operationId: users_settings_me_retrieve
-      description: Get or update the current authenticated user's settings.
-      tags:
-      - users
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Setting'
-          description: ''
-    put:
-      operationId: users_settings_me_update
-      description: Get or update the current authenticated user's settings.
-      tags:
-      - users
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Setting'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Setting'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Setting'
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Setting'
-          description: ''
-    patch:
-      operationId: users_settings_me_partial_update
-      description: Get or update the current authenticated user's settings.
-      tags:
-      - users
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedSetting'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedSetting'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedSetting'
-      security:
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Setting'
           description: ''
 components:
   schemas:
@@ -1348,6 +2298,16 @@ components:
       - created_at
       - id
       - updated_at
+    AccountBalanceUpdate:
+      type: object
+      description: Serializer específico para actualizar solo el balance de una cuenta
+      properties:
+        balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+      required:
+      - balance
     AccountTypeEnum:
       enum:
       - holder
@@ -1415,6 +2375,19 @@ components:
       - id
       - plate
       - start_date
+    CancelFuelLoadRequest:
+      type: object
+      properties:
+        message:
+          type: string
+          nullable: true
+    CancelFuelLoadResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+      - message
     CancelInvitation:
       type: object
       properties:
@@ -1428,6 +2401,56 @@ components:
       required:
       - dependent_email
       - holder_account_id
+    CategoryEnum:
+      enum:
+      - login
+      - balance
+      - fuel_load
+      - transactions
+      - other
+      type: string
+      description: |-
+        * `login` - Inicio de sesión
+        * `balance` - Saldo y pagos
+        * `fuel_load` - Carga de combustible
+        * `transactions` - Movimientos
+        * `other` - Otro problema
+    CheckOperationStatus:
+      type: object
+      properties:
+        status:
+          type: string
+        operation_id:
+          type: integer
+        final_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          nullable: true
+        initial_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          nullable: true
+        balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          nullable: true
+        station_name:
+          type: string
+          nullable: true
+        plate:
+          type: string
+          nullable: true
+      required:
+      - balance
+      - final_amount
+      - initial_amount
+      - operation_id
+      - plate
+      - station_name
+      - status
     City:
       type: object
       properties:
@@ -1480,6 +2503,18 @@ components:
       - id
       - start_date
       - user
+    CompleteFuelLoad:
+      type: object
+      properties:
+        id_operation:
+          type: integer
+        final_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+      required:
+      - final_amount
+      - id_operation
     Country:
       type: object
       properties:
@@ -1522,7 +2557,7 @@ components:
           format: date-time
           readOnly: true
         status:
-          $ref: '#/components/schemas/StatusEnum'
+          $ref: '#/components/schemas/DependentInvitationStatusEnum'
         response_date:
           type: string
           format: date-time
@@ -1541,6 +2576,18 @@ components:
       - id
       - invitation_date
       - response_date
+    DependentInvitationStatusEnum:
+      enum:
+      - pending
+      - accepted
+      - rejected
+      - cancelled
+      type: string
+      description: |-
+        * `pending` - Pendiente
+        * `accepted` - Aceptada
+        * `rejected` - Rechazada
+        * `cancelled` - Cancelada
     Dependents:
       type: object
       properties:
@@ -1563,16 +2610,226 @@ components:
       - holder_account
       - id
       - start_date
-    GenderEnum:
+    ErrorReport:
+      type: object
+      description: |-
+        Serializer para reportes de errores.
+
+        Campos:
+        - id: ID único del reporte (auto-generado)
+        - user: ID del usuario que creó el reporte (asignado automáticamente)
+        - user_email: Email del usuario (solo lectura)
+        - category: Categoría del error (login, balance, fuel_load, transactions, other)
+        - category_display: Nombre legible de la categoría (solo lectura)
+        - description: Descripción detallada del problema (max 500 caracteres)
+        - status: Estado del reporte (pending, in_progress, resolved, closed)
+        - status_display: Nombre legible del estado (solo lectura)
+        - created_at: Fecha de creación (auto-generado)
+        - updated_at: Fecha de última actualización (auto-generado)
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: Usuario que reporta el error
+        user_email:
+          type: string
+          format: email
+          readOnly: true
+        category:
+          allOf:
+          - $ref: '#/components/schemas/CategoryEnum'
+          description: |-
+            Categoría del error reportado
+
+            * `login` - Inicio de sesión
+            * `balance` - Saldo y pagos
+            * `fuel_load` - Carga de combustible
+            * `transactions` - Movimientos
+            * `other` - Otro problema
+        category_display:
+          type: string
+          readOnly: true
+        description:
+          type: string
+          description: Descripción detallada del problema
+          maxLength: 500
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ErrorReportStatusEnum'
+          description: |-
+            Estado del reporte
+
+            * `pending` - Pendiente
+            * `in_progress` - En progreso
+            * `resolved` - Resuelto
+            * `closed` - Cerrado
+        status_display:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - category
+      - category_display
+      - created_at
+      - description
+      - id
+      - status_display
+      - updated_at
+      - user
+      - user_email
+    ErrorReportStatusEnum:
       enum:
-      - M
-      - F
-      - X
+      - pending
+      - in_progress
+      - resolved
+      - closed
       type: string
       description: |-
-        * `M` - Masculino
-        * `F` - Femenino
-        * `X` - No binario
+        * `pending` - Pendiente
+        * `in_progress` - En progreso
+        * `resolved` - Resuelto
+        * `closed` - Cerrado
+    FuelLoadOperation:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        initial_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        final_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          nullable: true
+        fill_full_tank:
+          type: boolean
+        status:
+          $ref: '#/components/schemas/FuelLoadOperationStatusEnum'
+        timestamp_started:
+          type: string
+          format: date-time
+          readOnly: true
+        timestamp_atended:
+          type: string
+          format: date-time
+          nullable: true
+        timestamp_finished:
+          type: string
+          format: date-time
+          nullable: true
+        comments:
+          type: string
+          nullable: true
+        account:
+          type: integer
+          nullable: true
+        plate:
+          type: integer
+          nullable: true
+        attendant:
+          type: integer
+          nullable: true
+        station:
+          type: integer
+        payment_method:
+          type: integer
+          nullable: true
+      required:
+      - id
+      - initial_amount
+      - station
+      - timestamp_started
+    FuelLoadOperationStatusEnum:
+      enum:
+      - pending
+      - in_progress
+      - completed
+      - no_balance
+      - canceled
+      - timed_out
+      - waiting_canceled
+      - canceled_by_attendee
+      - canceled_by_user
+      type: string
+      description: |-
+        * `pending` - Pendiente
+        * `in_progress` - En progreso
+        * `completed` - Completada
+        * `no_balance` - Sin saldo
+        * `canceled` - Cancelada
+        * `timed_out` - Expirada
+        * `waiting_canceled` - Espera cancelada por el usuario
+        * `canceled_by_attendee` - Cancelada por el playero
+        * `canceled_by_user` - Cancelada por el usuario
+    FuelLoadStatus:
+      type: object
+      description: Serializer for fuel load status check by attendant
+      properties:
+        status:
+          type: string
+        operation_id:
+          type: integer
+        client_full_name:
+          type: string
+          readOnly: true
+        plate:
+          type: string
+          nullable: true
+          readOnly: true
+        initial_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        final_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          nullable: true
+        fill_full_tank:
+          type: boolean
+      required:
+      - client_full_name
+      - fill_full_tank
+      - final_amount
+      - initial_amount
+      - operation_id
+      - plate
+      - status
+    InitiateFuelLoad:
+      type: object
+      properties:
+        account:
+          type: integer
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        station:
+          type: integer
+        plate:
+          type: integer
+          nullable: true
+        fill_full_tank:
+          type: boolean
+          default: false
+      required:
+      - account
+      - amount
+      - station
     InvitationResponse:
       type: object
       properties:
@@ -1602,16 +2859,310 @@ components:
       required:
       - received_invitations
       - sent_invitations
-    PatchedSetting:
+    Notification:
       type: object
+      description: Serializer for Notification model
       properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          title: Título
+          maxLength: 255
+        message:
+          type: string
+          title: Mensaje
+        type:
+          allOf:
+          - $ref: '#/components/schemas/TypeEnum'
+          title: Tipo
+        is_read:
+          type: boolean
+          title: Leída
+        action_url:
+          type: string
+          nullable: true
+          title: URL de acción
+          description: URL opcional para navegar cuando se toca la notificación
+          maxLength: 255
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha de creación
+        read_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          title: Fecha de lectura
+      required:
+      - created_at
+      - id
+      - message
+      - read_at
+      - title
+    NotificationList:
+      type: object
+      description: Serializer for listing notifications with minimal data
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          title: Título
+          maxLength: 255
+        message:
+          type: string
+          title: Mensaje
+        type:
+          allOf:
+          - $ref: '#/components/schemas/TypeEnum'
+          title: Tipo
+        is_read:
+          type: boolean
+          title: Leída
+        action_url:
+          type: string
+          nullable: true
+          title: URL de acción
+          description: URL opcional para navegar cuando se toca la notificación
+          maxLength: 255
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha de creación
+      required:
+      - created_at
+      - id
+      - message
+      - title
+    NotificationPreference:
+      type: object
+      description: Serializer for NotificationPreference model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        push_enabled:
+          type: boolean
+          title: Notificaciones push habilitadas
+        email_enabled:
+          type: boolean
+          title: Notificaciones por email habilitadas
+        fuel_load_notifications:
+          type: boolean
+          title: Notificaciones de carga de combustible
+        account_notifications:
+          type: boolean
+          title: Notificaciones de cuenta
+        balance_notifications:
+          type: boolean
+          title: Notificaciones de saldo
+        system_notifications:
+          type: boolean
+          title: Notificaciones del sistema
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha de creación
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Última actualización
+      required:
+      - created_at
+      - id
+      - updated_at
+    PatchedAccountBalanceUpdate:
+      type: object
+      description: Serializer específico para actualizar solo el balance de una cuenta
+      properties:
+        balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+    PatchedErrorReport:
+      type: object
+      description: |-
+        Serializer para reportes de errores.
+
+        Campos:
+        - id: ID único del reporte (auto-generado)
+        - user: ID del usuario que creó el reporte (asignado automáticamente)
+        - user_email: Email del usuario (solo lectura)
+        - category: Categoría del error (login, balance, fuel_load, transactions, other)
+        - category_display: Nombre legible de la categoría (solo lectura)
+        - description: Descripción detallada del problema (max 500 caracteres)
+        - status: Estado del reporte (pending, in_progress, resolved, closed)
+        - status_display: Nombre legible del estado (solo lectura)
+        - created_at: Fecha de creación (auto-generado)
+        - updated_at: Fecha de última actualización (auto-generado)
+      properties:
+        id:
+          type: integer
+          readOnly: true
         user:
           type: integer
           readOnly: true
-        push_notif:
+          nullable: true
+          description: Usuario que reporta el error
+        user_email:
+          type: string
+          format: email
+          readOnly: true
+        category:
+          allOf:
+          - $ref: '#/components/schemas/CategoryEnum'
+          description: |-
+            Categoría del error reportado
+
+            * `login` - Inicio de sesión
+            * `balance` - Saldo y pagos
+            * `fuel_load` - Carga de combustible
+            * `transactions` - Movimientos
+            * `other` - Otro problema
+        category_display:
+          type: string
+          readOnly: true
+        description:
+          type: string
+          description: Descripción detallada del problema
+          maxLength: 500
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ErrorReportStatusEnum'
+          description: |-
+            Estado del reporte
+
+            * `pending` - Pendiente
+            * `in_progress` - En progreso
+            * `resolved` - Resuelto
+            * `closed` - Cerrado
+        status_display:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedNotification:
+      type: object
+      description: Serializer for Notification model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          title: Título
+          maxLength: 255
+        message:
+          type: string
+          title: Mensaje
+        type:
+          allOf:
+          - $ref: '#/components/schemas/TypeEnum'
+          title: Tipo
+        is_read:
           type: boolean
-        email_notif:
+          title: Leída
+        action_url:
+          type: string
+          nullable: true
+          title: URL de acción
+          description: URL opcional para navegar cuando se toca la notificación
+          maxLength: 255
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha de creación
+        read_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          title: Fecha de lectura
+    PatchedNotificationPreference:
+      type: object
+      description: Serializer for NotificationPreference model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        push_enabled:
           type: boolean
+          title: Notificaciones push habilitadas
+        email_enabled:
+          type: boolean
+          title: Notificaciones por email habilitadas
+        fuel_load_notifications:
+          type: boolean
+          title: Notificaciones de carga de combustible
+        account_notifications:
+          type: boolean
+          title: Notificaciones de cuenta
+        balance_notifications:
+          type: boolean
+          title: Notificaciones de saldo
+        system_notifications:
+          type: boolean
+          title: Notificaciones del sistema
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha de creación
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Última actualización
+    PatchedStation:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        province:
+          type: integer
+        province_name:
+          type: string
+          readOnly: true
+        city:
+          type: integer
+        city_name:
+          type: string
+          readOnly: true
+        street:
+          type: string
+          nullable: true
+          maxLength: 255
+        street_number:
+          type: string
+          nullable: true
+          maxLength: 10
+        lat:
+          type: number
+          format: double
+          nullable: true
+        lon:
+          type: number
+          format: double
+          nullable: true
     PatchedUser:
       type: object
       properties:
@@ -1635,11 +3186,10 @@ components:
           maxLength: 30
         dni:
           type: string
-          maxLength: 20
+          nullable: true
         phone_number:
           type: string
           nullable: true
-          maxLength: 20
         id_province:
           type: integer
           nullable: true
@@ -1647,13 +3197,52 @@ components:
           type: string
           nullable: true
           readOnly: true
+        id_city:
+          type: integer
+          nullable: true
+        city_name:
+          type: string
+          nullable: true
+          readOnly: true
         gender:
-          $ref: '#/components/schemas/GenderEnum'
+          type: string
+          nullable: true
         groups:
           type: array
           items:
             type: string
           readOnly: true
+        date_joined:
+          type: string
+          format: date-time
+          readOnly: true
+    PendingFuelLoad:
+      type: object
+      properties:
+        id_operation:
+          type: integer
+        client_full_name:
+          type: string
+          readOnly: true
+        plate:
+          type: string
+          nullable: true
+          readOnly: true
+        status:
+          type: string
+        initial_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        fill_full_tank:
+          type: boolean
+      required:
+      - client_full_name
+      - fill_full_tank
+      - id_operation
+      - initial_amount
+      - plate
+      - status
     Plates:
       type: object
       properties:
@@ -1712,18 +3301,13 @@ components:
       required:
       - dependent_account_id
       - holder_account_id
-    Setting:
+    StartFuelLoad:
       type: object
       properties:
-        user:
+        id_operation:
           type: integer
-          readOnly: true
-        push_notif:
-          type: boolean
-        email_notif:
-          type: boolean
       required:
-      - user
+      - id_operation
     Station:
       type: object
       properties:
@@ -1745,15 +3329,27 @@ components:
           readOnly: true
         street:
           type: string
+          nullable: true
           maxLength: 255
         street_number:
           type: string
+          nullable: true
           maxLength: 10
+        lat:
+          type: number
+          format: double
+          nullable: true
+        lon:
+          type: number
+          format: double
+          nullable: true
       required:
       - city
+      - city_name
       - id
       - name
       - province
+      - province_name
       - street
       - street_number
     StationAttendantAssignment:
@@ -1791,18 +3387,6 @@ components:
       - start_date
       - station
       - station_name
-    StatusEnum:
-      enum:
-      - pending
-      - accepted
-      - rejected
-      - cancelled
-      type: string
-      description: |-
-        * `pending` - Pendiente
-        * `accepted` - Aceptada
-        * `rejected` - Rechazada
-        * `cancelled` - Cancelada
     TokenObtainPair:
       type: object
       properties:
@@ -1843,6 +3427,22 @@ components:
           writeOnly: true
       required:
       - token
+    TypeEnum:
+      enum:
+      - info
+      - success
+      - warning
+      - error
+      - fuel
+      - account
+      type: string
+      description: |-
+        * `info` - Información
+        * `success` - Éxito
+        * `warning` - Advertencia
+        * `error` - Error
+        * `fuel` - Combustible
+        * `account` - Cuenta
     User:
       type: object
       properties:
@@ -1866,11 +3466,10 @@ components:
           maxLength: 30
         dni:
           type: string
-          maxLength: 20
+          nullable: true
         phone_number:
           type: string
           nullable: true
-          maxLength: 20
         id_province:
           type: integer
           nullable: true
@@ -1878,19 +3477,69 @@ components:
           type: string
           nullable: true
           readOnly: true
+        id_city:
+          type: integer
+          nullable: true
+        city_name:
+          type: string
+          nullable: true
+          readOnly: true
         gender:
-          $ref: '#/components/schemas/GenderEnum'
+          type: string
+          nullable: true
         groups:
           type: array
           items:
             type: string
           readOnly: true
+        date_joined:
+          type: string
+          format: date-time
+          readOnly: true
       required:
-      - dni
+      - city_name
+      - date_joined
       - email
       - groups
       - id
       - password
+      - province_name
+    UserPlate:
+      type: object
+      properties:
+        id:
+          type: integer
+        plate_number:
+          type: string
+        brand:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        ownership_type:
+          type: string
+          description: 'Type of ownership: ''owned'' for plates owned by user''s holder
+            account, ''authorized'' for plates with authorization'
+        is_active:
+          type: boolean
+          description: True if the plate is currently active (end_date is null)
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+      required:
+      - brand
+      - end_date
+      - id
+      - is_active
+      - model
+      - ownership_type
+      - plate_number
+      - start_date
   securitySchemes:
     jwtAuth:
       type: http
