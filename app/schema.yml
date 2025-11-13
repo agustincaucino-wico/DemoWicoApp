@@ -3207,6 +3207,9 @@ components:
         gender:
           type: string
           nullable: true
+          enum:
+            - Masculino
+            - Femenino
         groups:
           type: array
           items:
@@ -3487,6 +3490,9 @@ components:
         gender:
           type: string
           nullable: true
+          enum:
+            - Masculino
+            - Femenino
         groups:
           type: array
           items:
@@ -3496,14 +3502,6 @@ components:
           type: string
           format: date-time
           readOnly: true
-      required:
-      - city_name
-      - date_joined
-      - email
-      - groups
-      - id
-      - password
-      - province_name
     UserPlate:
       type: object
       properties:

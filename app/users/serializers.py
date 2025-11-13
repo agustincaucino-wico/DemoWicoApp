@@ -13,7 +13,9 @@ UserModel = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     dni = serializers.CharField(required=False, allow_null=True, allow_blank=True)
-    gender = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    gender = serializers.ChoiceField(
+        choices=["M", "F"], required=False, allow_null=True
+    )
     phone_number = serializers.CharField(
         required=False, allow_null=True, allow_blank=True
     )
