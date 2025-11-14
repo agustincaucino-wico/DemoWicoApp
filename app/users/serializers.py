@@ -49,6 +49,11 @@ class UserSerializer(serializers.ModelSerializer):
             "date_joined",
         ]
 
+    def validate_dni(self, value):
+        if value and UserModel.objects.filter(dni=value).exists():
+            raise serializers.ValidationError("Este DNI ya está registrado.")
+        return value
+
     @extend_schema_field(serializers.ListField(child=serializers.CharField()))
     def get_groups(self, obj) -> List[str]:
         return [group.name for group in obj.groups.all()]
