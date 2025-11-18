@@ -12,6 +12,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     dni = models.CharField(
         max_length=20,
         unique=True,
+        blank=True,
+        null=True,
         error_messages={"unique": "El DNI ya se encuentra registrado."},
     )
     phone_number = models.CharField(max_length=20, blank=True, null=True)
@@ -27,7 +29,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     gender = models.CharField(
         max_length=10,
         choices=[("M", "Masculino"), ("F", "Femenino"), ("X", "No binario")],
-        default="X",
+        blank=True,
+        null=True,
     )
 
     is_active = models.BooleanField(default=True)

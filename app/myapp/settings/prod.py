@@ -8,7 +8,7 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = [
     "back-appmobile-tst.wico.com.ar",
@@ -16,6 +16,8 @@ ALLOWED_HOSTS = [
     "172.31.25.8",
     "3.21.84.174",
     "174.84.21.3",
+    "172.20.0.3",
+    "ec2-3-21-84-174.us-east-2.compute.amazonaws.com",
 ]
 
 # -- Quitar CORS en producción

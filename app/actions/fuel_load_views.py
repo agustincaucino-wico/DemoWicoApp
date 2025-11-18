@@ -15,6 +15,7 @@ from actions.fuel_load_serializers import (
     CancelFuelLoadRequestSerializer,
     CancelFuelLoadResponseSerializer,
     CheckOperationStatusSerializer,
+    FuelLoadStatusSerializer,
 )
 from stations.models import StationAttendantAssignment, Station
 from accounts.models import Plates
@@ -43,7 +44,7 @@ def initiate_fuel_load(request):
         account_id = serializer.validated_data["account"]
         amount = serializer.validated_data["amount"]
         station_id = serializer.validated_data["station"]
-        plate_id = serializer.validated_data["plate"]
+        plate_id = serializer.validated_data.get("plate")
         fill_full_tank = serializer.validated_data.get("fill_full_tank", False)
 
         # Validate account exists and belongs to user
@@ -55,6 +56,13 @@ def initiate_fuel_load(request):
             return Response(
                 {"error": "Cuenta no encontrada o no te pertenece"},
                 status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Check if plate is required (dependent accounts must provide a plate)
+        if account.account_type == "dependent" and not plate_id:
+            return Response(
+                {"error": "Las cuentas adherentes deben especificar una patente"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Check if user already has a pending or in-progress fuel load operation
@@ -84,38 +92,39 @@ def initiate_fuel_load(request):
                 {"error": "Estación no encontrada"}, status=status.HTTP_404_NOT_FOUND
             )
 
-        # Validate plate exists and is accessible by the user through the specified account
-        try:
-            plate = Plates.objects.get(id=plate_id)
-        except Plates.DoesNotExist:
-            return Response(
-                {"error": "Patente no encontrada"}, status=status.HTTP_404_NOT_FOUND
-            )
+        # Validate plate if provided
+        plate = None
+        if plate_id:
+            try:
+                plate = Plates.objects.get(id=plate_id)
+            except Plates.DoesNotExist:
+                return Response(
+                    {"error": "Patente no encontrada"}, status=status.HTTP_404_NOT_FOUND
+                )
 
-        # Check if user has access to this plate through the specified account
-        has_access = False
-        print(account.account_type)
-        if account.account_type == "holder":
-            # If it's a holder account, check if the plate belongs to this account
-            if plate.holder_account == account:
-                has_access = True
-        elif account.account_type == "dependent":
-            # If it's a dependent account, check if there's an active authorization
-            from accounts.models import AuthorizedPlate
+            # Check if user has access to this plate through the specified account
+            has_access = False
+            if account.account_type == "holder":
+                # If it's a holder account, check if the plate belongs to this account
+                if plate.holder_account == account:
+                    has_access = True
+            elif account.account_type == "dependent":
+                # If it's a dependent account, check if there's an active authorization
+                from accounts.models import AuthorizedPlate
 
-            has_authorization = AuthorizedPlate.objects.filter(
-                dependent_account=account,
-                plate=plate,
-                end_date__isnull=True,  # Active authorization
-            ).exists()
-            if has_authorization:
-                has_access = True
+                has_authorization = AuthorizedPlate.objects.filter(
+                    dependent_account=account,
+                    plate=plate,
+                    end_date__isnull=True,  # Active authorization
+                ).exists()
+                if has_authorization:
+                    has_access = True
 
-        if not has_access:
-            return Response(
-                {"error": "La cuenta no tiene permisos para usar esta patente"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+            if not has_access:
+                return Response(
+                    {"error": "La cuenta no tiene permisos para usar esta patente"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
 
         if account.balance < amount:
             operation_status = "no_balance"
@@ -177,7 +186,8 @@ def initiate_fuel_load(request):
 @permission_classes([IsAuthenticated])
 def cancel_fuel_load(request, operation_id):
     """
-    Client cancels a pending fuel load operation.
+    Client cancels a pending fuel load operation with a message.
+    Used when canceling during the fuel loading process (waitingFuelLoad screen).
     """
     serializer = CancelFuelLoadRequestSerializer(data=request.data)
     if not serializer.is_valid():
@@ -189,7 +199,10 @@ def cancel_fuel_load(request, operation_id):
         operation = FuelLoadOperation.objects.get(
             id=operation_id, account__user=request.user
         )
-        if operation.status == FuelLoadOperation.STATUS_PENDING:
+        if operation.status in [
+            FuelLoadOperation.STATUS_PENDING,
+            FuelLoadOperation.STATUS_IN_PROGRESS,
+        ]:
             operation.status = FuelLoadOperation.CANCELED_BY_USER
             operation.comments = comment
             operation.timestamp_finished = timezone.now()
@@ -207,6 +220,44 @@ def cancel_fuel_load(request, operation_id):
         return Response(
             {"error": "Operación no encontrada"}, status=status.HTTP_404_NOT_FOUND
         )
+
+
+@extend_schema(
+    responses={200: CancelFuelLoadResponseSerializer, 404: None, 400: None},
+    tags=["actions - fuel load - client"],
+    description="Client cancels waiting for attendant without a message.",
+    summary="Cancel Waiting for Attendant",
+)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def cancel_waiting_for_attendant(request):
+    """
+    Client cancels waiting for attendant (waitingAttendant screen).
+    No message required, simply cancels the pending operation.
+    """
+    try:
+        # Get the most recent pending operation for the user
+        operation = (
+            FuelLoadOperation.objects.filter(
+                account__user=request.user, status=FuelLoadOperation.STATUS_PENDING
+            )
+            .order_by("-timestamp_started")
+            .first()
+        )
+
+        if not operation:
+            return Response(
+                {"error": "No se encontró ninguna operación pendiente"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        operation.status = FuelLoadOperation.WAITING_CANCELED
+        operation.timestamp_finished = timezone.now()
+        operation.save()
+
+        return Response({"message": "Operación cancelada exitosamente"})
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 ###########################
@@ -321,7 +372,7 @@ def start_fuel_load(request):
     request=CompleteFuelLoadSerializer,
     responses={200: FuelLoadOperationSerializer, 400: None, 404: None},
     tags=["actions - fuel load - attendant"],
-    description="Attendant completes a fuel load operation. Changes status to completed and sets timestamp_finished.",
+    description="Attendant completes a fuel load operation. Changes status to completed, sets timestamp_finished, and deducts the amount from the account balance.",
     summary="Complete Fuel Load",
 )
 @api_view(["POST"])
@@ -329,27 +380,44 @@ def start_fuel_load(request):
 def complete_fuel_load(request):
     """
     Attendant completes a fuel load operation.
-    Changes status to completed and sets timestamp_finished.
+    Changes status to completed, sets timestamp_finished, and deducts the amount from the account balance.
     """
+    from django.db import transaction
+
     serializer = CompleteFuelLoadSerializer(data=request.data)
     if serializer.is_valid():
         operation_id = serializer.validated_data["id_operation"]
         final_amount = serializer.validated_data["final_amount"]
 
         try:
-            operation = FuelLoadOperation.objects.get(
-                id=operation_id,
-                status=FuelLoadOperation.STATUS_IN_PROGRESS,
-                attendant=request.user,
-            )
+            with transaction.atomic():
+                operation = FuelLoadOperation.objects.select_related("account").get(
+                    id=operation_id,
+                    status=FuelLoadOperation.STATUS_IN_PROGRESS,
+                    attendant=request.user,
+                )
 
-            operation.status = FuelLoadOperation.STATUS_COMPLETED
-            operation.final_amount = final_amount
-            operation.timestamp_finished = timezone.now()
-            operation.save()
+                # Verify the account has sufficient balance
+                if operation.account.balance < final_amount:
+                    return Response(
+                        {
+                            "error": "Saldo insuficiente en la cuenta para completar la carga"
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
-            response_serializer = FuelLoadOperationSerializer(operation)
-            return Response(response_serializer.data)
+                # Deduct the final amount from the account balance
+                operation.account.balance -= final_amount
+                operation.account.save()
+
+                # Update the operation
+                operation.status = FuelLoadOperation.STATUS_COMPLETED
+                operation.final_amount = final_amount
+                operation.timestamp_finished = timezone.now()
+                operation.save()
+
+                response_serializer = FuelLoadOperationSerializer(operation)
+                return Response(response_serializer.data)
         except FuelLoadOperation.DoesNotExist:
             return Response(
                 {
@@ -417,7 +485,7 @@ def cancel_fuel_load_by_attendant(request, operation_id):
 @extend_schema(
     responses={200: CheckOperationStatusSerializer, 404: None},
     tags=["actions - fuel load - client"],
-    description="Check the status, operation ID, and final amount of a fuel load operation.",
+    description="Check the status, operation ID, final amount, and other details of a fuel load operation.",
     summary="Check Operation Status",
 )
 @api_view(["GET"])
@@ -425,12 +493,13 @@ def cancel_fuel_load_by_attendant(request, operation_id):
 def check_last_operation_status(request):
     """
     Client checks the status of their most recent fuel load operation.
-    Returns status, operation_id, and final_amount.
+    Returns status, operation_id, final_amount, and related details.
     """
     try:
         # Get the most recent operation for the user
         operation = (
             FuelLoadOperation.objects.filter(account__user=request.user)
+            .select_related("account", "station", "plate")
             .order_by("-timestamp_started")
             .first()
         )
@@ -446,8 +515,55 @@ def check_last_operation_status(request):
                 "status": operation.status,
                 "operation_id": operation.id,
                 "final_amount": operation.final_amount,
+                "initial_amount": operation.initial_amount,
+                "balance": operation.account.balance if operation.account else None,
+                "station_name": operation.station.name if operation.station else None,
+                "plate": operation.plate.plate_number if operation.plate else None,
             }
         )
         return Response(serializer.data)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@extend_schema(
+    responses={200: FuelLoadStatusSerializer, 404: None, 403: None},
+    tags=["actions - fuel load - attendant"],
+    description="Attendant checks the status of a specific fuel load operation by operation ID.",
+    summary="Get Fuel Load Status",
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_fuel_load_status(request, operation_id):
+    """
+    Attendant checks the status of a specific fuel load operation.
+    Used to monitor if the client has canceled the operation during confirmation.
+    """
+    try:
+        # Get attendant's assigned station (active assignment)
+        assignment = StationAttendantAssignment.objects.filter(
+            attendant=request.user, end_date__isnull=True
+        ).first()
+
+        if not assignment:
+            return Response(
+                {"error": "No hay estación activa asignada a este playero"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Get the operation and verify it belongs to the attendant's station
+        operation = FuelLoadOperation.objects.select_related(
+            "account__user", "plate", "station"
+        ).get(id=operation_id, station=assignment.station)
+
+        # Use the FuelLoadStatusSerializer to format the response
+        serializer = FuelLoadStatusSerializer(operation)
+        return Response(serializer.data)
+
+    except FuelLoadOperation.DoesNotExist:
+        return Response(
+            {"error": "Operación no encontrada o no pertenece a tu estación"},
+            status=status.HTTP_404_NOT_FOUND,
+        )
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
