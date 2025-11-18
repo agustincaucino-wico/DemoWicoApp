@@ -20,45 +20,58 @@ ALLOWED_HOSTS = [
     "ec2-3-21-84-174.us-east-2.compute.amazonaws.com",
 ]
 
-# -- Quitar CORS en producción
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     *MIDDLEWARE,
 ]
 
-# CORS_ALLOW_ALL_ORIGINS = True
-# ---
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("DATABASE_NAME"),
+        "USER": os.getenv("DATABASE_USER"),
+        "PASSWORD": os.getenv("DATABASE_PASSWORD"),
+        "HOST": os.getenv("DATABASE_HOST"),
+        "PORT": os.getenv("DATABASE_PORT"),
+        "OPTIONS": {
+            "options": "-c search_path=wicoapp"
+        },  # Schema de la base de produccion
+    }
+}
 
 STATIC_URL = "/static/"
 STATIC_ROOT = "/appContainer/staticfiles"
 
 ROOT_URLCONF = "myapp.urls"
 
-# SECURE_HSTS_SECONDS = 31536000
-# SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-# SECURE_HSTS_PRELOAD = True
-# SECURE_CONTENT_TYPE_NOSNIFF = True
-# REFERRER_POLICY = "strict-origin-when-cross-origin"
-# SECURE_BROWSER_XSS_FILTER = True
+SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+REFERRER_POLICY = "strict-origin-when-cross-origin"
+X_FRAME_OPTIONS = "DENY"
 SECURE_PROXY_SSL_HEADER = (
     "HTTP_X_FORWARDED_PROTO",
     "https",
 )  # Configuración para trabajar detrás de un proxy
 USE_X_FORWARDED_HOST = True  # allow Host from proxy
 SECURE_SSL_REDIRECT = True  # Redirigir todo el tráfico HTTP a HTTPS
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+
+# Permite hacer llamados a la API desde la web,
+# tanto del back office como de la app en web.
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8081",  # quitar en prod
+    "http://localhost:8081",  # en prod, reemplazar por la VPN
 ]
 
 # CSRF Settings for HTTPS
 CSRF_TRUSTED_ORIGINS = [
     "https://back-appmobile-tst.wico.com.ar",
-    "http://localhost:5000",
-    "http://localhost:8081",  # quitar en prod
+    "http://localhost:5000",  # en prod, reemplazar por la VPN
+    "http://localhost:8081",  # en prod, reemplazar por la VPN
 ]
 
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 SERVER_EMAIL = os.getenv("SERVER_EMAIL")
