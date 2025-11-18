@@ -33,9 +33,7 @@ DATABASES = {
         "PASSWORD": os.getenv("DATABASE_PASSWORD"),
         "HOST": os.getenv("DATABASE_HOST"),
         "PORT": os.getenv("DATABASE_PORT"),
-        "OPTIONS": {
-            "options": "-c search_path=wicoapp"
-        },  # Schema de la base de produccion
+        "SCHEMAS": "wicoapp",
     }
 }
 
