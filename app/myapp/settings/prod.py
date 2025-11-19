@@ -33,8 +33,18 @@ DATABASES = {
         "PASSWORD": os.getenv("DATABASE_PASSWORD"),
         "HOST": os.getenv("DATABASE_HOST"),
         "PORT": os.getenv("DATABASE_PORT"),
-    }
+    },
+    "prod": {
+        "ENGINE": "django.db.backends.postgresql",
+        "OPTIONS": {"options": "-c search_path=wicoapp,public"},
+        "NAME": os.getenv("DATABASE_NAME"),
+        "USER": os.getenv("DATABASE_USER"),
+        "PASSWORD": os.getenv("DATABASE_PASSWORD"),
+        "HOST": os.getenv("DATABASE_HOST"),
+        "PORT": os.getenv("DATABASE_PORT"),
+    },
 }
+
 
 STATIC_URL = "/static/"
 STATIC_ROOT = "/appContainer/staticfiles"
