@@ -32,6 +32,7 @@ from actions.serializers import DependentInvitationSerializer
 class BaseLCViewSet(
     mixins.ListModelMixin,
     mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
     mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
