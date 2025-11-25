@@ -223,6 +223,7 @@ def cancel_fuel_load(request, operation_id):
 
 
 @extend_schema(
+    request=None,
     responses={200: CancelFuelLoadResponseSerializer, 404: None, 400: None},
     tags=["actions - fuel load - client"],
     description="Client cancels waiting for attendant without a message.",
