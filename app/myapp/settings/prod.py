@@ -66,15 +66,16 @@ CSRF_COOKIE_SECURE = True
 # Permite hacer llamados a la API desde la web,
 # tanto del back office como de la app en web.
 CORS_ALLOWED_ORIGINS = [
-    "10.8.0.0/24",
+    "https://10.8.0.5",
+    "https://10.8.0.6",
 ]
 
 # CSRF Settings for HTTPS
 CSRF_TRUSTED_ORIGINS = [
     "https://back-appmobile-prod.wico.com.ar",
-    "10.8.0.0/24",
+    "https://10.8.0.5",
+    "https://10.8.0.6",
 ]
-
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 SERVER_EMAIL = os.getenv("SERVER_EMAIL")
