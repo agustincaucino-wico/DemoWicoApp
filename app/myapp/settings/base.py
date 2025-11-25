@@ -5,6 +5,8 @@ from datetime import timedelta
 
 load_dotenv()
 
+APP_VERSION = "1.0.0"
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY")
 
