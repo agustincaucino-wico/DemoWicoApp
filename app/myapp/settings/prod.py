@@ -6,18 +6,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Configuracion del servidor de producción final
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 DEBUG = False
 
 ALLOWED_HOSTS = [
-    "back-appmobile-tst.wico.com.ar",
-    "localhost",
-    "172.31.25.8",
-    "3.21.84.174",
-    "174.84.21.3",
-    "172.20.0.3",
-    "ec2-3-21-84-174.us-east-2.compute.amazonaws.com",
+    "back-appmobile-prod.wico.com.ar",
+    "ec2-3-128-227-181.us-east-2.compute.amazonaws.com",
+    "3.128.227.181",
 ]
 
 MIDDLEWARE = [
@@ -68,14 +66,13 @@ CSRF_COOKIE_SECURE = True
 # Permite hacer llamados a la API desde la web,
 # tanto del back office como de la app en web.
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8081",  # en prod, reemplazar por la VPN
+    "10.8.0.0/24",
 ]
 
 # CSRF Settings for HTTPS
 CSRF_TRUSTED_ORIGINS = [
-    "https://back-appmobile-tst.wico.com.ar",
-    "http://localhost:5000",  # en prod, reemplazar por la VPN
-    "http://localhost:8081",  # en prod, reemplazar por la VPN
+    "https://back-appmobile-prod.wico.com.ar",
+    "10.8.0.0/24",
 ]
 
 
