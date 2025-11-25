@@ -25,8 +25,6 @@ class FuelLoadOperation(models.Model):
     STATUS_IN_PROGRESS = "in_progress"
     STATUS_COMPLETED = "completed"
     STATUS_NO_BALANCE = "no_balance"
-    STATUS_CANCELED = "canceled"  # borrar
-    STATUS_TIMED_OUT = "timed_out"  # borrar
     WAITING_CANCELED = "waiting_canceled"
     CANCELED_BY_ATENDEE = "canceled_by_attendee"
     CANCELED_BY_USER = "canceled_by_user"
@@ -36,8 +34,6 @@ class FuelLoadOperation(models.Model):
         (STATUS_IN_PROGRESS, "En progreso"),
         (STATUS_COMPLETED, "Completada"),
         (STATUS_NO_BALANCE, "Sin saldo"),
-        (STATUS_CANCELED, "Cancelada"),
-        (STATUS_TIMED_OUT, "Expirada"),
         (WAITING_CANCELED, "Espera cancelada por el usuario"),
         (CANCELED_BY_ATENDEE, "Cancelada por el playero"),
         (CANCELED_BY_USER, "Cancelada por el usuario"),

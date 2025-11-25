@@ -24,15 +24,6 @@ MIDDLEWARE = [
 ]
 
 DATABASES = {
-    # "default": {
-    #     "ENGINE": "django.db.backends.postgresql",
-    #     "NAME": os.getenv("DATABASE_NAME"),
-    #     "USER": os.getenv("DATABASE_USER"),
-    #     "PASSWORD": os.getenv("DATABASE_PASSWORD"),
-    #     "HOST": os.getenv("DATABASE_HOST"),
-    #     "PORT": os.getenv("DATABASE_PORT"),
-    # },
-    # "prod": {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "OPTIONS": {"options": "-c search_path=wicoapp,public"},
@@ -67,15 +58,15 @@ CSRF_COOKIE_SECURE = True
 # Permite hacer llamados a la API desde la web,
 # tanto del back office como de la app en web.
 CORS_ALLOWED_ORIGINS = [
-    "https://10.8.0.5",
-    "https://10.8.0.6",
+    "https://10.8.0.5",  # VPN Wico
+    "https://10.8.0.6",  # VPN Wico
 ]
 
 # CSRF Settings for HTTPS
 CSRF_TRUSTED_ORIGINS = [
     "https://back-appmobile-prod.wico.com.ar",
-    "https://10.8.0.5",
-    "https://10.8.0.6",
+    "https://10.8.0.5",  # VPN Wico
+    "https://10.8.0.6",  # VPN Wico
 ]
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
