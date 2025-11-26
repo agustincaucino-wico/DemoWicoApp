@@ -3,10 +3,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiExample
-from drf_spectacular.types import OpenApiTypes
 from .models import ErrorReport
 from .serializers import ErrorReportSerializer
-from .permissions import IsManagerOrOwner
+from .permissions import IsGestorOrCreateOnly
 
 
 @extend_schema_view(
@@ -86,7 +85,7 @@ class ErrorReportViewSet(viewsets.ModelViewSet):
     API para gestionar reportes de errores de la aplicación.
 
     **Permisos:**
-    - **Gestores (is_staff=True):** Acceso completo a todos los endpoints
+    - **Gestores (con rol Gestor):** Acceso completo a todos los endpoints
     - **Usuarios regulares:** Solo pueden crear reportes (POST)
 
     **Endpoints disponibles:**
@@ -99,7 +98,7 @@ class ErrorReportViewSet(viewsets.ModelViewSet):
 
     serializer_class = ErrorReportSerializer
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated, IsManagerOrOwner]
+    permission_classes = [IsAuthenticated, IsGestorOrCreateOnly]
     http_method_names = [
         "get",
         "post",
@@ -112,7 +111,7 @@ class ErrorReportViewSet(viewsets.ModelViewSet):
         Los gestores ven todos los reportes.
         """
         user = self.request.user
-        if user.is_staff:
+        if user.has_perm("support.view_errorreport"):
             return ErrorReport.objects.all()
         return ErrorReport.objects.none()
 
@@ -130,16 +129,7 @@ class ErrorReportViewSet(viewsets.ModelViewSet):
         )
 
     def partial_update(self, request, *args, **kwargs):
-        """
-        Actualización parcial del reporte.
-        Solo los gestores pueden actualizar el estado.
-        """
-        if not request.user.is_staff:
-            return Response(
-                {"error": "Solo los gestores pueden actualizar reportes."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
+        """Actualización parcial del reporte."""
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)

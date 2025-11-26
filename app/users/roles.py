@@ -69,6 +69,10 @@ ROLES = {
         "change_fuelloadoperation",
         "delete_fuelloadoperation",
         "view_fuelloadoperation",
+        "add_errorreport",
+        "change_errorreport",
+        "delete_errorreport",
+        "view_errorreport",
     ],
     "Playero": [
         "view_customuser",
