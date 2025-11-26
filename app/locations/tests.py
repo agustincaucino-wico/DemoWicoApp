@@ -123,3 +123,38 @@ class LocationsTestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("number", response.data)
         self.assertIn("positive", str(response.data["number"]).lower())
+
+    def test_admin_can_delete_country(self):
+        response = self.admin_client.delete(
+            f"/locations/countries/{self.another_country.id}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Country.objects.filter(id=self.another_country.id).exists())
+
+    def test_regular_user_cannot_delete_country(self):
+        response = self.user_client.delete(f"/locations/countries/{self.country.id}/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_can_delete_province_cascades_cities_and_addresses(self):
+        response = self.admin_client.delete(f"/locations/provinces/{self.province.id}/")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Province.objects.filter(id=self.province.id).exists())
+        self.assertFalse(City.objects.filter(id=self.city.id).exists())
+        self.assertFalse(Address.objects.filter(id=self.address.id).exists())
+        # Other province/city/address remain untouched
+        self.assertTrue(Address.objects.filter(id=self.other_address.id).exists())
+
+    def test_admin_can_delete_city_cascades_addresses(self):
+        response = self.admin_client.delete(f"/locations/cities/{self.other_city.id}/")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(City.objects.filter(id=self.other_city.id).exists())
+        self.assertFalse(Address.objects.filter(id=self.other_address.id).exists())
+
+    def test_admin_can_delete_address(self):
+        response = self.admin_client.delete(f"/locations/addresses/{self.address.id}/")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Address.objects.filter(id=self.address.id).exists())
+
+    def test_regular_user_cannot_delete_address(self):
+        response = self.user_client.delete(f"/locations/addresses/{self.address.id}/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
