@@ -1,10 +1,10 @@
 from rest_framework import mixins, viewsets, status
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework.permissions import DjangoModelPermissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiExample
 
+from myapp.permissions import StrictDjangoModelPermissions
 from .permissions import DjangoModelOrObjectOwner
 
 
@@ -37,7 +37,7 @@ class BaseLCViewSet(
     viewsets.GenericViewSet,
 ):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [DjangoModelPermissions]
+    permission_classes = [StrictDjangoModelPermissions]
 
 
 class AccountViewSet(BaseLCViewSet):

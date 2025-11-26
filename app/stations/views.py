@@ -1,7 +1,7 @@
 from rest_framework import mixins, viewsets
-from rest_framework.permissions import DjangoModelPermissions
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
+from myapp.permissions import StrictDjangoModelPermissions
 from .models import Station, StationAttendantAssignment
 from .permissions import AuthenticatedReadDjangoModelPermissions
 from .serializers import StationSerializer, StationAttendantAssignmentSerializer
@@ -36,7 +36,7 @@ class StationAttendantAssignmentViewSet(
     viewsets.GenericViewSet,
 ):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [DjangoModelPermissions]
+    permission_classes = [StrictDjangoModelPermissions]
     serializer_class = StationAttendantAssignmentSerializer
 
     def get_queryset(self):

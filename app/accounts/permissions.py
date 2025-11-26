@@ -1,5 +1,5 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
-from rest_framework.permissions import DjangoModelPermissions
+from myapp.permissions import StrictDjangoModelPermissions
 
 
 class IsAdminOrReadOnly(BasePermission):
@@ -13,10 +13,10 @@ class IsAdminOrReadOnly(BasePermission):
         return request.user and request.user.is_staff
 
 
-class DjangoModelOrObjectOwner(DjangoModelPermissions):
+class DjangoModelOrObjectOwner(StrictDjangoModelPermissions):
     """
     Custom permission:
-    - Django's model permission level.
+    - Django's model permission level (with view_* required for GET).
     - Account holders can view/change/delete their own plates and authorized plates.
     - Dependent's account holders can view the authorized plates linked to their accounts.
     """
@@ -52,5 +52,5 @@ class DjangoModelOrObjectOwner(DjangoModelPermissions):
             if hasattr(obj, "user") and getattr(obj, "user") == request.user:
                 return True
 
-        # Otherwise, use default DjangoModelPermissions
+        # Otherwise, use default StrictDjangoModelPermissions
         return super().has_object_permission(request, view, obj)
