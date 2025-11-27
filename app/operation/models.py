@@ -81,3 +81,19 @@ class FuelLoadOperation(models.Model):
 
     def __str__(self):
         return f"{self.final_amount} at {self.station} [{self.get_status_display()}]"
+
+
+# class Transfer(models.Model):
+#     source_account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='transfers_sent')
+#     destination_account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='transfers_received')
+#     timestamp = models.DateTimeField(auto_now_add=True)
+#     amount = models.DecimalField(max_digits=12, decimal_places=2)
+
+# class AddFunds(models.Model):
+#     account = models.ForeignKey(Account, on_delete=models.CASCADE)
+#     timestamp = models.DateTimeField(auto_now_add=True)
+#     amount = models.DecimalField(max_digits=12, decimal_places=2)
+#     payment_method = models.ForeignKey(PaymentMethod, on_delete=models.PROTECT)
+
+#     def __str__(self):
+#         return f"Add {self.amount} to {self.account} via {self.payment_method}"
