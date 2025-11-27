@@ -6,15 +6,13 @@ import sys
 from dotenv import load_dotenv
 
 
-dotenv_path = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", ".env"
-)
+dotenv_path = "../.env"
 load_dotenv(dotenv_path)
 
 
 def main():
     """Run administrative tasks."""
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "myapp.settings.dev")
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "myapp.settings.prod")
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

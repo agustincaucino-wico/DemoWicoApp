@@ -9,7 +9,10 @@ DEBUG = True
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = [
+    "back-appmobile-tst.wico.com.ar",
+    # etc
+]
 
 ROOT_URLCONF = "myapp.urls"
 
@@ -18,7 +21,19 @@ MIDDLEWARE = [
     *MIDDLEWARE,
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True
+# Permite hacer llamados a la API desde la web,
+# tanto del back office como de la app en web.
+CORS_ALLOWED_ORIGINS = [
+    "https://10.8.0.5",  # VPN Wico
+    "https://10.8.0.6",  # VPN Wico
+]
+
+# CSRF Settings for HTTPS
+CSRF_TRUSTED_ORIGINS = [
+    "https://back-appmobile-tst.wico.com.ar",
+    "https://10.8.0.5",  # VPN Wico
+    "https://10.8.0.6",  # VPN Wico
+]
 
 GRAPH_MODELS = {
     "all_applications": True,
