@@ -27,6 +27,12 @@ class CancelFuelLoadResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
 
 
+class CancelWaitingRequestSerializer(serializers.Serializer):
+    """Empty serializer for cancel_waiting_for_attendant endpoint (no body required)"""
+
+    pass
+
+
 class PendingFuelLoadSerializer(serializers.Serializer):
     id_operation = serializers.IntegerField(source="id")
     client_full_name = serializers.SerializerMethodField()

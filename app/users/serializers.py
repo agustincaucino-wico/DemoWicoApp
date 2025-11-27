@@ -13,7 +13,9 @@ UserModel = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     dni = serializers.CharField(required=False, allow_null=True, allow_blank=True)
-    gender = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    gender = serializers.ChoiceField(
+        choices=["M", "F"], required=False, allow_null=True
+    )
     phone_number = serializers.CharField(
         required=False, allow_null=True, allow_blank=True
     )
@@ -26,6 +28,7 @@ class UserSerializer(serializers.ModelSerializer):
     groups = serializers.SerializerMethodField()
     province_name = serializers.SerializerMethodField()
     city_name = serializers.SerializerMethodField()
+    date_joined = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = UserModel
@@ -43,7 +46,13 @@ class UserSerializer(serializers.ModelSerializer):
             "city_name",
             "gender",
             "groups",
+            "date_joined",
         ]
+
+    def validate_dni(self, value):
+        if value and UserModel.objects.filter(dni=value).exists():
+            raise serializers.ValidationError("Este DNI ya está registrado.")
+        return value
 
     @extend_schema_field(serializers.ListField(child=serializers.CharField()))
     def get_groups(self, obj) -> List[str]:

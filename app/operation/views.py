@@ -31,7 +31,6 @@ class FuelLoadOperationViewSet(BaseLCDViewSet):
                 "attendant",
                 "station",
                 "payment_method",
-                "comments",
             )
             .all()
             .order_by("-timestamp_started")

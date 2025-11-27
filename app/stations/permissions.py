@@ -1,7 +1,8 @@
-from rest_framework.permissions import SAFE_METHODS, DjangoModelPermissions
+from rest_framework.permissions import SAFE_METHODS
+from myapp.permissions import StrictDjangoModelPermissions
 
 
-class AuthenticatedReadDjangoModelPermissions(DjangoModelPermissions):
+class AuthenticatedReadDjangoModelPermissions(StrictDjangoModelPermissions):
     """Allow authenticated users to read while enforcing model perms for writes."""
 
     def has_permission(self, request, view):

@@ -28,7 +28,11 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     last_name = models.CharField(max_length=30, blank=True, null=True)
     gender = models.CharField(
         max_length=10,
-        choices=[("M", "Masculino"), ("F", "Femenino"), ("X", "No binario")],
+        choices=[
+            ("M", "Masculino"),
+            ("F", "Femenino"),
+            ("X", "No binario"),
+        ],  # TODO borrar luego de la migracion
         blank=True,
         null=True,
     )

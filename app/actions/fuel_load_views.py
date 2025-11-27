@@ -14,6 +14,7 @@ from actions.fuel_load_serializers import (
     PendingFuelLoadSerializer,
     CancelFuelLoadRequestSerializer,
     CancelFuelLoadResponseSerializer,
+    CancelWaitingRequestSerializer,
     CheckOperationStatusSerializer,
     FuelLoadStatusSerializer,
 )
@@ -223,7 +224,7 @@ def cancel_fuel_load(request, operation_id):
 
 
 @extend_schema(
-    request=None,
+    request=CancelWaitingRequestSerializer,
     responses={200: CancelFuelLoadResponseSerializer, 404: None, 400: None},
     tags=["actions - fuel load - client"],
     description="Client cancels waiting for attendant without a message.",
