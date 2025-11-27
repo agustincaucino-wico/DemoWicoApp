@@ -8,13 +8,16 @@ from rest_framework.views import APIView
 
 @extend_schema(
     summary="Health check endpoint",
-    description="Returns service health status and app version when available",
+    description="Returns service health status, API version and minimum required app version",
     responses={200: OpenApiTypes.OBJECT},
 )
 class HealthCheckView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
-        payload = {"status": "ok"}
-        payload["app_version"] = getattr(settings, "APP_VERSION", None)
+        payload = {
+            "status": "ok",
+            "api_version": getattr(settings, "API_VERSION", None),
+            "min_app_version": getattr(settings, "MIN_APP_VERSION", None),
+        }
         return Response(payload, status=200)
