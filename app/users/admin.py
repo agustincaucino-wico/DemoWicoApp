@@ -5,7 +5,7 @@ from myapp.admin import my_admin_site
 
 
 class CustomUserAdmin(BaseUserAdmin):
-    ordering = ["email"]
+    ordering = ["-id"]
     list_display = (
         "id",
         "email",
