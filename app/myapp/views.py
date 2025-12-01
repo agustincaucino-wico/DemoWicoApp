@@ -5,7 +5,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-# from appconfig.models import AppConfig # TODO cuando se haga la migracion
+from appconfig.models import AppConfig
 
 
 @extend_schema(
@@ -17,12 +17,12 @@ class HealthCheckView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
-        # config = AppConfig.get_config() # TODO cuando se haga la migracion
+        config = AppConfig.get_config()
 
         payload = {
             "status": "ok",
             "api_version": getattr(settings, "API_VERSION", None),
             "min_app_version": getattr(settings, "MIN_APP_VERSION", None),
-            # "maintenance_mode": config.maintenance_mode, # TODO cuando se haga la migracion
+            "maintenance_mode": config.maintenance_mode,
         }
         return Response(payload, status=200)
