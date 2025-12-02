@@ -4,6 +4,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from operation.models import FuelLoadOperation
 from operation.serializers import FuelLoadOperationSerializer
+from myapp.permissions import StrictDjangoModelPermissions
 
 
 class BaseLCDViewSet(
@@ -13,7 +14,7 @@ class BaseLCDViewSet(
     viewsets.GenericViewSet,
 ):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [DjangoModelPermissions]
+    permission_classes = [StrictDjangoModelPermissions]
 
 
 class FuelLoadOperationViewSet(BaseLCDViewSet):
