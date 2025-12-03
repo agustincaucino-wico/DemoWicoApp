@@ -6,10 +6,8 @@ from datetime import timedelta
 load_dotenv()
 
 # Versión actual de la API
-API_VERSION = "1.0.0"
-# Versión mínima requerida de la app para funcionar con esta API
-# Si la app tiene una versión menor, se forzará actualización
-MIN_APP_VERSION = "1.0.0"
+API_VERSION = "1.1.0"
+MIN_APP_VERSION = "1.1.0"
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY")
