@@ -20,11 +20,7 @@ ROOT_URLCONF = "myapp.urls"
 CORS_ALLOWED_ORIGINS = ["https://front-intappestacion-tst.wico.com.ar"]
 
 # CSRF Settings for HTTPS
-CSRF_TRUSTED_ORIGINS = [
-    "https://back-appmobile-tst.wico.com.ar",
-    "https://10.8.0.5",  # VPN Wico
-    "https://10.8.0.6",  # VPN Wico
-]
+CSRF_TRUSTED_ORIGINS = ["https://back-appmobile-tst.wico.com.ar"]
 
 GRAPH_MODELS = {
     "all_applications": True,

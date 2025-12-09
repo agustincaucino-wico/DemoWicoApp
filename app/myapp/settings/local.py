@@ -22,15 +22,8 @@ ALLOWED_HOSTS = ["*", "localhost", "127.0.0.1"]
 
 ROOT_URLCONF = "myapp.urls"
 
-# CORS settings - allow all for local development
-MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
-    *MIDDLEWARE,
-]
-
 CORS_ALLOW_ALL_ORIGINS = True
 
-# SQLite database for simple local setup (no PostgreSQL required)
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",

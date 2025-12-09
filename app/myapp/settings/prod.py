@@ -54,11 +54,7 @@ CSRF_COOKIE_SECURE = True
 CORS_ALLOWED_ORIGINS = ["https://front-intappestacion-tst.wico.com.ar"]
 
 # CSRF Settings for HTTPS
-CSRF_TRUSTED_ORIGINS = [
-    "https://back-appmobile-prod.wico.com.ar",
-    "https://10.8.0.5",  # VPN Wico
-    "https://10.8.0.6",  # VPN Wico
-]
+CSRF_TRUSTED_ORIGINS = ["https://back-appmobile-prod.wico.com.ar"]
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 SERVER_EMAIL = os.getenv("SERVER_EMAIL")
