@@ -1,11 +1,31 @@
 from django.conf import settings
 from drf_spectacular.utils import extend_schema
 from drf_spectacular.types import OpenApiTypes
-from rest_framework.permissions import AllowAny
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from appconfig.models import AppConfig
+
+
+def get_docs_permission():
+    """Return AllowAny in DEBUG mode, IsAdminUser in production."""
+    return [AllowAny] if settings.DEBUG else [IsAdminUser]
+
+
+class AdminSpectacularAPIView(SpectacularAPIView):
+    """API Schema view - open in dev, admin-only in production."""
+
+    def get_permissions(self):
+        return [perm() for perm in get_docs_permission()]
+
+
+class AdminSpectacularSwaggerView(SpectacularSwaggerView):
+    """Swagger UI view - open in dev, admin-only in production."""
+
+    def get_permissions(self):
+        return [perm() for perm in get_docs_permission()]
 
 
 @extend_schema(
