@@ -18,11 +18,6 @@ ALLOWED_HOSTS = [
     "3.128.227.181",
 ]
 
-MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
-    *MIDDLEWARE,
-]
-
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -55,12 +50,8 @@ SECURE_SSL_REDIRECT = True  # Redirigir todo el tráfico HTTP a HTTPS
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
-# Permite hacer llamados a la API desde la web,
-# tanto del back office como de la app en web.
-CORS_ALLOWED_ORIGINS = [
-    "https://10.8.0.5",  # VPN Wico
-    "https://10.8.0.6",  # VPN Wico
-]
+# Permite hacer llamados a la API desde el back office
+CORS_ALLOWED_ORIGINS = ["https://front-intappestacion-tst.wico.com.ar"]
 
 # CSRF Settings for HTTPS
 CSRF_TRUSTED_ORIGINS = [

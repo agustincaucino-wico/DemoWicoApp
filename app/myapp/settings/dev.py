@@ -16,17 +16,8 @@ ALLOWED_HOSTS = [
 
 ROOT_URLCONF = "myapp.urls"
 
-MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
-    *MIDDLEWARE,
-]
-
-# Permite hacer llamados a la API desde la web,
-# tanto del back office como de la app en web.
-CORS_ALLOWED_ORIGINS = [
-    "https://10.8.0.5",  # VPN Wico
-    "https://10.8.0.6",  # VPN Wico
-]
+# Permite hacer llamados a la API desde el back office
+CORS_ALLOWED_ORIGINS = ["https://front-intappestacion-tst.wico.com.ar"]
 
 # CSRF Settings for HTTPS
 CSRF_TRUSTED_ORIGINS = [
