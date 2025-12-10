@@ -20,6 +20,29 @@ class PlatesSerializer(serializers.ModelSerializer):
         model = Plates
         fields = "__all__"
 
+    def validate_plate_number(self, value):
+        """Validar que la patente sea única globalmente para patentes activas"""
+        if value:
+            # Normalizar la patente (convertir a mayúsculas y quitar espacios)
+            normalized_plate = value.upper().strip()
+
+            existing_plates = Plates.objects.filter(
+                plate_number=normalized_plate, end_date__isnull=True
+            )
+
+            # Si estamos editando una patente existente, excluirla de la validación
+            if self.instance:
+                existing_plates = existing_plates.exclude(pk=self.instance.pk)
+
+            if existing_plates.exists():
+                raise serializers.ValidationError(
+                    f"La patente '{normalized_plate}' ya está registrada en el sistema"
+                )
+
+            return normalized_plate
+
+        return value
+
     def validate(self, attrs):
         holder_account = attrs.get("holder_account")
 
