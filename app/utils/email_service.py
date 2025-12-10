@@ -159,6 +159,27 @@ class EmailService:
 
         return self.send_email("invitation_cancelled", subject, to_email, context)
 
+    def send_password_reset_email(self, to_email, user_name, reset_code):
+        """
+        Send a password reset code email.
+
+        Args:
+            to_email: Email address of the user
+            user_name: Name of the user (or email if name not available)
+            reset_code: The 6-digit reset code
+
+        Returns:
+            bool: True if email was sent successfully, False otherwise
+        """
+        subject = "Código de recuperación de contraseña - WICO"
+
+        context = {
+            "user_name": user_name,
+            "reset_code": reset_code,
+        }
+
+        return self.send_email("password_reset", subject, to_email, context)
+
 
 # Global instance
 email_service = EmailService()
