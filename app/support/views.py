@@ -3,9 +3,132 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiExample
-from .models import ErrorReport
-from .serializers import ErrorReportSerializer
+from .models import ErrorReport, FleetContactRequest
+from .serializers import ErrorReportSerializer, FleetContactRequestSerializer
 from .permissions import IsGestorOrCreateOnly
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="Listar solicitudes de contacto de flotas",
+        description="Solo los gestores pueden ver todas las solicitudes.",
+        tags=["soporte - solicitudes flotas"],
+        responses={
+            200: FleetContactRequestSerializer(many=True),
+            403: None,
+        },
+    ),
+    create=extend_schema(
+        summary="Crear solicitud de contacto para flotas",
+        description="Cualquier usuario autenticado puede solicitar contacto para gestión de flotas. El usuario se asigna automáticamente.",
+        tags=["soporte - solicitudes flotas"],
+        examples=[
+            OpenApiExample(
+                "Ejemplo de solicitud",
+                value={
+                    "phone_number": "+54 9 11 1234-5678",
+                    "contact_time": "9 a 18 hs",
+                },
+                request_only=True,
+            ),
+        ],
+        responses={
+            201: FleetContactRequestSerializer,
+            400: None,
+        },
+    ),
+    retrieve=extend_schema(
+        summary="Obtener detalle de una solicitud",
+        description="Solo los gestores pueden ver el detalle de cualquier solicitud.",
+        tags=["soporte - solicitudes flotas"],
+        responses={
+            200: FleetContactRequestSerializer,
+            403: None,
+            404: None,
+        },
+    ),
+    partial_update=extend_schema(
+        summary="Actualizar solicitud de contacto",
+        description="Solo los gestores pueden actualizar el estado y notas de una solicitud.",
+        tags=["soporte - solicitudes flotas"],
+        examples=[
+            OpenApiExample(
+                "Actualizar estado a 'contactado'",
+                value={
+                    "status": "contacted",
+                    "notes": "Llamada realizada el 11/12/2025",
+                },
+                request_only=True,
+            ),
+        ],
+        responses={
+            200: FleetContactRequestSerializer,
+            403: None,
+            404: None,
+        },
+    ),
+    destroy=extend_schema(
+        summary="Eliminar solicitud de contacto",
+        description="Solo los gestores pueden eliminar solicitudes.",
+        tags=["soporte - solicitudes flotas"],
+        responses={
+            200: None,
+            403: None,
+            404: None,
+        },
+    ),
+)
+class FleetContactRequestViewSet(viewsets.ModelViewSet):
+    """
+    API para gestionar solicitudes de contacto de flotas.
+
+    **Permisos:**
+    - **Gestores (con rol Gestor):** Acceso completo a todos los endpoints
+    - **Usuarios regulares:** Solo pueden crear solicitudes (POST)
+
+    **Endpoints disponibles:**
+    - `GET /support/fleet-contact-requests/` - Listar todas las solicitudes (solo gestores)
+    - `POST /support/fleet-contact-requests/` - Crear nueva solicitud (todos los usuarios)
+    - `GET /support/fleet-contact-requests/{id}/` - Ver detalle (solo gestores)
+    - `PATCH /support/fleet-contact-requests/{id}/` - Actualizar estado/notas (solo gestores)
+    - `DELETE /support/fleet-contact-requests/{id}/` - Eliminar solicitud (solo gestores)
+    """
+
+    serializer_class = FleetContactRequestSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, IsGestorOrCreateOnly]
+    http_method_names = ["get", "post", "delete", "patch"]
+
+    def get_queryset(self):
+        """
+        Los gestores ven todas las solicitudes.
+        Los usuarios regulares no pueden listar solicitudes.
+        """
+        user = self.request.user
+        if user.has_perm("support.view_fleetcontactrequest"):
+            return FleetContactRequest.objects.all()
+        return FleetContactRequest.objects.none()
+
+    def perform_create(self, serializer):
+        """Asignar el usuario autenticado al crear la solicitud."""
+        serializer.save(user=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        """Eliminar una solicitud."""
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response(
+            {"message": "Solicitud eliminada correctamente."},
+            status=status.HTTP_200_OK,
+        )
+
+    def partial_update(self, request, *args, **kwargs):
+        """Actualización parcial de la solicitud."""
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
 
 @extend_schema_view(
