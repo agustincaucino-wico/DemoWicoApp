@@ -1,0 +1,12 @@
+¡Has sido agregado como adherido!
+
+Hola {dependent_name},
+
+{holder_name} te ha incorporado a su flota de WICORED.
+
+Ahora puedes acceder a la aplicación Wico APP y comenzar a cargar combustible con tu nueva cuenta de flota.
+
+Si tienes alguna pregunta o no reconoces esta acción, contacta directamente al titular de la cuenta.
+
+---
+Este es un mensaje automatizado de {app_name}. Por favor no respondas a este correo.

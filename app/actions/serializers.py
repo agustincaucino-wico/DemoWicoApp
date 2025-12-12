@@ -92,6 +92,57 @@ class CreateInvitationSerializer(serializers.Serializer):
         return attrs
 
 
+class AddDependentDirectlySerializer(serializers.Serializer):
+    """Serializer for directly adding a dependent to a holder account"""
+
+    holder_account_id = serializers.IntegerField(help_text="ID of the holder account")
+    dependent_email = serializers.EmailField(
+        help_text="Email of the user to add as dependent"
+    )
+
+    def validate(self, attrs):
+        holder_account_id = attrs.get("holder_account_id")
+        dependent_email = attrs.get("dependent_email")
+
+        # Validate holder account exists and belongs to user
+        request = self.context.get("request")
+        if request:
+            try:
+                holder_account = Account.objects.get(
+                    id=holder_account_id, user=request.user, account_type="holder"
+                )
+            except Account.DoesNotExist:
+                raise serializers.ValidationError(
+                    "La cuenta titular no existe o no te pertenece"
+                )
+
+        # Validate that the user to add exists
+        try:
+            dependent_user = CustomUser.objects.get(email=dependent_email)
+        except CustomUser.DoesNotExist:
+            raise serializers.ValidationError("No existe un usuario con ese email")
+
+        # Validate user is not inviting themselves
+        if request and dependent_user == request.user:
+            raise serializers.ValidationError(
+                "No puedes agregarte como dependiente a ti mismo"
+            )
+
+        # Validate there's no active relationship already
+        if Dependents.objects.filter(
+            holder_account=holder_account,
+            dependent_account__user__email=dependent_email,
+            end_date__isnull=True,
+        ).exists():
+            raise serializers.ValidationError(
+                "Ya existe una relación activa entre estas cuentas"
+            )
+
+        attrs["holder_account"] = holder_account
+        attrs["dependent_user"] = dependent_user
+        return attrs
+
+
 class InvitationResponseSerializer(serializers.Serializer):
     action = serializers.ChoiceField(
         choices=["accept", "reject"],
@@ -123,6 +174,20 @@ class RemoveDependentSerializer(serializers.Serializer):
     )
     dependent_account_id = serializers.IntegerField(
         help_text="ID of the dependent account to be removed"
+    )
+
+
+class RemoveDependentResponseSerializer(serializers.Serializer):
+    message = serializers.CharField(help_text="Success message")
+    balance_transferred = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text="Amount transferred from dependent account to holder account",
+    )
+    new_holder_balance = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        help_text="New balance of the holder account after transfer",
     )
 
 

@@ -2,12 +2,7 @@ Acceso de cuenta removido
 
 Hola {dependent_name},
 
-{holder_name} ({holder_email}) te ha removido como adherido de su cuenta de {app_name}.
-
-Detalles de la cuenta:
-- Titular de la cuenta: {holder_name}
-- ID de cuenta: {account_id}
-- Removido el: Hoy
+{holder_name} ({holder_email}) te ha removido de su flota de Wico.
 
 Qué significa esto:
 Ya no tendrás acceso a los servicios asociados con esta cuenta. Tu cuenta personal de {app_name} (si tienes una) no se ve afectada.

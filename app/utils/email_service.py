@@ -90,7 +90,7 @@ class EmailService:
         return self.send_email("invitation_email", subject, to_email, context)
 
     def send_dependent_removal_notification(
-        self, holder_user, dependent_user, holder_account
+        self, holder_user, dependent_user, holder_account, balance_transferred=0
     ):
         """
         Send a notification email when a dependent is removed from an account.
@@ -99,6 +99,7 @@ class EmailService:
             holder_user: The user who owns the holder account
             dependent_user: The user who was removed as dependent
             holder_account: The holder account object
+            balance_transferred: Amount transferred from dependent to holder account
 
         Returns:
             bool: True if email was sent successfully, False otherwise
@@ -111,6 +112,7 @@ class EmailService:
             "dependent_name": dependent_user.get_full_name() or dependent_user.username,
             "dependent_email": dependent_user.email,
             "account_id": holder_account.id,
+            "balance_transferred": balance_transferred,
         }
 
         return self.send_email(
@@ -158,6 +160,33 @@ class EmailService:
         }
 
         return self.send_email("invitation_cancelled", subject, to_email, context)
+
+    def send_dependent_added_notification(
+        self, holder_user, dependent_user, dependent_account
+    ):
+        """
+        Send a notification email when a user is directly added as a dependent.
+
+        Args:
+            holder_user: The user who owns the holder account
+            dependent_user: The user who was added as dependent
+            dependent_account: The dependent account object
+
+        Returns:
+            bool: True if email was sent successfully, False otherwise
+        """
+        subject = "Has sido agregado como adherido - WICORED"
+
+        context = {
+            "holder_name": holder_user.get_full_name() or holder_user.username,
+            "holder_email": holder_user.email,
+            "dependent_name": dependent_user.get_full_name() or dependent_user.username,
+            "account_id": dependent_account.id,
+        }
+
+        return self.send_email(
+            "dependent_added", subject, dependent_user.email, context
+        )
 
     def send_password_reset_email(self, to_email, user_name, reset_code):
         """

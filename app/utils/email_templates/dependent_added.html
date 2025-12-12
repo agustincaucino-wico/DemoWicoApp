@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dependent Access Removed</title>
+    <title>Cuenta Adherida Agregada</title>
     <style>
         body {{
             font-family: Arial, sans-serif;
@@ -25,6 +25,17 @@
             padding: 20px;
             border-radius: 0 0 8px 8px;
         }}
+        .account-details {{
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #1B2F5B;
+        }}
+        .account-details h3 {{
+            margin-top: 0;
+            color: #1B2F5B;
+        }}
         .footer {{
             margin-top: 30px;
             padding-top: 20px;
@@ -35,34 +46,23 @@
         }}
         .highlight {{
             font-weight: bold;
-            color: #1B2F5B;
-        }}
-        .info-box {{
-            background-color: #d1ecf1;
-            border: 1px solid #bee5eb;
-            color: #0c5460;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
+            color: #007bff;
         }}
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>Acceso de cuenta removido</h1>
+        <h1>¡Bienvenido a la flota de {holder_name}!</h1>
     </div>
     
     <div class="content">
-        <p>Hola <strong>{dependent_name}</strong>,</p>
+        <p>Hola {dependent_name},</p>
+
+        <p><span class="highlight">{holder_name}</span> ({holder_email}) te ha incorporado a su flota de WICORED.</p>
         
-        <p><span class="highlight">{holder_name}</span> ({holder_email}) te ha removido de su flota de Wico.</p>
+        <p>Ahora puedes acceder a la aplicación Wico APP y comenzar a cargar combustible con tu nueva cuenta de flota.</p>
         
-        <div class="info-box">
-            <p><strong>Qué significa esto:</strong></p>
-            <p>Ya no tendrás acceso a los servicios asociados con esta cuenta. Tu cuenta personal de {app_name} no se ve afectada.</p>
-        </div>
-        
-        <p>Si tienes alguna pregunta sobre este cambio, puedes ponerte en contacto con soporte@wico.com.ar</p>
+        <p>Si tienes alguna pregunta o no reconoces esta acción, contacta directamente al titular de la cuenta.</p>
     </div>
     
     <div class="footer">

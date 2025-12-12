@@ -36,13 +36,15 @@ from .serializers import (
     CancelInvitationSerializer,
     InvitationsListResponseSerializer,
     RemoveDependentSerializer,
+    RemoveDependentResponseSerializer,
+    AddDependentDirectlySerializer,
     UserPlateSerializer,
 )
 
 
 class InvitationViewSet(viewsets.ViewSet):
     """
-    ViewSet for managing dependent invitations
+    ViewSet for managing dependent invitations and direct dependent addition
     """
 
     authentication_classes = [JWTAuthentication]
@@ -50,9 +52,76 @@ class InvitationViewSet(viewsets.ViewSet):
     serializer_class = DependentInvitationSerializer
 
     @extend_schema(
+        request=AddDependentDirectlySerializer,
+        responses={201: None, 400: None},
+        description="Directly add a user as dependent to a holder account by email",
+        summary="Add Dependent Directly",
+    )
+    @action(detail=False, methods=["post"], url_path="add-dependent")
+    def add_dependent_directly(self, request):
+        """
+        Directly add a user as dependent to a holder account.
+        Creates the dependent account and relationship without requiring invitation acceptance.
+        Expects: holder_account_id, dependent_email
+        """
+        serializer = AddDependentDirectlySerializer(
+            data=request.data, context={"request": request}
+        )
+
+        if serializer.is_valid():
+            validated_data = serializer.validated_data
+            try:
+                with transaction.atomic():
+                    holder_account = validated_data["holder_account"]
+                    dependent_user = validated_data["dependent_user"]
+
+                    # Create dependent account
+                    dependent_account = Account.objects.create(
+                        user=dependent_user,
+                        balance=0,
+                        account_type="dependent",
+                    )
+
+                    # Create dependent relationship
+                    dependent_relationship = Dependents.objects.create(
+                        holder_account=holder_account,
+                        dependent_account=dependent_account,
+                        start_date=timezone.now().date(),
+                    )
+
+                    # Send notification email to the dependent
+                    try:
+                        holder_user = holder_account.user
+                        email_service.send_dependent_added_notification(
+                            holder_user=holder_user,
+                            dependent_user=dependent_user,
+                            dependent_account=dependent_account,
+                        )
+                    except Exception:
+                        print("Error sending dependent added notification email")
+                        pass
+
+                    return Response(
+                        {
+                            "message": "Dependent added successfully",
+                            "dependent_account_id": dependent_account.id,
+                            "relationship_id": dependent_relationship.id,
+                        },
+                        status=status.HTTP_201_CREATED,
+                    )
+
+            except Exception as e:
+                return Response(
+                    {"error": f"Error adding dependent: {str(e)}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @extend_schema(
         request=CreateInvitationSerializer,
         responses={201: DependentInvitationSerializer, 400: None},
-        description="Create a new dependent invitation",
+        description="Create a new dependent invitation (legacy method, use add-dependent for direct addition)",
         summary="Create Dependent Invitation",
     )
     @action(detail=False, methods=["post"], url_path="create")
@@ -419,13 +488,26 @@ class RemoveDependentView(APIView):
 
     @extend_schema(
         request=RemoveDependentSerializer,
-        responses={200: None, 400: None, 404: None, 500: None},
-        description="Remove a dependent user from a holder account",
+        responses={
+            200: RemoveDependentResponseSerializer,
+            400: None,
+            404: None,
+            500: None,
+        },
+        description="Remove a dependent user from a holder account. This will end the relationship, transfer any remaining balance from the dependent account to the holder account, and deactivate the dependent account.",
         summary="Remove Dependent",
     )
     def post(self, request):
         """
         Remove a dependent from a holder account.
+
+        This operation will:
+        1. End the dependent relationship by setting an end_date
+        2. Transfer the dependent account's balance to the holder account
+        3. Set the dependent account balance to 0
+        4. Deactivate the dependent account
+        5. Send a notification email to the dependent user
+
         Expects: holder_account_id, dependent_account_id
         """
         serializer = RemoveDependentSerializer(data=request.data)
@@ -479,17 +561,41 @@ class RemoveDependentView(APIView):
                 )
 
             with transaction.atomic():
-                # Set end_date to mark as inactive instead of deleting
+                # Get the balance to transfer before modifying anything
+                dependent_balance = dependent_account.balance
+
+                # Transfer the dependent account balance to the holder account
+                if dependent_balance > 0:
+                    holder_account.balance += dependent_balance
+                    holder_account.save()
+
+                    dependent_account.balance = 0
+                    dependent_account.save()
+
                 dependent_relation.end_date = timezone.now().date()
                 dependent_relation.save()
 
+                # Set updated_at on dependent account to mark when it was deactivated
+                # The account is not deleted, just deactivated (could add an 'is_active' field in future) (TODO)
+                dependent_account.updated_at = timezone.now()
+                dependent_account.save()
+
                 # Send removal notification email
-                email_service.send_dependent_removal_notification(
-                    request.user, dependent_account.user, holder_account
-                )
+                try:
+                    email_service.send_dependent_removal_notification(
+                        holder_user=request.user,
+                        dependent_user=dependent_account.user,
+                        holder_account=holder_account,
+                        balance_transferred=float(dependent_balance),
+                    )
+                except Exception:
+                    print("Error sending dependent removal notification email")
+                    pass
 
                 response_data = {
                     "message": "Dependent removed successfully",
+                    "balance_transferred": float(dependent_balance),
+                    "new_holder_balance": float(holder_account.balance),
                 }
 
                 return Response(response_data, status=status.HTTP_200_OK)

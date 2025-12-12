@@ -169,6 +169,12 @@ class AccountsTestCase(TestCase):
             start_date=timezone.now().date(),
         )
 
+        # Set initial balances
+        self.holder_account.balance = 1000
+        self.holder_account.save()
+        self.dependent_account.balance = 250
+        self.dependent_account.save()
+
         # Holder removes dependent via API
         payload = {
             "holder_account_id": self.holder_account.id,
@@ -178,6 +184,18 @@ class AccountsTestCase(TestCase):
             "/actions/remove-dependent/", payload, format="json"
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify balance was transferred
+        self.assertIn("balance_transferred", response.data)
+        self.assertEqual(float(response.data["balance_transferred"]), 250.0)
+        self.assertIn("new_holder_balance", response.data)
+        self.assertEqual(float(response.data["new_holder_balance"]), 1250.0)
+
+        # Refresh from DB and verify
+        self.holder_account.refresh_from_db()
+        self.dependent_account.refresh_from_db()
+        self.assertEqual(float(self.holder_account.balance), 1250.0)
+        self.assertEqual(float(self.dependent_account.balance), 0.0)
 
         # Removing again should return 404 - relationship no longer active
         response = self.holder_client.post(
@@ -197,3 +215,52 @@ class AccountsTestCase(TestCase):
         )
         # Dependent doesn't own holder_account, so it returns 404 (not found for this user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_add_dependent_directly_via_api(self):
+        # Create a new user to add as dependent
+        new_dependent_user = CustomUser.objects.create_user(
+            email="newdependent@example.com", password="pass1234"
+        )
+
+        # Holder adds dependent directly via new API endpoint
+        payload = {
+            "holder_account_id": self.holder_account.id,
+            "dependent_email": new_dependent_user.email,
+        }
+        response = self.holder_client.post(
+            "/actions/invitations/add-dependent/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIn("dependent_account_id", response.data)
+        self.assertIn("relationship_id", response.data)
+
+        # Verify dependent account was created
+        dependent_account = Account.objects.get(
+            user=new_dependent_user, account_type="dependent"
+        )
+        self.assertIsNotNone(dependent_account)
+
+        # Verify dependent relationship was created
+        relationship = Dependents.objects.get(
+            holder_account=self.holder_account,
+            dependent_account=dependent_account,
+            end_date__isnull=True,
+        )
+        self.assertIsNotNone(relationship)
+
+        # Try to add the same user again - should fail
+        response = self.holder_client.post(
+            "/actions/invitations/add-dependent/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_cannot_add_self_as_dependent(self):
+        # Try to add self as dependent - should fail
+        payload = {
+            "holder_account_id": self.holder_account.id,
+            "dependent_email": self.user_holder.email,
+        }
+        response = self.holder_client.post(
+            "/actions/invitations/add-dependent/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
