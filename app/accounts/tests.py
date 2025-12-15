@@ -264,3 +264,237 @@ class AccountsTestCase(TestCase):
             "/actions/invitations/add-dependent/", payload, format="json"
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_add_dependent_with_nonexistent_email(self):
+        """Test adding dependent with email that doesn't exist"""
+        payload = {
+            "holder_account_id": self.holder_account.id,
+            "dependent_email": "nonexistent@example.com",
+        }
+        response = self.holder_client.post(
+            "/actions/invitations/add-dependent/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_add_dependent_with_invalid_holder_account(self):
+        """Test adding dependent with holder account that doesn't belong to user"""
+        # Create another holder user
+        other_holder_user = CustomUser.objects.create_user(
+            email="other-holder@example.com", password="pass1234"
+        )
+        other_holder_account = Account.objects.get(
+            user=other_holder_user, account_type="holder"
+        )
+
+        # Try to use other user's holder account
+        new_dependent_user = CustomUser.objects.create_user(
+            email="newdep@example.com", password="pass1234"
+        )
+        payload = {
+            "holder_account_id": other_holder_account.id,
+            "dependent_email": new_dependent_user.email,
+        }
+        response = self.holder_client.post(
+            "/actions/invitations/add-dependent/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_add_dependent_missing_fields(self):
+        """Test adding dependent with missing required fields"""
+        # Missing dependent_email
+        payload = {"holder_account_id": self.holder_account.id}
+        response = self.holder_client.post(
+            "/actions/invitations/add-dependent/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Missing holder_account_id
+        payload = {"dependent_email": "test@example.com"}
+        response = self.holder_client.post(
+            "/actions/invitations/add-dependent/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_remove_dependent_with_zero_balance(self):
+        """Test removing dependent with zero balance"""
+        # Create dependent relationship
+        Dependents.objects.create(
+            holder_account=self.holder_account,
+            dependent_account=self.dependent_account,
+            start_date=timezone.now().date(),
+        )
+
+        # Set balances
+        self.holder_account.balance = 500
+        self.holder_account.save()
+        self.dependent_account.balance = 0
+        self.dependent_account.save()
+
+        payload = {
+            "holder_account_id": self.holder_account.id,
+            "dependent_account_id": self.dependent_account.id,
+        }
+        response = self.holder_client.post(
+            "/actions/remove-dependent/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(float(response.data["balance_transferred"]), 0.0)
+        self.assertEqual(float(response.data["new_holder_balance"]), 500.0)
+        self.assertEqual(float(self.holder_account.balance), 500.0)
+        self.assertEqual(float(self.dependent_account.balance), 0.0)
+
+    def test_remove_dependent_unauthorized_user(self):
+        """Test that a user cannot remove dependents from an account they don't own"""
+        # Create another holder user
+        other_holder_user = CustomUser.objects.create_user(
+            email="unauthorized@example.com", password="pass1234"
+        )
+        self._assign_gestor_role(other_holder_user)
+        other_holder_account = Account.objects.get(
+            user=other_holder_user, account_type="holder"
+        )
+
+        # Create dependent relationship
+        Dependents.objects.create(
+            holder_account=self.holder_account,
+            dependent_account=self.dependent_account,
+            start_date=timezone.now().date(),
+        )
+
+        # Try to remove using unauthorized client
+        unauthorized_client = APIClient()
+        unauthorized_client.force_authenticate(user=other_holder_user)
+
+        payload = {
+            "holder_account_id": self.holder_account.id,
+            "dependent_account_id": self.dependent_account.id,
+        }
+        response = unauthorized_client.post(
+            "/actions/remove-dependent/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_remove_nonexistent_dependent_relationship(self):
+        """Test removing a dependent relationship that doesn't exist"""
+        # Don't create any relationship
+        payload = {
+            "holder_account_id": self.holder_account.id,
+            "dependent_account_id": self.dependent_account.id,
+        }
+        response = self.holder_client.post(
+            "/actions/remove-dependent/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_add_dependent_creates_dependent_account_if_not_exists(self):
+        """Test that adding a dependent creates a dependent account if user doesn't have one"""
+        # Create a new user without dependent account (only holder account exists)
+        new_user = CustomUser.objects.create_user(
+            email="newuser@example.com", password="pass1234"
+        )
+
+        # Verify only holder account exists
+        self.assertTrue(
+            Account.objects.filter(user=new_user, account_type="holder").exists()
+        )
+        self.assertFalse(
+            Account.objects.filter(user=new_user, account_type="dependent").exists()
+        )
+
+        # Add as dependent
+        payload = {
+            "holder_account_id": self.holder_account.id,
+            "dependent_email": new_user.email,
+        }
+        response = self.holder_client.post(
+            "/actions/invitations/add-dependent/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify dependent account was created
+        self.assertTrue(
+            Account.objects.filter(user=new_user, account_type="dependent").exists()
+        )
+        dependent_account = Account.objects.get(user=new_user, account_type="dependent")
+        self.assertEqual(float(dependent_account.balance), 0.0)
+
+    def test_add_multiple_dependents_to_same_holder(self):
+        """Test adding multiple different dependents to the same holder"""
+        # Create two new users
+        dep1 = CustomUser.objects.create_user(
+            email="dep1@example.com", password="pass1234"
+        )
+        dep2 = CustomUser.objects.create_user(
+            email="dep2@example.com", password="pass1234"
+        )
+
+        # Add first dependent
+        payload1 = {
+            "holder_account_id": self.holder_account.id,
+            "dependent_email": dep1.email,
+        }
+        response1 = self.holder_client.post(
+            "/actions/invitations/add-dependent/", payload1, format="json"
+        )
+        self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
+
+        # Add second dependent
+        payload2 = {
+            "holder_account_id": self.holder_account.id,
+            "dependent_email": dep2.email,
+        }
+        response2 = self.holder_client.post(
+            "/actions/invitations/add-dependent/", payload2, format="json"
+        )
+        self.assertEqual(response2.status_code, status.HTTP_201_CREATED)
+
+        # Verify both relationships exist
+        dep1_account = Account.objects.get(user=dep1, account_type="dependent")
+        dep2_account = Account.objects.get(user=dep2, account_type="dependent")
+
+        self.assertTrue(
+            Dependents.objects.filter(
+                holder_account=self.holder_account,
+                dependent_account=dep1_account,
+                end_date__isnull=True,
+            ).exists()
+        )
+        self.assertTrue(
+            Dependents.objects.filter(
+                holder_account=self.holder_account,
+                dependent_account=dep2_account,
+                end_date__isnull=True,
+            ).exists()
+        )
+
+    def test_remove_dependent_with_large_balance(self):
+        """Test removing dependent with a large balance to verify transfer"""
+        # Create dependent relationship
+        Dependents.objects.create(
+            holder_account=self.holder_account,
+            dependent_account=self.dependent_account,
+            start_date=timezone.now().date(),
+        )
+
+        # Set large balances
+        self.holder_account.balance = 10000.50
+        self.holder_account.save()
+        self.dependent_account.balance = 5000.75
+        self.dependent_account.save()
+
+        payload = {
+            "holder_account_id": self.holder_account.id,
+            "dependent_account_id": self.dependent_account.id,
+        }
+        response = self.holder_client.post(
+            "/actions/remove-dependent/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(float(response.data["balance_transferred"]), 5000.75)
+        self.assertEqual(float(response.data["new_holder_balance"]), 15001.25)
+
+        # Verify in database
+        self.holder_account.refresh_from_db()
+        self.dependent_account.refresh_from_db()
+        self.assertEqual(float(self.holder_account.balance), 15001.25)
+        self.assertEqual(float(self.dependent_account.balance), 0.0)

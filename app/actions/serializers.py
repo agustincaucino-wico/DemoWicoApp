@@ -135,7 +135,7 @@ class AddDependentDirectlySerializer(serializers.Serializer):
             end_date__isnull=True,
         ).exists():
             raise serializers.ValidationError(
-                "Ya existe una relación activa entre estas cuentas"
+                "Ya existe una relación activa con esta cuenta"
             )
 
         attrs["holder_account"] = holder_account
