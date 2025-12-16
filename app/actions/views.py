@@ -39,6 +39,7 @@ from .serializers import (
     RemoveDependentResponseSerializer,
     AddDependentDirectlySerializer,
     UserPlateSerializer,
+    TransferBalanceSerializer,
 )
 
 
@@ -428,10 +429,26 @@ class UserInfoView(APIView):
             dependent_account = dependent_relation.dependent_account
             dependent_account_user = dependent_account.user
 
+            # Fetch authorized plates for this dependent account
+            authorized_plates = AuthorizedPlate.objects.filter(
+                dependent_account=dependent_account, end_date__isnull=True
+            )
+            authorized_plates_data = []
+            for ap in authorized_plates:
+                authorized_plates_data.append(
+                    {
+                        "id": ap.plate.id,
+                        "plate_number": ap.plate.plate_number,
+                        "brand": ap.plate.brand,
+                        "model": ap.plate.model,
+                    }
+                )
+
             dependents_data.append(
                 {
                     "dependent_account": AccountSerializer(dependent_account).data,
                     "dependent_user": UserSerializer(dependent_account_user).data,
+                    "authorized_plates": authorized_plates_data,
                 }
             )
 
@@ -601,7 +618,103 @@ class RemoveDependentView(APIView):
                     "new_holder_balance": float(holder_account.balance),
                 }
 
-                return Response(response_data, status=status.HTTP_200_OK)
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {"error": f"An error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class TransferBalanceView(APIView):
+    """
+    API view for transferring balance between accounts
+    """
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request=TransferBalanceSerializer,
+        responses={200: None, 400: None, 403: None, 404: None},
+        description="Transfer balance between two accounts. The source account must belong to the authenticated user.",
+        summary="Transfer Balance",
+    )
+    def post(self, request):
+        serializer = TransferBalanceSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        source_account_id = serializer.validated_data["source_account_id"]
+        destination_account_id = serializer.validated_data["destination_account_id"]
+        amount = serializer.validated_data["amount"]
+
+        try:
+            with transaction.atomic():
+                # Get source account (must belong to user and be active)
+                try:
+                    source_account = Account.objects.select_for_update().get(
+                        id=source_account_id, user=request.user, is_active=True
+                    )
+                except Account.DoesNotExist:
+                    return Response(
+                        {"error": "Source account not found or does not belong to you"},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+
+                # Get destination account (must be active)
+                try:
+                    destination_account = Account.objects.select_for_update().get(
+                        id=destination_account_id, is_active=True
+                    )
+                except Account.DoesNotExist:
+                    return Response(
+                        {"error": "Destination account not found or is not active"},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+
+                # Verify relationship between accounts (optional but recommended for security)
+                # For now, we allow transfer if source is holder and destination is dependent
+                # and they are related.
+                is_related = False
+                if source_account.account_type == "holder":
+                    is_related = Dependents.objects.filter(
+                        holder_account=source_account,
+                        dependent_account=destination_account,
+                        end_date__isnull=True,
+                    ).exists()
+
+                if not is_related:
+                    return Response(
+                        {
+                            "error": "Las cuentas no están relacionadas o no tienes permiso para transferir entre ellas"
+                        },
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+
+                # Check sufficient balance
+                if source_account.balance < amount:
+                    return Response(
+                        {"error": "Saldo insuficiente"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Perform transfer
+                source_account.balance -= amount
+                destination_account.balance += amount
+
+                source_account.save()
+                destination_account.save()
+
+                return Response(
+                    {
+                        "message": "Transfer successful",
+                        "source_balance": source_account.balance,
+                        "destination_balance": destination_account.balance,
+                    },
+                    status=status.HTTP_200_OK,
+                )
 
         except Exception as e:
             return Response(

@@ -210,3 +210,15 @@ class UserPlateSerializer(serializers.Serializer):
     )
     start_date = serializers.DateField()
     end_date = serializers.DateField(allow_null=True)
+
+
+class TransferBalanceSerializer(serializers.Serializer):
+    source_account_id = serializers.IntegerField(
+        help_text="ID of the source account (must belong to user)"
+    )
+    destination_account_id = serializers.IntegerField(
+        help_text="ID of the destination account"
+    )
+    amount = serializers.DecimalField(
+        max_digits=12, decimal_places=2, min_value=0.01, help_text="Amount to transfer"
+    )

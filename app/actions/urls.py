@@ -1,6 +1,12 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
-from .views import InvitationViewSet, UserInfoView, RemoveDependentView, get_user_plates
+from .views import (
+    InvitationViewSet,
+    UserInfoView,
+    RemoveDependentView,
+    get_user_plates,
+    TransferBalanceView,
+)
 from . import fuel_load_views
 
 
@@ -11,6 +17,7 @@ urlpatterns = [
     path("", include(router.urls)),
     path("info/", UserInfoView.as_view(), name="user-info"),
     path("remove-dependent/", RemoveDependentView.as_view(), name="remove-dependent"),
+    path("transfer-balance/", TransferBalanceView.as_view(), name="transfer-balance"),
     # User Actions
     path(
         "user/plates/",
