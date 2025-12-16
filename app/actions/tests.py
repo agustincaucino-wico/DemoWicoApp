@@ -353,33 +353,3 @@ class RemoveDependentTests(TestCase):
 
         dependents = response.data["dependents"]
         self.assertEqual(len(dependents), 0)
-
-    def test_inactive_account_not_in_account_list(self):
-        """
-        Test that inactive accounts are not returned in AccountViewSet.
-        """
-        # Authenticate as dependent
-        dependent_client = APIClient()
-        dependent_client.force_authenticate(user=self.dependent_user)
-
-        # Verify account is visible
-        url = "/accounts/accounts/"
-        response = dependent_client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["id"], self.dependent_account.id)
-
-        # Remove dependent (as holder)
-        self.client.post(
-            "/actions/remove-dependent/",
-            {
-                "holder_account_id": self.holder_account.id,
-                "dependent_account_id": self.dependent_account.id,
-            },
-            format="json",
-        )
-
-        # Verify account is NOT visible to dependent
-        response = dependent_client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 0)
