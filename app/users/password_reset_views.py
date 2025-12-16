@@ -7,6 +7,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
+from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
 
 from users.models import CustomUser, PasswordResetToken
 from users.password_reset_serializers import (
@@ -32,6 +34,16 @@ class PasswordResetRequestView(APIView):
 
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=PasswordResetRequestSerializer,
+        responses={
+            200: OpenApiTypes.OBJECT,
+            429: OpenApiTypes.OBJECT,
+            500: OpenApiTypes.OBJECT,
+        },
+        summary="Request Password Reset",
+        description="Sends a 6-digit code to the user's email if the account exists.",
+    )
     def post(self, request):
         serializer = PasswordResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -99,6 +111,15 @@ class PasswordResetVerifyView(APIView):
 
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=PasswordResetVerifySerializer,
+        responses={
+            200: OpenApiTypes.OBJECT,
+            400: OpenApiTypes.OBJECT,
+        },
+        summary="Verify Password Reset Code",
+        description="Verify a password reset code without changing the password.",
+    )
     def post(self, request):
         serializer = PasswordResetVerifySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -132,6 +153,15 @@ class PasswordResetConfirmView(APIView):
 
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=PasswordResetConfirmSerializer,
+        responses={
+            200: OpenApiTypes.OBJECT,
+            400: OpenApiTypes.OBJECT,
+        },
+        summary="Confirm Password Reset",
+        description="Confirm password reset with code and set new password.",
+    )
     def post(self, request):
         serializer = PasswordResetConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

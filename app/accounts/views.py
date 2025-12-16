@@ -41,7 +41,7 @@ class BaseLCViewSet(
 
 
 class AccountViewSet(BaseLCViewSet):
-    queryset = Account.objects.all().order_by("id")
+    queryset = Account.objects.filter(is_active=True).order_by("id")
     serializer_class = AccountSerializer
 
     @extend_schema(

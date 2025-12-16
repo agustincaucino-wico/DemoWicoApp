@@ -396,7 +396,7 @@ class UserInfoView(APIView):
         """
         user = request.user
         # Get accounts associated to user
-        accounts = Account.objects.filter(user=user)
+        accounts = Account.objects.filter(user=user, is_active=True)
         accounts_data = []
 
         for account in accounts:
@@ -418,7 +418,9 @@ class UserInfoView(APIView):
 
         # Get dependents data for those accounts (only active ones)
         dependent_relations = Dependents.objects.filter(
-            holder_account__in=accounts, end_date__isnull=True
+            holder_account__in=accounts,
+            end_date__isnull=True,
+            dependent_account__is_active=True,
         )
         dependents_data = []
 
@@ -576,7 +578,8 @@ class RemoveDependentView(APIView):
                 dependent_relation.save()
 
                 # Set updated_at on dependent account to mark when it was deactivated
-                # The account is not deleted, just deactivated (could add an 'is_active' field in future) (TODO)
+                # The account is not deleted, just deactivated
+                dependent_account.is_active = False
                 dependent_account.updated_at = timezone.now()
                 dependent_account.save()
 
@@ -626,7 +629,7 @@ def get_user_plates(request):
     plates_data = []
 
     # Get all accounts for the user (holder and dependent)
-    user_accounts = Account.objects.filter(user=user)
+    user_accounts = Account.objects.filter(user=user, is_active=True)
 
     for account in user_accounts:
         if account.account_type == "holder":

@@ -49,11 +49,14 @@ class CreateInvitationSerializer(serializers.Serializer):
         if request:
             try:
                 holder_account = Account.objects.get(
-                    id=holder_account_id, user=request.user, account_type="holder"
+                    id=holder_account_id,
+                    user=request.user,
+                    account_type="holder",
+                    is_active=True,
                 )
             except Account.DoesNotExist:
                 raise serializers.ValidationError(
-                    "La cuenta titular no existe o no te pertenece"
+                    "La cuenta titular no existe, está inactiva o no te pertenece"
                 )
 
         # Validar que el usuario a invitar existe
@@ -109,11 +112,14 @@ class AddDependentDirectlySerializer(serializers.Serializer):
         if request:
             try:
                 holder_account = Account.objects.get(
-                    id=holder_account_id, user=request.user, account_type="holder"
+                    id=holder_account_id,
+                    user=request.user,
+                    account_type="holder",
+                    is_active=True,
                 )
             except Account.DoesNotExist:
                 raise serializers.ValidationError(
-                    "La cuenta titular no existe o no te pertenece"
+                    "La cuenta titular no existe, está inactiva o no te pertenece"
                 )
 
         # Validate that the user to add exists

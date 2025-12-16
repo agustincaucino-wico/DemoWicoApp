@@ -52,10 +52,10 @@ def initiate_fuel_load(request):
         from accounts.models import Account
 
         try:
-            account = Account.objects.get(id=account_id, user=request.user)
+            account = Account.objects.get(id=account_id, user=request.user, is_active=True)
         except Account.DoesNotExist:
             return Response(
-                {"error": "Cuenta no encontrada o no te pertenece"},
+                {"error": "Cuenta no encontrada, inactiva o no te pertenece"},
                 status=status.HTTP_403_FORBIDDEN,
             )
 

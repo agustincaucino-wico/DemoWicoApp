@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from accounts.models import Account, Plates
+from accounts.models import Account, Plates, Dependents
 from locations.models import Country, Province, City
 from operation.models import FuelLoadOperation
 from stations.models import Station, StationAttendantAssignment
@@ -256,3 +256,130 @@ class FuelLoadFlowTests(TestCase):
         returned_ids = {item["id_operation"] for item in response.data}
         self.assertIn(first_op.data["id"], returned_ids)
         self.assertNotIn(second_response.data["id"], returned_ids)
+
+
+class RemoveDependentTests(TestCase):
+    def setUp(self):
+        # Holder user + account
+        self.holder_user = CustomUser.objects.create_user(
+            email="holder@example.com", password="pass1234"
+        )
+        self.holder_account = Account.objects.get(
+            user=self.holder_user, account_type="holder"
+        )
+        self.holder_account.balance = Decimal("100.00")
+        self.holder_account.save()
+
+        # Dependent user + account
+        self.dependent_user = CustomUser.objects.create_user(
+            email="dependent@example.com", password="pass1234"
+        )
+        self.dependent_account = Account.objects.create(
+            user=self.dependent_user,
+            account_type="dependent",
+            balance=Decimal("50.00"),
+            is_active=True,
+        )
+
+        # Link them
+        self.dependent_relation = Dependents.objects.create(
+            holder_account=self.holder_account,
+            dependent_account=self.dependent_account,
+            start_date=timezone.now().date(),
+        )
+
+        # API client
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.holder_user)
+
+    def test_remove_dependent_sets_inactive(self):
+        """
+        Test that removing a dependent sets the account to inactive
+        and transfers balance.
+        """
+        url = "/actions/remove-dependent/"
+        data = {
+            "holder_account_id": self.holder_account.id,
+            "dependent_account_id": self.dependent_account.id,
+        }
+
+        response = self.client.post(url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Refresh accounts
+        self.holder_account.refresh_from_db()
+        self.dependent_account.refresh_from_db()
+        self.dependent_relation.refresh_from_db()
+
+        # Check balance transfer
+        self.assertEqual(self.holder_account.balance, Decimal("150.00"))
+        self.assertEqual(self.dependent_account.balance, Decimal("0.00"))
+
+        # Check relationship ended
+        self.assertIsNotNone(self.dependent_relation.end_date)
+
+        # Check account is inactive
+        self.assertFalse(self.dependent_account.is_active)
+
+    def test_inactive_dependent_not_in_user_info(self):
+        """
+        Test that inactive dependent accounts are not returned in UserInfoView.
+        """
+        # First verify it is returned
+        url = "/actions/info/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check dependents list
+        dependents = response.data["dependents"]
+        self.assertEqual(len(dependents), 1)
+        self.assertEqual(
+            dependents[0]["dependent_account"]["id"], self.dependent_account.id
+        )
+
+        # Now remove the dependent
+        self.client.post(
+            "/actions/remove-dependent/",
+            {
+                "holder_account_id": self.holder_account.id,
+                "dependent_account_id": self.dependent_account.id,
+            },
+            format="json",
+        )
+
+        # Verify it is NOT returned
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        dependents = response.data["dependents"]
+        self.assertEqual(len(dependents), 0)
+
+    def test_inactive_account_not_in_account_list(self):
+        """
+        Test that inactive accounts are not returned in AccountViewSet.
+        """
+        # Authenticate as dependent
+        dependent_client = APIClient()
+        dependent_client.force_authenticate(user=self.dependent_user)
+
+        # Verify account is visible
+        url = "/accounts/accounts/"
+        response = dependent_client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["id"], self.dependent_account.id)
+
+        # Remove dependent (as holder)
+        self.client.post(
+            "/actions/remove-dependent/",
+            {
+                "holder_account_id": self.holder_account.id,
+                "dependent_account_id": self.dependent_account.id,
+            },
+            format="json",
+        )
+
+        # Verify account is NOT visible to dependent
+        response = dependent_client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
