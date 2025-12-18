@@ -52,7 +52,9 @@ def initiate_fuel_load(request):
         from accounts.models import Account
 
         try:
-            account = Account.objects.get(id=account_id, user=request.user, is_active=True)
+            account = Account.objects.get(
+                id=account_id, user=request.user, is_active=True
+            )
         except Account.DoesNotExist:
             return Response(
                 {"error": "Cuenta no encontrada, inactiva o no te pertenece"},
@@ -507,10 +509,7 @@ def check_last_operation_status(request):
         )
 
         if not operation:
-            return Response(
-                {"error": "No se encontró ninguna operación de carga de combustible"},
-                status=status.HTTP_204_NO_CONTENT,
-            )
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
         serializer = CheckOperationStatusSerializer(
             {
