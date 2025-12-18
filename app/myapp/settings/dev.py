@@ -14,8 +14,6 @@ ALLOWED_HOSTS = [
     "172.31.25.8",
 ]
 
-ROOT_URLCONF = "myapp.urls"
-
 # Permite hacer llamados a la API desde el back office
 CORS_ALLOWED_ORIGINS = ["https://front-intappestacion-tst.wico.com.ar"]
 
@@ -40,6 +38,9 @@ DATABASES = {
 }
 
 STATIC_URL = "/static/"
+STATIC_ROOT = "/appContainer/staticfiles"
+
+ROOT_URLCONF = "myapp.urls"
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 SERVER_EMAIL = os.getenv("SERVER_EMAIL")
