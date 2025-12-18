@@ -12,7 +12,6 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 ALLOWED_HOSTS = [
     "back-appmobile-tst.wico.com.ar",
     "172.31.25.8",
-    # etc
 ]
 
 ROOT_URLCONF = "myapp.urls"
