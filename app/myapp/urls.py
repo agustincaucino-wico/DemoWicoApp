@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.urls import include, path
+from django.views.generic import RedirectView
 from users.admin import my_admin_site
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -9,6 +10,9 @@ from rest_framework_simplejwt.views import (
 from .views import HealthCheckView, AdminSpectacularAPIView, AdminSpectacularSwaggerView
 
 urlpatterns = [
+    path(
+        "", RedirectView.as_view(url="/health/", permanent=False), name="root_redirect"
+    ),
     path("admin/", my_admin_site.urls),
     path("users/", include("users.urls")),
     path("locations/", include("locations.urls")),
