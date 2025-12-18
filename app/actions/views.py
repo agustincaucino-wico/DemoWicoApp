@@ -659,7 +659,9 @@ class TransferBalanceView(APIView):
                     )
                 except Account.DoesNotExist:
                     return Response(
-                        {"error": "Source account not found or does not belong to you"},
+                        {
+                            "error": "La cuenta de origen no fue encontrada o no te pertenece"
+                        },
                         status=status.HTTP_404_NOT_FOUND,
                     )
 
@@ -670,7 +672,7 @@ class TransferBalanceView(APIView):
                     )
                 except Account.DoesNotExist:
                     return Response(
-                        {"error": "Destination account not found or is not active"},
+                        {"error": "La cuenta de destino no fue encontrada"},
                         status=status.HTTP_404_NOT_FOUND,
                     )
 
