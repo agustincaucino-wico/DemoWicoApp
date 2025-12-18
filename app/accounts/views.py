@@ -22,6 +22,7 @@ from .serializers import (
     AccountBalanceUpdateSerializer,
     DependentsSerializer,
     PlatesSerializer,
+    PlatesUpdateSerializer,
     AuthorizedPlateSerializer,
     CompanySerializer,
     CompanyAssignmentSerializer,
@@ -36,6 +37,20 @@ class BaseLCViewSet(
     mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [StrictDjangoModelPermissions]
+
+
+class BaseLCUDViewSet(
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """ViewSet con soporte completo para actualización (PATCH/PUT)"""
+
     authentication_classes = [JWTAuthentication]
     permission_classes = [StrictDjangoModelPermissions]
 
@@ -86,10 +101,16 @@ class DependentsViewSet(BaseLCViewSet):
     permission_classes = [DjangoModelOrObjectOwner]
 
 
-class PlatesViewSet(BaseLCViewSet):
+class PlatesViewSet(BaseLCUDViewSet):
     queryset = Plates.objects.all().order_by("id")
     serializer_class = PlatesSerializer
     permission_classes = [DjangoModelOrObjectOwner]
+
+    def get_serializer_class(self):
+        """Usar PlatesUpdateSerializer solo para actualizaciones (PATCH/PUT)"""
+        if self.action in ["update", "partial_update"]:
+            return PlatesUpdateSerializer
+        return PlatesSerializer
 
 
 class AuthorizedPlateViewSet(BaseLCViewSet):

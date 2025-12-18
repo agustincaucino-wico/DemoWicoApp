@@ -438,6 +438,7 @@ class UserInfoView(APIView):
                 authorized_plates_data.append(
                     {
                         "id": ap.plate.id,
+                        "authorization_id": ap.id,
                         "plate_number": ap.plate.plate_number,
                         "brand": ap.plate.brand,
                         "model": ap.plate.model,

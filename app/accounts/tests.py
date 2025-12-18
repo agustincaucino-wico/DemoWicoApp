@@ -137,6 +137,13 @@ class AccountsTestCase(TestCase):
             )
         )
 
+        # Test duplicate authorization - should fail with validation error
+        response = self.holder_client.post(
+            "/accounts/authorized-plates/", auth_payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Ya existe una autorización activa", str(response.data))
+
     def test_dependent_invitation_flow_models(self):
         # Create an invitation and accept it via model methods
         invitation = DependentInvitation.objects.create(

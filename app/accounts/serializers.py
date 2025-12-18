@@ -58,6 +58,14 @@ class PlatesSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class PlatesUpdateSerializer(serializers.ModelSerializer):
+    """Serializer específico para actualizar solo marca y modelo de una patente"""
+
+    class Meta:
+        model = Plates
+        fields = ["brand", "model"]
+
+
 class AuthorizedPlateSerializer(serializers.ModelSerializer):
     class Meta:
         model = AuthorizedPlate
@@ -86,6 +94,23 @@ class AuthorizedPlateSerializer(serializers.ModelSerializer):
             ).exists():
                 raise serializers.ValidationError(
                     "La cuenta a autorizar debe ser un adherente activo de la cuenta titular de la patente"
+                )
+
+        # Validar que no exista una relación activa entre la patente y el usuario
+        if plate and dependent_account:
+            # Excluir la instancia actual si estamos editando
+            existing_authorization = AuthorizedPlate.objects.filter(
+                plate=plate, dependent_account=dependent_account, end_date__isnull=True
+            )
+
+            if self.instance:
+                existing_authorization = existing_authorization.exclude(
+                    pk=self.instance.pk
+                )
+
+            if existing_authorization.exists():
+                raise serializers.ValidationError(
+                    "Ya existe una autorización activa de esta patente para este usuario"
                 )
 
         return attrs
