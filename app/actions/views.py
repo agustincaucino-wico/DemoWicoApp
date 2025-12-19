@@ -831,12 +831,43 @@ def get_account_movements(request):
 
     # Get user's accounts
     if account_id:
-        user_accounts = Account.objects.filter(user=user, id=account_id, is_active=True)
-        if not user_accounts.exists():
-            return Response(
-                {"error": "La cuenta no fue encontrada o no te pertenece"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+        # Check if account belongs to user directly or if user is the holder of a dependent account
+        user_account = Account.objects.filter(
+            user=user, id=account_id, is_active=True
+        ).first()
+
+        if user_account:
+            user_accounts = [user_account]
+        else:
+            # Check if user is holder and account_id belongs to a dependent
+            holder_account = Account.objects.filter(
+                user=user, account_type="holder", is_active=True
+            ).first()
+
+            if holder_account:
+                # Check if the account_id is a dependent of this holder
+                dependent_relationship = Dependents.objects.filter(
+                    holder_account=holder_account,
+                    dependent_account_id=account_id,
+                    end_date__isnull=True,
+                ).exists()
+
+                if dependent_relationship:
+                    user_accounts = Account.objects.filter(
+                        id=account_id, is_active=True
+                    )
+                else:
+                    return Response(
+                        {
+                            "error": "La cuenta no fue encontrada o no tienes permiso para verla"
+                        },
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+            else:
+                return Response(
+                    {"error": "La cuenta no fue encontrada o no te pertenece"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
     else:
         user_accounts = Account.objects.filter(user=user, is_active=True)
 
