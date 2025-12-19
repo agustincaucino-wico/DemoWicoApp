@@ -79,11 +79,22 @@ class FuelLoadOperation(models.Model):
         return f"{self.final_amount} at {self.station} [{self.get_status_display()}]"
 
 
-# class Transfer(models.Model):
-#     source_account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='transfers_sent')
-#     destination_account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='transfers_received')
-#     timestamp = models.DateTimeField(auto_now_add=True)
-#     amount = models.DecimalField(max_digits=12, decimal_places=2)
+class Transfer(models.Model):
+    source_account = models.ForeignKey(
+        Account, on_delete=models.CASCADE, related_name="transfers_sent"
+    )
+    destination_account = models.ForeignKey(
+        Account, on_delete=models.CASCADE, related_name="transfers_received"
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+
+    class Meta:
+        ordering = ("-timestamp",)
+
+    def __str__(self):
+        return f"${self.amount} from {self.source_account.user.email} to {self.destination_account.user.email}"
+
 
 # class AddFunds(models.Model):
 #     account = models.ForeignKey(Account, on_delete=models.CASCADE)

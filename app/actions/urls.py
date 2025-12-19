@@ -5,6 +5,7 @@ from .views import (
     UserInfoView,
     RemoveDependentView,
     get_user_plates,
+    get_account_movements,
     TransferBalanceView,
 )
 from . import fuel_load_views
@@ -23,6 +24,11 @@ urlpatterns = [
         "user/plates/",
         get_user_plates,
         name="get-user-plates",
+    ),
+    path(
+        "user/movements/",
+        get_account_movements,
+        name="get-account-movements",
     ),
     # Fuel Load - Cliente
     path(

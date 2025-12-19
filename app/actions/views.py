@@ -28,6 +28,7 @@ from accounts.serializers import (
 )
 from users.models import CustomUser
 from users.serializers import UserSerializer
+from operation.models import Transfer, FuelLoadOperation
 from utils.email_service import email_service
 from .serializers import (
     DependentInvitationSerializer,
@@ -40,6 +41,7 @@ from .serializers import (
     AddDependentDirectlySerializer,
     UserPlateSerializer,
     TransferBalanceSerializer,
+    AccountMovementSerializer,
 )
 
 
@@ -710,6 +712,13 @@ class TransferBalanceView(APIView):
                 source_account.save()
                 destination_account.save()
 
+                # Create transfer record
+                Transfer.objects.create(
+                    source_account=source_account,
+                    destination_account=destination_account,
+                    amount=amount,
+                )
+
                 return Response(
                     {
                         "message": "Transfer successful",
@@ -787,4 +796,123 @@ def get_user_plates(request):
                 )
 
     serializer = UserPlateSerializer(plates_data, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    responses={200: AccountMovementSerializer(many=True)},
+    description="Get all movements (transactions) for user's accounts. Includes fuel loads, transfers sent (for holder accounts), and transfers received.",
+    summary="Get Account Movements",
+    parameters=[
+        OpenApiParameter(
+            name="account_id",
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.QUERY,
+            description="Filter movements by specific account ID. If not provided, returns movements for all user's accounts.",
+            required=False,
+        ),
+    ],
+)
+@api_view(["GET"])
+@permission_classes_decorator([IsAuthenticated])
+def get_account_movements(request):
+    """
+    Retrieve all movements (transactions) for the authenticated user's accounts.
+
+    Returns a unified list of:
+    - Fuel load operations
+    - Transfers sent (for holder accounts)
+    - Transfers received (for any account)
+
+    The list is sorted by timestamp in descending order (most recent first).
+    """
+    user = request.user
+    account_id = request.query_params.get("account_id", None)
+
+    # Get user's accounts
+    if account_id:
+        user_accounts = Account.objects.filter(user=user, id=account_id, is_active=True)
+        if not user_accounts.exists():
+            return Response(
+                {"error": "La cuenta no fue encontrada o no te pertenece"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+    else:
+        user_accounts = Account.objects.filter(user=user, is_active=True)
+
+    movements = []
+
+    for account in user_accounts:
+        # 1. Fuel Load Operations
+        fuel_loads = FuelLoadOperation.objects.filter(
+            account=account, status=FuelLoadOperation.STATUS_COMPLETED
+        ).select_related("station", "plate")
+
+        for fuel_load in fuel_loads:
+            movements.append(
+                {
+                    "id": fuel_load.id,
+                    "type": "fuel_load",
+                    "timestamp": fuel_load.timestamp_finished,
+                    "amount": -fuel_load.final_amount
+                    if fuel_load.final_amount
+                    else -fuel_load.initial_amount,
+                    "description": f"Carga de combustible",
+                    "station_name": fuel_load.station.name
+                    if fuel_load.station
+                    else None,
+                    "plate_number": fuel_load.plate.plate_number
+                    if fuel_load.plate
+                    else None,
+                    "status": fuel_load.get_status_display(),
+                }
+            )
+
+        # 2. Transfers Sent (only for holder accounts)
+        if account.account_type == "holder":
+            transfers_sent = Transfer.objects.filter(
+                source_account=account
+            ).select_related("destination_account__user")
+
+            for transfer in transfers_sent:
+                dest_user = transfer.destination_account.user
+                movements.append(
+                    {
+                        "id": transfer.id,
+                        "type": "transfer_sent",
+                        "timestamp": transfer.timestamp,
+                        "amount": -transfer.amount,
+                        "description": f"Transferencia enviada",
+                        "related_user_name": f"{dest_user.first_name} {dest_user.last_name}".strip(),
+                        "station_name": None,
+                        "plate_number": None,
+                        "status": None,
+                    }
+                )
+
+        # 3. Transfers Received (for any account)
+        transfers_received = Transfer.objects.filter(
+            destination_account=account
+        ).select_related("source_account__user")
+
+        for transfer in transfers_received:
+            source_user = transfer.source_account.user
+            movements.append(
+                {
+                    "id": transfer.id,
+                    "type": "transfer_received",
+                    "timestamp": transfer.timestamp,
+                    "amount": transfer.amount,
+                    "description": f"Transferencia recibida",
+                    "related_user_name": f"{source_user.first_name} {source_user.last_name}".strip(),
+                    "station_name": None,
+                    "plate_number": None,
+                    "status": None,
+                }
+            )
+
+    # Sort by timestamp descending (most recent first)
+    movements.sort(key=lambda x: x["timestamp"], reverse=True)
+
+    serializer = AccountMovementSerializer(movements, many=True)
     return Response(serializer.data)

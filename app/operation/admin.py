@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from myapp.admin import my_admin_site
-from operation.models import FuelLoadOperation, PaymentMethod
+from operation.models import FuelLoadOperation, PaymentMethod, Transfer
 
 
 @admin.register(PaymentMethod, site=my_admin_site)
@@ -34,3 +34,21 @@ class FuelLoadOperationAdmin(admin.ModelAdmin):
         "attendant__email",
     )
     autocomplete_fields = ("account", "plate", "attendant", "station", "payment_method")
+
+
+@admin.register(Transfer, site=my_admin_site)
+class TransferAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "source_account",
+        "destination_account",
+        "amount",
+        "timestamp",
+    )
+    list_filter = ("timestamp",)
+    search_fields = (
+        "source_account__user__email",
+        "destination_account__user__email",
+    )
+    autocomplete_fields = ("source_account", "destination_account")
+    readonly_fields = ("timestamp",)

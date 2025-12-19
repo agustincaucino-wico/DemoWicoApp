@@ -222,3 +222,31 @@ class TransferBalanceSerializer(serializers.Serializer):
     amount = serializers.DecimalField(
         max_digits=12, decimal_places=2, min_value=0.01, help_text="Amount to transfer"
     )
+
+
+class AccountMovementSerializer(serializers.Serializer):
+    """Serializer for account movements (transactions)"""
+
+    id = serializers.IntegerField(help_text="ID of the movement")
+    type = serializers.CharField(
+        help_text="Type of movement: 'fuel_load', 'transfer_sent', 'transfer_received'"
+    )
+    timestamp = serializers.DateTimeField(help_text="Date and time of the movement")
+    amount = serializers.DecimalField(
+        max_digits=12, decimal_places=2, help_text="Amount of the movement"
+    )
+    description = serializers.CharField(help_text="Description of the movement")
+
+    # Optional fields depending on movement type
+    station_name = serializers.CharField(required=False, allow_null=True)
+    plate_number = serializers.CharField(required=False, allow_null=True)
+    related_user_name = serializers.CharField(
+        required=False,
+        allow_null=True,
+        help_text="Name of the related user (for transfers)",
+    )
+    status = serializers.CharField(
+        required=False,
+        allow_null=True,
+        help_text="Status of the movement (for fuel loads)",
+    )
