@@ -302,6 +302,9 @@ def pending_fuel_loads(request):
             )
 
         # Filter operations by station and pending/in_progress status
+        # For IN_PROGRESS operations, only show those assigned to this attendant
+        from django.db.models import Q
+
         operations = (
             FuelLoadOperation.objects.filter(
                 station=assignment.station,
@@ -309,6 +312,10 @@ def pending_fuel_loads(request):
                     FuelLoadOperation.STATUS_PENDING,
                     FuelLoadOperation.STATUS_IN_PROGRESS,
                 ],
+            )
+            .filter(
+                Q(status=FuelLoadOperation.STATUS_PENDING)
+                | Q(status=FuelLoadOperation.STATUS_IN_PROGRESS, attendant=request.user)
             )
             .select_related("account__user", "plate")
             .order_by("timestamp_started")
