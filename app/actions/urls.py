@@ -77,4 +77,10 @@ urlpatterns = [
         fuel_load_views.get_fuel_load_status,
         name="get-fuel-load-status",
     ),
+    # Fuel Load - Encargado (manager)
+    path(
+        "fuel-load/station/<int:station_id>/operations/",
+        fuel_load_views.get_station_operations,
+        name="get-station-operations",
+    ),
 ]

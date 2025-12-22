@@ -21,6 +21,8 @@ from accounts.models import (
     CompanyAssignment,
     AuthorizedPlate,
 )
+from stations.models import StationAttendantAssignment
+from stations.serializers import StationSerializer
 from accounts.serializers import (
     AccountSerializer,
     PlatesSerializer,
@@ -492,6 +494,19 @@ class UserInfoView(APIView):
             received_invitations, many=True
         ).data
 
+        # Get assigned stations (for Encargado role)
+        assigned_stations_data = []
+        if user.groups.filter(name="Encargado").exists():
+            assignments = StationAttendantAssignment.objects.filter(
+                attendant=user,
+                end_date__isnull=True,
+            ).select_related("station", "station__province", "station__city")
+            for assignment in assignments:
+                station_data = StationSerializer(assignment.station).data
+                station_data["assignment_id"] = assignment.id
+                station_data["assignment_start_date"] = assignment.start_date
+                assigned_stations_data.append(station_data)
+
         return Response(
             {
                 "accounts": accounts_data,
@@ -500,6 +515,7 @@ class UserInfoView(APIView):
                 "company": company_data,
                 "sent_invitations": sent_invitations_data,
                 "received_invitations": received_invitations_data,
+                "assigned_stations": assigned_stations_data,
             }
         )
 
