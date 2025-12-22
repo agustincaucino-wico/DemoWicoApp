@@ -505,3 +505,107 @@ class AccountsTestCase(TestCase):
         self.dependent_account.refresh_from_db()
         self.assertEqual(float(self.holder_account.balance), 15001.25)
         self.assertEqual(float(self.dependent_account.balance), 0.0)
+
+
+class PlatesSoftDeleteTestCase(TestCase):
+    """Test soft delete functionality for Plates"""
+
+    def setUp(self):
+        # Create user and holder account
+        self.user_holder = CustomUser.objects.create_user(
+            email="holder@example.com", password="pass1234"
+        )
+        self._assign_gestor_role(self.user_holder)
+
+        self.holder_account = Account.objects.get(
+            user=self.user_holder, account_type="holder"
+        )
+
+        # Create API client
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user_holder)
+
+    def _assign_gestor_role(self, user):
+        """Assign Gestor group and permissions to the user."""
+        gestor_group, _ = Group.objects.get_or_create(name="Gestor")
+
+        # Get all permissions for the accounts app
+        permissions = Permission.objects.filter(
+            content_type__app_label__in=["accounts", "actions"]
+        )
+        gestor_group.permissions.set(permissions)
+        user.groups.add(gestor_group)
+
+    def test_delete_plate_sets_end_date(self):
+        """Test that deleting a plate sets end_date instead of removing it"""
+        # Create a plate
+        plate = Plates.objects.create(
+            plate_number="ABC123",
+            holder_account=self.holder_account,
+            start_date=timezone.now().date(),
+        )
+
+        # Delete the plate via API
+        response = self.client.delete(f"/accounts/plates/{plate.id}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("message", response.data)
+        self.assertIn("end_date", response.data)
+
+        # Verify plate still exists but has end_date
+        plate.refresh_from_db()
+        self.assertIsNotNone(plate.end_date)
+        self.assertEqual(plate.end_date, timezone.now().date())
+
+    def test_cannot_delete_already_deleted_plate(self):
+        """Test that deleting an already deleted plate returns error"""
+        # Create a plate with end_date
+        plate = Plates.objects.create(
+            plate_number="ABC123",
+            holder_account=self.holder_account,
+            start_date=timezone.now().date(),
+            end_date=timezone.now().date(),
+        )
+
+        # Try to delete again
+        response = self.client.delete(f"/accounts/plates/{plate.id}/")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("error", response.data)
+
+    def test_cannot_create_duplicate_active_plate(self):
+        """Test that creating a plate with same number as active plate fails"""
+        # Create first plate
+        Plates.objects.create(
+            plate_number="ABC123",
+            holder_account=self.holder_account,
+            start_date=timezone.now().date(),
+        )
+
+        # Try to create duplicate
+        payload = {
+            "plate_number": "ABC123",
+            "holder_account": self.holder_account.id,
+            "start_date": timezone.now().date().isoformat(),
+        }
+        response = self.client.post("/accounts/plates/", payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("error", response.data)
+
+    def test_can_create_plate_after_soft_delete(self):
+        """Test that a plate can be created after soft deleting the previous one"""
+        # Create and soft delete a plate
+        plate = Plates.objects.create(
+            plate_number="ABC123",
+            holder_account=self.holder_account,
+            start_date=timezone.now().date(),
+        )
+        plate.end_date = timezone.now().date()
+        plate.save()
+
+        # Create new plate with same number (should work)
+        payload = {
+            "plate_number": "ABC123",
+            "holder_account": self.holder_account.id,
+            "start_date": timezone.now().date().isoformat(),
+        }
+        response = self.client.post("/accounts/plates/", payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)

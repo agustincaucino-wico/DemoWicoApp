@@ -431,21 +431,23 @@ class UserInfoView(APIView):
             dependent_account = dependent_relation.dependent_account
             dependent_account_user = dependent_account.user
 
-            # Fetch authorized plates for this dependent account
+            # Fetch authorized plates for this dependent account (only active ones)
             authorized_plates = AuthorizedPlate.objects.filter(
                 dependent_account=dependent_account, end_date__isnull=True
-            )
+            ).select_related("plate")
             authorized_plates_data = []
             for ap in authorized_plates:
-                authorized_plates_data.append(
-                    {
-                        "id": ap.plate.id,
-                        "authorization_id": ap.id,
-                        "plate_number": ap.plate.plate_number,
-                        "brand": ap.plate.brand,
-                        "model": ap.plate.model,
-                    }
-                )
+                # Also verify that the plate itself is active
+                if ap.plate.end_date is None:
+                    authorized_plates_data.append(
+                        {
+                            "id": ap.plate.id,
+                            "authorization_id": ap.id,
+                            "plate_number": ap.plate.plate_number,
+                            "brand": ap.plate.brand,
+                            "model": ap.plate.model,
+                        }
+                    )
 
             dependents_data.append(
                 {
@@ -455,8 +457,10 @@ class UserInfoView(APIView):
                 }
             )
 
-        # Get plates for those accounts
-        plates = Plates.objects.filter(holder_account__in=accounts)
+        # Get plates for those accounts (only active ones with end_date null)
+        plates = Plates.objects.filter(
+            holder_account__in=accounts, end_date__isnull=True
+        )
         plates_data = PlatesSerializer(plates, many=True).data
 
         # Get company assignment and company data
@@ -744,11 +748,11 @@ class TransferBalanceView(APIView):
 @permission_classes_decorator([IsAuthenticated])
 def get_user_plates(request):
     """
-    Returns all plates accessible by the authenticated user.
+    Returns all ACTIVE plates accessible by the authenticated user.
     Includes:
-    - Plates owned by the user's holder account
-    - Plates for which the user has authorization through dependent accounts
-    Both active and inactive plates are returned.
+    - Plates owned by the user's holder account (with end_date null)
+    - Plates for which the user has authorization through dependent accounts (with end_date null)
+    Only active plates (end_date is null) are returned.
     """
     user = request.user
     plates_data = []
@@ -758,8 +762,10 @@ def get_user_plates(request):
 
     for account in user_accounts:
         if account.account_type == "holder":
-            # Get all plates owned by this holder account (active and inactive)
-            owned_plates = Plates.objects.filter(holder_account=account)
+            # Get only ACTIVE plates owned by this holder account (end_date is null)
+            owned_plates = Plates.objects.filter(
+                holder_account=account, end_date__isnull=True
+            )
 
             for plate in owned_plates:
                 plates_data.append(
@@ -769,31 +775,33 @@ def get_user_plates(request):
                         "brand": plate.brand,
                         "model": plate.model,
                         "ownership_type": "owned",
-                        "is_active": plate.end_date is None,
+                        "is_active": True,
                         "start_date": plate.start_date,
-                        "end_date": plate.end_date,
+                        "end_date": None,
                     }
                 )
 
         elif account.account_type == "dependent":
-            # Get all authorized plates for this dependent account (active and inactive)
+            # Get only ACTIVE authorized plates for this dependent account (end_date is null)
             authorized_plates = AuthorizedPlate.objects.filter(
-                dependent_account=account
+                dependent_account=account, end_date__isnull=True
             ).select_related("plate")
 
             for auth in authorized_plates:
-                plates_data.append(
-                    {
-                        "id": auth.plate.id,
-                        "plate_number": auth.plate.plate_number,
-                        "brand": auth.plate.brand,
-                        "model": auth.plate.model,
-                        "ownership_type": "authorized",
-                        "is_active": auth.end_date is None,
-                        "start_date": auth.start_date,
-                        "end_date": auth.end_date,
-                    }
-                )
+                # Also verify that the plate itself is active
+                if auth.plate.end_date is None:
+                    plates_data.append(
+                        {
+                            "id": auth.plate.id,
+                            "plate_number": auth.plate.plate_number,
+                            "brand": auth.plate.brand,
+                            "model": auth.plate.model,
+                            "ownership_type": "authorized",
+                            "is_active": True,
+                            "start_date": auth.start_date,
+                            "end_date": None,
+                        }
+                    )
 
     serializer = UserPlateSerializer(plates_data, many=True)
     return Response(serializer.data)

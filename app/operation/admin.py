@@ -25,6 +25,8 @@ class FuelLoadOperationAdmin(admin.ModelAdmin):
         "status",
         "payment_method",
         "timestamp_started",
+        "timestamp_atended",
+        "timestamp_finished",
     )
     list_filter = ("status", "fill_full_tank", "payment_method", "timestamp_started")
     search_fields = (

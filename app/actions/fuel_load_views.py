@@ -105,6 +105,13 @@ def initiate_fuel_load(request):
                     {"error": "Patente no encontrada"}, status=status.HTTP_404_NOT_FOUND
                 )
 
+            # Verify that the plate is active (end_date is null)
+            if plate.end_date is not None:
+                return Response(
+                    {"error": "Esta patente ya no está activa"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             # Check if user has access to this plate through the specified account
             has_access = False
             if account.account_type == "holder":
