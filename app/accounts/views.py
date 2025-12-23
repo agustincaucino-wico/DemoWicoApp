@@ -63,11 +63,14 @@ class AccountViewSet(BaseLCViewSet):
     @extend_schema(
         request=AccountBalanceUpdateSerializer,
         responses={200: AccountBalanceUpdateSerializer},
-        description="Actualiza el balance de una cuenta específica.",
+        description="Actualiza el balance de una cuenta específica. Crea un registro en ModifyFunds.",
         examples=[
             OpenApiExample(
                 "Ejemplo de actualización de balance",
-                value={"balance": 1000.50},
+                value={
+                    "balance": 1000.50,
+                    "comments": "Pago de cliente X",
+                },
                 request_only=True,
             )
         ],
@@ -76,22 +79,48 @@ class AccountViewSet(BaseLCViewSet):
     def update_balance(self, request, pk=None):
         """
         Actualiza únicamente el balance de una cuenta.
+        También crea un registro en ModifyFunds con comentarios.
         """
+        from operation.models import ModifyFunds, PaymentMethod
+        from django.db import transaction
+
         account = self.get_object()
         serializer = AccountBalanceUpdateSerializer(
             account, data=request.data, partial=True
         )
 
         if serializer.is_valid():
-            serializer.save()
-            return Response(
-                {
-                    "id": account.id,
-                    "balance": account.balance,
-                    "message": "Balance actualizado correctamente",
-                },
-                status=status.HTTP_200_OK,
-            )
+            new_balance = serializer.validated_data.get("balance")
+            amount_change = new_balance - account.balance
+            comments = serializer.validated_data.get("comments", "")
+
+            try:
+                with transaction.atomic():
+                    # Actualizar el balance
+                    serializer.save()
+
+                    # Crear entrada en ModifyFunds
+                    ModifyFunds.objects.create(
+                        account=account,
+                        gestor=request.user,
+                        amount=amount_change,
+                        payment_method=None,  # Metodo de pago no implementado aun TODO
+                        comments=comments or None,
+                    )
+
+                return Response(
+                    {
+                        "id": account.id,
+                        "balance": account.balance,
+                        "message": "Balance actualizado correctamente",
+                    },
+                    status=status.HTTP_200_OK,
+                )
+            except Exception as e:
+                return Response(
+                    {"error": f"Error al actualizar el balance: {str(e)}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

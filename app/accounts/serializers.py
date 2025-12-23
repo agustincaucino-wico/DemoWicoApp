@@ -140,9 +140,13 @@ class AddDependentSerializer(serializers.Serializer):
 class AccountBalanceUpdateSerializer(serializers.ModelSerializer):
     """Serializer específico para actualizar solo el balance de una cuenta"""
 
+    comments = serializers.CharField(
+        required=False, allow_blank=True, help_text="Comentarios adicionales (opcional)"
+    )
+
     class Meta:
         model = Account
-        fields = ["balance"]
+        fields = ["balance", "comments"]
 
     def validate_balance(self, value):
         """Validar que el balance sea un valor positivo o cero"""

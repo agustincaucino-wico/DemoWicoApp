@@ -96,11 +96,26 @@ class Transfer(models.Model):
         return f"${self.amount} from {self.source_account.user.email} to {self.destination_account.user.email}"
 
 
-# class AddFunds(models.Model):
-#     account = models.ForeignKey(Account, on_delete=models.CASCADE)
-#     timestamp = models.DateTimeField(auto_now_add=True)
-#     amount = models.DecimalField(max_digits=12, decimal_places=2)
-#     payment_method = models.ForeignKey(PaymentMethod, on_delete=models.PROTECT)
+class ModifyFunds(models.Model):
+    account = models.ForeignKey(Account, on_delete=models.CASCADE)
+    gestor = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    payment_method = models.ForeignKey(
+        PaymentMethod, on_delete=models.PROTECT, null=True, blank=True
+    )
+    comments = models.TextField(null=True, blank=True)
 
-#     def __str__(self):
-#         return f"Add {self.amount} to {self.account} via {self.payment_method}"
+    class Meta:
+        ordering = ("-timestamp",)
+
+    def __str__(self):
+        means = (
+            f" via {self.payment_method.name}"
+            if self.payment_method
+            else f" by {self.gestor.email}"
+        )
+        if self.amount >= 0:
+            return f"Added ${self.amount} to {self.account.user.email}{means}"
+        else:
+            return f"Removed ${-self.amount} from {self.account.user.email}{means}"

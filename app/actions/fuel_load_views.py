@@ -636,7 +636,7 @@ from drf_spectacular.types import OpenApiTypes
         200: FuelLoadOperationSerializer(many=True),
         403: None,
     },
-    tags=["actions - fuel load - manager"],
+    tags=["actions - fuel load - encargado"],
     description=(
         "Obtiene todas las operaciones de carga de combustible de una estación específica.\n\n"
         "**Permisos requeridos:**\n"
