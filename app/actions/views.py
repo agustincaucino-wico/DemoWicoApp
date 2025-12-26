@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db import transaction
 from django.utils import timezone
+from django.http import HttpResponse
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 
@@ -32,6 +33,7 @@ from users.models import CustomUser
 from users.serializers import UserSerializer
 from operation.models import Transfer, FuelLoadOperation
 from utils.email_service import email_service
+from utils.remito_pdf import build_fuel_load_remito_pdf
 from .serializers import (
     DependentInvitationSerializer,
     CreateInvitationSerializer,
@@ -920,6 +922,7 @@ def get_account_movements(request):
                     if fuel_load.plate
                     else None,
                     "status": fuel_load.get_status_display(),
+                    "remito_url": f"/actions/user/movements/fuel-load/{fuel_load.id}/remito/",
                 }
             )
 
@@ -971,3 +974,69 @@ def get_account_movements(request):
 
     serializer = AccountMovementSerializer(movements, many=True)
     return Response(serializer.data)
+
+
+def _user_can_access_account(user, account):
+    if not account or not account.is_active:
+        return False
+    if account.user_id == user.id:
+        return True
+    if account.account_type != "dependent":
+        return False
+    holder_account = Account.objects.filter(
+        user=user, account_type="holder", is_active=True
+    ).first()
+    if not holder_account:
+        return False
+    return Dependents.objects.filter(
+        holder_account=holder_account,
+        dependent_account=account,
+        end_date__isnull=True,
+    ).exists()
+
+
+@extend_schema(
+    responses={200: None},
+    description="Download remito PDF for a completed fuel load operation.",
+    summary="Download Fuel Load Remito",
+)
+@api_view(["GET"])
+@permission_classes_decorator([IsAuthenticated])
+def get_fuel_load_remito(request, operation_id):
+    try:
+        fuel_load = (
+            FuelLoadOperation.objects.select_related(
+                "account__user",
+                "station__city",
+                "station__province",
+                "plate",
+                "attendant",
+                "payment_method",
+            )
+            .all()
+            .get(id=operation_id)
+        )
+    except FuelLoadOperation.DoesNotExist:
+        return Response(
+            {"error": "Operacion no encontrada"},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    if fuel_load.status != FuelLoadOperation.STATUS_COMPLETED:
+        return Response(
+            {"error": "El remito solo esta disponible para cargas completadas"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not _user_can_access_account(request.user, fuel_load.account):
+        return Response(
+            {"error": "No tenes permiso para ver este remito"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    pdf_bytes = build_fuel_load_remito_pdf(fuel_load)
+    filename = f"remito_carga_{fuel_load.id}.pdf"
+
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response

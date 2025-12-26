@@ -69,6 +69,7 @@ ROLES = {
         "change_fuelloadoperation",
         "delete_fuelloadoperation",
         "view_fuelloadoperation",
+        "view_modifyfunds",
         "add_errorreport",
         "change_errorreport",
         "delete_errorreport",

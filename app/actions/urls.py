@@ -7,6 +7,7 @@ from .views import (
     get_user_plates,
     get_account_movements,
     TransferBalanceView,
+    get_fuel_load_remito,
 )
 from . import fuel_load_views
 
@@ -29,6 +30,11 @@ urlpatterns = [
         "user/movements/",
         get_account_movements,
         name="get-account-movements",
+    ),
+    path(
+        "user/movements/fuel-load/<int:operation_id>/remito/",
+        get_fuel_load_remito,
+        name="get-fuel-load-remito",
     ),
     # Fuel Load - Cliente
     path(

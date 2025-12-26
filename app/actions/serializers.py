@@ -250,3 +250,8 @@ class AccountMovementSerializer(serializers.Serializer):
         allow_null=True,
         help_text="Status of the movement (for fuel loads)",
     )
+    remito_url = serializers.CharField(
+        required=False,
+        allow_null=True,
+        help_text="Relative URL to download remito for fuel loads",
+    )
