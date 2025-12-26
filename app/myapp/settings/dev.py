@@ -18,7 +18,10 @@ ALLOWED_HOSTS = [
 CORS_ALLOWED_ORIGINS = ["https://front-intappestacion-tst.wico.com.ar"]
 
 # CSRF Settings for HTTPS
-CSRF_TRUSTED_ORIGINS = ["https://front-intappestacion-tst.wico.com.ar"]
+CSRF_TRUSTED_ORIGINS = [
+    "https://front-intappestacion-tst.wico.com.ar",
+    "https://back-appmobile-tst.wico.com.ar",
+]
 
 GRAPH_MODELS = {
     "all_applications": True,
