@@ -73,3 +73,29 @@ class UserSerializer(serializers.ModelSerializer):
     def get_city_name(self, obj) -> str | None:
         city = getattr(obj, "id_city", None)
         return city.name if city else None
+
+
+
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework import serializers
+
+class EmailVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.CharField(max_length=6, min_length=6)
+
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+
+        if not self.user.email_verified:
+            raise serializers.ValidationError(
+                {
+                    "status": "unverified",
+                    "detail": "La cuenta no ha sido verificada. Por favor verifica tu correo electrónico."
+                },
+                code="account_not_verified"
+            )
+
+        return data
+

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #f8f9fa; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }}
+        .content {{ padding: 30px 20px; border: 1px solid #e9ecef; border-top: none; border-radius: 0 0 5px 5px; }}
+        .code {{ font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #007bff; text-align: center; margin: 30px 0; padding: 10px; background-color: #f0f8ff; border-radius: 5px; }}
+        .footer {{ text-align: center; margin-top: 20px; font-size: 12px; color: #6c757d; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>Verificación de Cuenta</h2>
+        </div>
+        <div class="content">
+            <p>Hola {user_name},</p>
+            <p>Gracias por registrarte en {app_name}. Para completar tu registro, por favor ingresa el siguiente código de verificación:</p>
+            
+            <div class="code">{verification_code}</div>
+            
+            <p>Este código expirará en 24 horas.</p>
+            <p>Si no te registraste en {app_name}, puedes ignorar este correo.</p>
+        </div>
+        <div class="footer">
+            <p>&copy; {app_name}. Todos los derechos reservados.</p>
+        </div>
+    </div>
+</body>
+</html>

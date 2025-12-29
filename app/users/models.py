@@ -141,3 +141,48 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+    email_verified = models.BooleanField(default=False)
+
+
+class EmailVerificationToken(models.Model):
+    """
+    Token for email verification.
+    Uses a 6-digit numeric code.
+    """
+    user = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="verification_tokens",
+    )
+    token = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    used = models.BooleanField(default=False)
+
+    # Token expires in 24 hours
+    TOKEN_EXPIRY_HOURS = 24
+
+    def __str__(self):
+        return f"Verification token for {self.user.email}"
+
+    @classmethod
+    def generate_token(cls):
+        """Generate a 6-digit numeric code."""
+        return "".join(random.choices(string.digits, k=6))
+
+    def is_expired(self):
+        """Check if token has expired."""
+        expiry_time = self.created_at + timedelta(hours=self.TOKEN_EXPIRY_HOURS)
+        return timezone.now() > expiry_time
+
+    @classmethod
+    def create_for_user(cls, user):
+        """Create a new verification token for user."""
+        # Invalidate existing tokens
+        cls.objects.filter(user=user, used=False).update(used=True)
+
+        return cls.objects.create(
+            user=user,
+            token=cls.generate_token(),
+        )
+

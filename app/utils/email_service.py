@@ -209,6 +209,28 @@ class EmailService:
 
         return self.send_email("password_reset", subject, to_email, context)
 
+    def send_verification_email(self, to_email, user_name, verification_code):
+        """
+        Send an email verification code.
+
+        Args:
+            to_email: Email address of the user
+            user_name: Name of the user
+            verification_code: The 6-digit verification code
+
+        Returns:
+            bool: True if email was sent successfully, False otherwise
+        """
+        subject = "Verificación de Cuenta - WICO"
+
+        context = {
+            "user_name": user_name,
+            "verification_code": verification_code,
+        }
+
+        return self.send_email("email_verification", subject, to_email, context)
+
+
 
 # Global instance
 email_service = EmailService()
