@@ -25,7 +25,7 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [DjangoModelOrTargetUser]
 
     def get_permissions(self):
-        if self.action in ["create", "verify_email"]:
+        if self.action in ["create", "verify_email", "resend_verification"]:
             return [AllowAny()]
         return super().get_permissions()
 
@@ -122,6 +122,60 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": "Código inválido."},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    @extend_schema(
+        request={"type": "object", "properties": {"email": {"type": "string"}}},
+        responses={
+            200: OpenApiTypes.OBJECT,
+            400: OpenApiTypes.OBJECT,
+        },
+        summary="Resend Verification Code",
+        description="Resend a new verification code to the user's email.",
+    )
+    @action(detail=False, methods=["post"], url_path="resend_verification")
+    def resend_verification(self, request):
+        email = request.data.get("email")
+        
+        if not email:
+            return Response(
+                {"error": "Email es requerido."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "Usuario no encontrado."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        if user.email_verified:
+            return Response(
+                {"error": "El email ya está verificado."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        # Generate new verification token
+        token = EmailVerificationToken.create_for_user(user)
+        
+        # Send verification email
+        email_sent = email_service.send_verification_email(
+            to_email=user.email,
+            user_name=user.get_full_name(),
+            verification_code=token.token,
+        )
+        
+        if email_sent:
+            return Response(
+                {"message": "Se ha enviado un nuevo código de verificación a tu correo."},
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                {"error": "Error al enviar el correo. Intenta nuevamente."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     @action(
