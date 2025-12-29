@@ -117,7 +117,7 @@ class DependentInvitation(models.Model):
             raise ValidationError("Ya existe una relación activa entre estas cuentas")
 
     def accept_invitation(self):
-        """Acepta la invitación y crea la relación de dependiente"""
+        """Acepta la invitación y crea la relación de dependiente (adherido)"""
         if self.status != "pending":
             raise ValidationError("Solo se pueden aceptar invitaciones pendientes")
 
@@ -134,7 +134,7 @@ class DependentInvitation(models.Model):
             self.response_date = timezone.now()
             self.save()
 
-            # Crear la relación de dependiente
+            # Crear la relación de dependiente (adherida)
             Dependents.objects.create(
                 holder_account=self.holder_account,
                 dependent_account=dependent_account,

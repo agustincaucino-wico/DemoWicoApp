@@ -131,7 +131,7 @@ class AddDependentDirectlySerializer(serializers.Serializer):
         # Validate user is not inviting themselves
         if request and dependent_user == request.user:
             raise serializers.ValidationError(
-                "No puedes agregarte como dependiente a ti mismo"
+                "No puedes agregarte como adherido a ti mismo"
             )
 
         # Validate there's no active relationship already

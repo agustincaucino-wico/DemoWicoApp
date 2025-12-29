@@ -217,7 +217,7 @@ class AuthorizedPlateViewSet(BaseLCViewSet):
     def create(self, request, *args, **kwargs):
         """
         Crear una nueva autorización de patente, pero primero verificar que no exista
-        una autorización activa (end_date nulo) para la misma patente y cuenta dependiente.
+        una autorización activa (end_date nulo) para la misma patente y cuenta adherida.
         """
         plate_id = request.data.get("plate")
         dependent_account_id = request.data.get("dependent_account")
@@ -233,7 +233,7 @@ class AuthorizedPlateViewSet(BaseLCViewSet):
             if existing_active_auth:
                 return Response(
                     {
-                        "error": "Ya existe una autorización activa para esta patente y cuenta dependiente. "
+                        "error": "Ya existe una autorización activa para esta patente y cuenta adherida. "
                         "No se puede crear una nueva autorización."
                     },
                     status=status.HTTP_400_BAD_REQUEST,
