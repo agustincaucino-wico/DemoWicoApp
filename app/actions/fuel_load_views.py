@@ -322,7 +322,15 @@ def pending_fuel_loads(request):
         )
 
         serializer = PendingFuelLoadSerializer(operations, many=True)
-        return Response(serializer.data)
+
+        # Include station information in the response
+        station_info = {
+            "id": assignment.station.id,
+            "name": assignment.station.name,
+            "city": assignment.station.city.name if assignment.station.city else None,
+        }
+
+        return Response({"station": station_info, "pending_loads": serializer.data})
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
