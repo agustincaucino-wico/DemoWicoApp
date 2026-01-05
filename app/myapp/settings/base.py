@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "operation",
     "support",
     "notifications",
+    "promotions",
 ]
 
 REST_FRAMEWORK = {
