@@ -4,6 +4,7 @@ from users.password_reset_views import (
     PasswordResetVerifyView,
     PasswordResetConfirmView,
 )
+from users.views import DevUserListView, DevUserLoginView
 from django.urls import include, path
 from rest_framework import routers
 
@@ -27,5 +28,8 @@ urlpatterns = [
         PasswordResetConfirmView.as_view(),
         name="password-reset-confirm",
     ),
+    # Dev-only endpoints
+    path("dev/list/", DevUserListView.as_view(), name="dev-user-list"),
+    path("dev/login/", DevUserLoginView.as_view(), name="dev-user-login"),
     path("", include(router.urls)),
 ]

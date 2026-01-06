@@ -5,7 +5,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DEBUG = True
+# IMPORTANTE DEJAR EN FALSE
+# Si DEBUG = True las cuentas son publicas
+DEBUG = False
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 

@@ -222,3 +222,86 @@ from .serializers import CustomTokenObtainPairSerializer
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
+
+# =============================================================================
+# DEV-ONLY VIEWS - These endpoints only work when DEBUG=True
+# =============================================================================
+from django.conf import settings
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+
+
+class DevUserListView(APIView):
+    """
+    DEV ONLY: Returns a list of users for quick account switching.
+    Only accessible when DEBUG=True.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        if not settings.DEBUG:
+            return Response(
+                {"error": "This endpoint is only available in development mode."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        users = User.objects.all().order_by("id")
+        user_list = [
+            {
+                "id": user.id,
+                "email": user.email,
+                "full_name": user.get_full_name(),
+                "groups": [g.name for g in user.groups.all()],
+            }
+            for user in users
+        ]
+        return Response({"users": user_list})
+
+
+class DevUserLoginView(APIView):
+    """
+    DEV ONLY: Force login as any user by ID or email.
+    Only accessible when DEBUG=True.
+    Returns JWT tokens for the specified user.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        if not settings.DEBUG:
+            return Response(
+                {"error": "This endpoint is only available in development mode."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        user_id = request.data.get("user_id")
+        email = request.data.get("email")
+
+        if not user_id and not email:
+            return Response(
+                {"error": "Either user_id or email is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            if user_id:
+                user = User.objects.get(id=user_id)
+            else:
+                user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Generate tokens
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "full_name": user.get_full_name(),
+            }
+        })
