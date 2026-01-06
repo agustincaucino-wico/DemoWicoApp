@@ -7,7 +7,7 @@ class PromotionActions:
     @staticmethod
     def create_holder_account(user, params=None):
         """
-        Creates a holder account for the user if one does not exist.
+        Creates a holder account for the user if one does not exist and assigns the 'Flota' group.
         """
         # Check if holder account already exists
         if Account.objects.filter(user=user, account_type="holder").exists():
@@ -31,13 +31,11 @@ class PromotionActions:
                 account_type="holder"
             )
             
-            # Check for 'assign_fleet_role' param
-            if params and params.get('assign_fleet_role'):
-                try:
-                    fleet_group = Group.objects.get(name='Flota')
-                    user.groups.add(fleet_group)
-                except Group.DoesNotExist:
-                    pass # Or handle error appropriately
+            try:
+                fleet_group = Group.objects.get(name='Flota')
+                user.groups.add(fleet_group)
+            except Group.DoesNotExist:
+                pass
 
             return {
                 "success": True,

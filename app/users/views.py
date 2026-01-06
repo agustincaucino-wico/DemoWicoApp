@@ -194,17 +194,6 @@ class UserViewSet(viewsets.ModelViewSet):
     def assign_fleet_role(self, request, pk=None):
         user = self.get_object()
         
-        # 1. Assign 'Flota' group
-        try:
-            fleet_group = Group.objects.get(name='Flota')
-            user.groups.add(fleet_group)
-        except Group.DoesNotExist:
-             return Response(
-                {"error": "El grupo 'Flota' no existe. Contacte al administrador."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-        # 2. Create Titular Account
         result = PromotionActions.create_holder_account(user)
         
         return Response({
