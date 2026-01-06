@@ -3,6 +3,8 @@ from django.utils import timezone
 from users.models import CustomUser
 from locations.models import Province
 from django.core.exceptions import ValidationError
+from django.contrib.auth.models import Group
+
 
 
 class Account(models.Model):
@@ -140,6 +142,15 @@ class DependentInvitation(models.Model):
                 dependent_account=dependent_account,
                 start_date=timezone.now().date(),
             )
+            
+            # Asignar rol de Flota al usuario adherido
+            try:
+                fleet_group = Group.objects.get(name='Flota')
+                dependent_user = CustomUser.objects.get(email=self.dependent_email)
+                dependent_user.groups.add(fleet_group)
+            except Group.DoesNotExist:
+                pass 
+
 
     def reject_invitation(self):
         """Rechaza la invitación"""

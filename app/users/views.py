@@ -12,6 +12,9 @@ from drf_spectacular.utils import extend_schema
 from drf_spectacular.types import OpenApiTypes
 
 User = get_user_model()
+from django.contrib.auth.models import Group
+from promotions.actions import PromotionActions
+
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -177,6 +180,38 @@ class UserViewSet(viewsets.ModelViewSet):
                 {"error": "Error al enviar el correo. Intenta nuevamente."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @extend_schema(
+        request=None,
+        responses={
+            200: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+        },
+        summary="Assign Fleet Role",
+        description="Assign 'Flota' group to the user and create a titular account.",
+    )
+    @action(detail=True, methods=["post"], url_path="assign_fleet_role", permission_classes=[IsAuthenticated])
+    def assign_fleet_role(self, request, pk=None):
+        user = self.get_object()
+        
+        # 1. Assign 'Flota' group
+        try:
+            fleet_group = Group.objects.get(name='Flota')
+            user.groups.add(fleet_group)
+        except Group.DoesNotExist:
+             return Response(
+                {"error": "El grupo 'Flota' no existe. Contacte al administrador."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        # 2. Create Titular Account
+        result = PromotionActions.create_holder_account(user)
+        
+        return Response({
+            "message": "Rol 'Flota' asignado y cuenta verificada.",
+            "account_result": result
+        })
+
 
     @action(
         detail=False,

@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.http import HttpResponse
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
+from django.contrib.auth.models import Group
 
 from accounts.models import (
     Account,
@@ -95,6 +96,13 @@ class InvitationViewSet(viewsets.ViewSet):
                         dependent_account=dependent_account,
                         start_date=timezone.now().date(),
                     )
+
+                    # Asignar rol de Flota al usuario adherido
+                    try:
+                        fleet_group = Group.objects.get(name='Flota')
+                        dependent_user.groups.add(fleet_group)
+                    except Group.DoesNotExist:
+                        pass
 
                     # Send notification email to the dependent
                     try:

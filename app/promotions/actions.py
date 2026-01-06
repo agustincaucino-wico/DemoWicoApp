@@ -1,6 +1,8 @@
 from accounts.models import Account
 from django.db import transaction
 
+from django.contrib.auth.models import Group
+
 class PromotionActions:
     @staticmethod
     def create_holder_account(user, params=None):
@@ -28,6 +30,15 @@ class PromotionActions:
                 balance=0,
                 account_type="holder"
             )
+            
+            # Check for 'assign_fleet_role' param
+            if params and params.get('assign_fleet_role'):
+                try:
+                    fleet_group = Group.objects.get(name='Flota')
+                    user.groups.add(fleet_group)
+                except Group.DoesNotExist:
+                    pass # Or handle error appropriately
+
             return {
                 "success": True,
                 "message": "Cuenta titular creada exitosamente."
