@@ -1,9 +1,9 @@
-from django.contrib.auth.models import Group
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from typing import List
 from locations.models import Province, City
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 # from django.contrib.auth.models import User
 
@@ -29,6 +29,7 @@ class UserSerializer(serializers.ModelSerializer):
     province_name = serializers.SerializerMethodField()
     city_name = serializers.SerializerMethodField()
     date_joined = serializers.DateTimeField(read_only=True)
+    email_verified = serializers.BooleanField(required=False)
 
     class Meta:
         model = UserModel
@@ -47,6 +48,7 @@ class UserSerializer(serializers.ModelSerializer):
             "gender",
             "groups",
             "date_joined",
+            "email_verified",
         ]
 
     def validate_dni(self, value):
@@ -60,8 +62,6 @@ class UserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         user = UserModel.objects.create_user(**validated_data)
-        group, created = Group.objects.get_or_create(name="Cliente")
-        user.groups.add(group)
         return user
 
     @extend_schema_field(serializers.CharField(allow_null=True))
@@ -74,10 +74,6 @@ class UserSerializer(serializers.ModelSerializer):
         city = getattr(obj, "id_city", None)
         return city.name if city else None
 
-
-
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from rest_framework import serializers
 
 class EmailVerificationSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -92,10 +88,9 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             raise serializers.ValidationError(
                 {
                     "status": "unverified",
-                    "detail": "La cuenta no ha sido verificada. Por favor verifica tu correo electrónico."
+                    "detail": "La cuenta no ha sido verificada. Por favor verifica tu correo electrónico.",
                 },
-                code="account_not_verified"
+                code="account_not_verified",
             )
 
         return data
-

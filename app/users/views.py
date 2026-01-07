@@ -16,7 +16,6 @@ from django.contrib.auth.models import Group
 from promotions.actions import PromotionActions
 
 
-
 class UserViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows users to be created, viewed or edited.
@@ -48,18 +47,18 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 
         headers = self.get_success_headers(serializer.data)
-        
+
         response_data = serializer.data
         if email_sent:
-            response_data["message"] = "Usuario creado. Se ha enviado un código de verificación a tu correo."
+            response_data["message"] = (
+                "Usuario creado. Se ha enviado un código de verificación a tu correo."
+            )
         else:
-            response_data["warning"] = "Usuario creado, pero hubo un error al enviar el correo de verificación."
+            response_data["warning"] = (
+                "Usuario creado, pero hubo un error al enviar el correo de verificación."
+            )
 
-        return Response(
-            response_data,
-            status=status.HTTP_201_CREATED,
-            headers=headers
-        )
+        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
 
     @extend_schema(
         request=EmailVerificationSerializer,
@@ -81,46 +80,47 @@ class UserViewSet(viewsets.ModelViewSet):
         try:
             user = User.objects.get(email__iexact=email)
         except User.DoesNotExist:
-             return Response(
+            return Response(
                 {"error": "Usuario no encontrado."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
-            token = user.verification_tokens.filter(
-                token=code,
-                used=False
-            ).latest("created_at")
-            
+            token = user.verification_tokens.filter(token=code, used=False).latest(
+                "created_at"
+            )
+
             if token.is_expired():
                 # Generate new verification token
                 new_token = EmailVerificationToken.create_for_user(user)
-                
+
                 # Send new verification email
                 email_service.send_verification_email(
                     to_email=user.email,
                     user_name=user.get_full_name(),
                     verification_code=new_token.token,
                 )
-                
+
                 return Response(
-                    {"error": "El código ha expirado. Te enviamos uno nuevo a tu correo."},
+                    {
+                        "error": "El código ha expirado. Te enviamos uno nuevo a tu correo."
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            
+
             # Verify user
             user.email_verified = True
             user.save()
-            
+
             # Mark token as used
             token.used = True
             token.save()
-            
+
             return Response(
                 {"message": "Email verificado correctamente."},
                 status=status.HTTP_200_OK,
             )
-            
+
         except EmailVerificationToken.DoesNotExist:
             return Response(
                 {"error": "Código inválido."},
@@ -139,13 +139,13 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["post"], url_path="resend_verification")
     def resend_verification(self, request):
         email = request.data.get("email")
-        
+
         if not email:
             return Response(
                 {"error": "Email es requerido."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         try:
             user = User.objects.get(email__iexact=email)
         except User.DoesNotExist:
@@ -153,26 +153,28 @@ class UserViewSet(viewsets.ModelViewSet):
                 {"error": "Usuario no encontrado."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         if user.email_verified:
             return Response(
                 {"error": "El email ya está verificado."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         # Generate new verification token
         token = EmailVerificationToken.create_for_user(user)
-        
+
         # Send verification email
         email_sent = email_service.send_verification_email(
             to_email=user.email,
             user_name=user.get_full_name(),
             verification_code=token.token,
         )
-        
+
         if email_sent:
             return Response(
-                {"message": "Se ha enviado un nuevo código de verificación a tu correo."},
+                {
+                    "message": "Se ha enviado un nuevo código de verificación a tu correo."
+                },
                 status=status.HTTP_200_OK,
             )
         else:
@@ -190,17 +192,23 @@ class UserViewSet(viewsets.ModelViewSet):
         summary="Assign Fleet Role",
         description="Assign 'Flota' group to the user and create a titular account.",
     )
-    @action(detail=True, methods=["post"], url_path="assign_fleet_role", permission_classes=[IsAuthenticated])
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="assign_fleet_role",
+        permission_classes=[IsAuthenticated],
+    )
     def assign_fleet_role(self, request, pk=None):
         user = self.get_object()
-        
-        result = PromotionActions.create_holder_account(user)
-        
-        return Response({
-            "message": "Rol 'Flota' asignado y cuenta verificada.",
-            "account_result": result
-        })
 
+        result = PromotionActions.create_holder_account(user)
+
+        return Response(
+            {
+                "message": "Rol 'Flota' asignado y cuenta verificada.",
+                "account_result": result,
+            }
+        )
 
     @action(
         detail=False,
@@ -219,6 +227,7 @@ class UserViewSet(viewsets.ModelViewSet):
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import CustomTokenObtainPairSerializer
 
+
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
@@ -236,6 +245,7 @@ class DevUserListView(APIView):
     DEV ONLY: Returns a list of users for quick account switching.
     Only accessible when DEBUG=True.
     """
+
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -264,6 +274,7 @@ class DevUserLoginView(APIView):
     Only accessible when DEBUG=True.
     Returns JWT tokens for the specified user.
     """
+
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -296,12 +307,14 @@ class DevUserLoginView(APIView):
         # Generate tokens
         refresh = RefreshToken.for_user(user)
 
-        return Response({
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "full_name": user.get_full_name(),
+        return Response(
+            {
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "full_name": user.get_full_name(),
+                },
             }
-        })
+        )
