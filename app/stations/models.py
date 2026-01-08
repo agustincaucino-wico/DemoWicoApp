@@ -30,12 +30,6 @@ class StationAttendantAssignment(models.Model):
         verbose_name = "Station attendant assignment"
         verbose_name_plural = "Station attendant assignments"
         ordering = ("-start_date", "attendant__id")
-        constraints = [
-            models.UniqueConstraint(
-                fields=["attendant", "station", "start_date"],
-                name="unique_assignment_per_start_date",
-            )
-        ]
 
     def __str__(self) -> str:
         return f"{self.attendant} -> {self.station} ({self.start_date})"

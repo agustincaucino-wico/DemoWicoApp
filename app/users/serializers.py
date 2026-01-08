@@ -49,11 +49,17 @@ class UserSerializer(serializers.ModelSerializer):
             "groups",
             "date_joined",
             "email_verified",
+            "is_superuser",
         ]
 
     def validate_dni(self, value):
-        if value and UserModel.objects.filter(dni=value).exists():
-            raise serializers.ValidationError("Este DNI ya está registrado.")
+        if value:
+            # Exclude current instance during update
+            queryset = UserModel.objects.filter(dni=value)
+            if self.instance:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            if queryset.exists():
+                raise serializers.ValidationError("Este DNI ya está registrado.")
         return value
 
     @extend_schema_field(serializers.ListField(child=serializers.CharField()))

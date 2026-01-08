@@ -1,5 +1,7 @@
-from rest_framework import mixins, viewsets
+from rest_framework import mixins, viewsets, status
+from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from django.contrib.auth.models import Group
 
 from myapp.permissions import StrictDjangoModelPermissions
 from .models import Station, StationAttendantAssignment
@@ -58,3 +60,33 @@ class StationAttendantAssignmentViewSet(
         if attendant_id:
             queryset = queryset.filter(attendant_id=attendant_id)
         return queryset
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        Al desasignar una estación, se establece end_date y se remueve el rol de Encargado si el usuario lo tiene.
+        """
+        from datetime import date
+
+        assignment = self.get_object()
+        attendant = assignment.attendant
+
+        # No eliminar, sino establecer end_date
+        assignment.end_date = date.today()
+        assignment.save()
+
+        # Remover el rol de Encargado si el usuario lo tiene
+        try:
+            encargado_group = Group.objects.get(name="Encargado")
+            if attendant.groups.filter(id=encargado_group.id).exists():
+                attendant.groups.remove(encargado_group)
+        except Group.DoesNotExist:
+            pass
+
+        return Response(
+            {
+                "message": "Estación desasignada correctamente. El rol de Encargado ha sido removido.",
+                "attendant_id": attendant.id,
+                "attendant_email": attendant.email,
+            },
+            status=status.HTTP_200_OK,
+        )

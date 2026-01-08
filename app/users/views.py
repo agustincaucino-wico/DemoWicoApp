@@ -10,10 +10,12 @@ from users.models import EmailVerificationToken
 from utils.email_service import email_service
 from drf_spectacular.utils import extend_schema
 from drf_spectacular.types import OpenApiTypes
-
-User = get_user_model()
+from datetime import date
+from django.db import transaction
 from django.contrib.auth.models import Group
 from promotions.actions import PromotionActions
+
+User = get_user_model()
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -209,6 +211,166 @@ class UserViewSet(viewsets.ModelViewSet):
                 "account_result": result,
             }
         )
+
+    @extend_schema(
+        request={
+            "type": "object",
+            "properties": {
+                "role_name": {"type": "string", "enum": ["Playero", "Encargado"]}
+            },
+            "required": ["role_name"],
+        },
+        responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
+        summary="Assign Role to User",
+        description="Assign 'Playero' or 'Encargado' role to a user. Requires Gestor permissions.",
+    )
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="assign_role",
+        permission_classes=[IsAuthenticated],
+    )
+    def assign_role(self, request, pk=None):
+        """Assign Playero or Encargado role to a user."""
+        user = self.get_object()
+        role_name = request.data.get("role_name")
+
+        # Verificar que el usuario autenticado tenga el rol de Gestor
+        if not request.user.groups.filter(name="Gestor").exists():
+            return Response(
+                {"error": "Solo los usuarios con rol Gestor pueden asignar roles."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if role_name not in ["Playero", "Encargado"]:
+            return Response(
+                {
+                    "error": "Rol inválido. Solo se pueden asignar 'Playero' o 'Encargado'."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validar que para asignar Encargado, el usuario debe tener Playero y estación asignada
+        if role_name == "Encargado":
+            from stations.models import StationAttendantAssignment
+
+            if not user.groups.filter(name="Playero").exists():
+                return Response(
+                    {
+                        "error": "El usuario debe tener el rol de Playero antes de asignarle el rol de Encargado."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Verificar que tenga una estación asignada activa
+            has_active_station = StationAttendantAssignment.objects.filter(
+                attendant=user, end_date__isnull=True
+            ).exists()
+
+            if not has_active_station:
+                return Response(
+                    {
+                        "error": "El usuario debe tener una estación asignada antes de asignarle el rol de Encargado."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        try:
+            group, created = Group.objects.get_or_create(name=role_name)
+            user.groups.add(group)
+            user.save()
+
+            return Response(
+                {
+                    "message": f"Rol '{role_name}' asignado correctamente al usuario {user.email}.",
+                    "user_id": user.id,
+                    "email": user.email,
+                    "groups": [g.name for g in user.groups.all()],
+                },
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Error al asignar el rol: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @extend_schema(
+        request={
+            "type": "object",
+            "properties": {
+                "role_name": {"type": "string", "enum": ["Playero", "Encargado"]}
+            },
+            "required": ["role_name"],
+        },
+        responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
+        summary="Remove Role from User",
+        description="Remove 'Playero' or 'Encargado' role from a user. Requires Gestor permissions.",
+    )
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="remove_role",
+        permission_classes=[IsAuthenticated],
+    )
+    def remove_role(self, request, pk=None):
+        """Remove Playero or Encargado role from a user."""
+        user = self.get_object()
+        role_name = request.data.get("role_name")
+
+        # Verificar que el usuario autenticado tenga el rol de Gestor
+        if not request.user.groups.filter(name="Gestor").exists():
+            return Response(
+                {"error": "Solo los usuarios con rol Gestor pueden remover roles."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if role_name not in ["Playero", "Encargado"]:
+            return Response(
+                {
+                    "error": "Rol inválido. Solo se pueden remover 'Playero' o 'Encargado'."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # Si se remueve el rol de Playero, también se debe remover Encargado y desasignar estación
+            if role_name == "Playero":
+                from stations.models import StationAttendantAssignment
+
+                # Remover rol de Encargado si lo tiene
+                encargado_group = Group.objects.filter(name="Encargado").first()
+                if encargado_group:
+                    user.groups.remove(encargado_group)
+
+                # Desasignar estación activa si existe
+                StationAttendantAssignment.objects.filter(
+                    attendant=user, end_date__isnull=True
+                ).update(end_date=date.today())
+
+            group = Group.objects.get(name=role_name)
+            user.groups.remove(group)
+            user.save()
+
+            return Response(
+                {
+                    "message": f"Rol '{role_name}' removido correctamente del usuario {user.email}.",
+                    "user_id": user.id,
+                    "email": user.email,
+                    "groups": [g.name for g in user.groups.all()],
+                },
+                status=status.HTTP_200_OK,
+            )
+        except Group.DoesNotExist:
+            return Response(
+                {"error": f"El rol '{role_name}' no existe."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Error al remover el rol: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(
         detail=False,

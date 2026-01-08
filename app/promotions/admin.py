@@ -13,6 +13,7 @@ class PromotionCodeAdmin(admin.ModelAdmin):
         "status_badge",
         "valid_from",
         "valid_to",
+        "usage_info",
         "redemption_count",
         "created_at",
     ]
@@ -23,15 +24,28 @@ class PromotionCodeAdmin(admin.ModelAdmin):
         "updated_at",
         "redemption_count",
         "validity_status",
+        "usage_status",
     ]
     fieldsets = (
-        ("Información Básica", {"fields": ("code", "description", "active")}),
-        ("Acción", {"fields": ("action_type", "action_params")}),
-        ("Validez", {"fields": ("valid_from", "valid_to", "validity_status")}),
-        ("Estadísticas", {"fields": ("redemption_count",), "classes": ("collapse",)}),
         (
-            "Información del Sistema",
-            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
+            "Información del Código",
+            {
+                "fields": (
+                    "code",
+                    "description",
+                    "active",
+                    "action_type",
+                    "action_params",
+                    "max_uses",
+                    "valid_from",
+                    "valid_to",
+                    "usage_status",
+                    "validity_status",
+                    "redemption_count",
+                    "created_at",
+                    "updated_at",
+                )
+            },
         ),
     )
     date_hierarchy = "created_at"
@@ -54,6 +68,51 @@ class PromotionCodeAdmin(admin.ModelAdmin):
 
     status_badge.short_description = "Estado"
 
+    def usage_info(self, obj):
+        """Muestra información de uso del código"""
+        current = obj.get_current_uses()
+        if obj.max_uses is None:
+            return format_html(
+                '<span style="color: green;">🔄 Ilimitado</span>', current
+            )
+        else:
+            remaining = obj.max_uses - current
+            color = "green" if remaining > 0 else "red"
+            return format_html(
+                '<span style="color: {};">📊 {} / {} usos</span>',
+                color,
+                current,
+                obj.max_uses,
+            )
+
+    usage_info.short_description = "Usos"
+
+    def usage_status(self, obj):
+        """Muestra el estado detallado de uso"""
+        current = obj.get_current_uses()
+        if obj.max_uses is None:
+            return format_html(
+                '<span style="color: green;">✅ Usos ilimitados<br>📈 Canjeado {} veces</span>',
+                current,
+            )
+        else:
+            remaining = obj.max_uses - current
+            if remaining > 0:
+                return format_html(
+                    '<span style="color: green;">✅ {} usos disponibles<br>📊 {} de {} canjeados</span>',
+                    remaining,
+                    current,
+                    obj.max_uses,
+                )
+            else:
+                return format_html(
+                    '<span style="color: red;">❌ Límite alcanzado<br>📊 {} de {} canjeados</span>',
+                    current,
+                    obj.max_uses,
+                )
+
+    usage_status.short_description = "Estado de Uso"
+
     def validity_status(self, obj):
         """Muestra el estado de validez detallado"""
         now = timezone.now()
@@ -63,26 +122,6 @@ class PromotionCodeAdmin(admin.ModelAdmin):
             status_parts.append("❌ Desactivado manualmente")
         else:
             status_parts.append("✅ Activado")
-
-        if obj.valid_from:
-            if now < obj.valid_from:
-                status_parts.append(
-                    f"⏳ Comienza: {obj.valid_from.strftime('%d/%m/%Y %H:%M')}"
-                )
-            else:
-                status_parts.append(
-                    f"✅ Comenzó: {obj.valid_from.strftime('%d/%m/%Y %H:%M')}"
-                )
-
-        if obj.valid_to:
-            if now > obj.valid_to:
-                status_parts.append(
-                    f"❌ Expiró: {obj.valid_to.strftime('%d/%m/%Y %H:%M')}"
-                )
-            else:
-                status_parts.append(
-                    f"⏰ Expira: {obj.valid_to.strftime('%d/%m/%Y %H:%M')}"
-                )
 
         return format_html("<br>".join(status_parts))
 
@@ -116,7 +155,7 @@ class PromotionCodeAdmin(admin.ModelAdmin):
 
 @admin.register(PromotionRedemption, site=my_admin_site)
 class PromotionRedemptionAdmin(admin.ModelAdmin):
-    list_display = ["user", "promotion_code", "redeemed_at"]
+    list_display = ["user", "promotion_code", "amount_display", "redeemed_at"]
     list_filter = ["redeemed_at", "promotion_code__action_type"]
     search_fields = [
         "user__email",
@@ -124,8 +163,26 @@ class PromotionRedemptionAdmin(admin.ModelAdmin):
         "user__last_name",
         "promotion_code__code",
     ]
-    readonly_fields = ["user", "promotion_code", "redeemed_at"]
+    readonly_fields = ["user", "promotion_code", "amount_gifted", "redeemed_at"]
+    fieldsets = (
+        (
+            "Información del Canje",
+            {"fields": ("user", "promotion_code", "amount_gifted", "redeemed_at")},
+        ),
+    )
     date_hierarchy = "redeemed_at"
+
+    def amount_display(self, obj):
+        """Muestra el monto regalado si aplica"""
+        if obj.amount_gifted:
+            formatted_amount = f"${obj.amount_gifted:.2f}"
+            return format_html(
+                '<span style="color: green; font-weight: bold;">{}</span>',
+                formatted_amount,
+            )
+        return "-"
+
+    amount_display.short_description = "Saldo Regalado"
 
     def has_add_permission(self, request):
         """No permitir agregar canjes manualmente desde el admin"""

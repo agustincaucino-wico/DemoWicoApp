@@ -26,19 +26,24 @@ class RedeemPromotionView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Validate validity
-        if not promotion.is_valid():
-            return Response(
-                {"error": "El código ha expirado o no es válido."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Check if already redeemed
+        # Check if user already redeemed this code (cada usuario solo puede canjear cada código una vez)
         if PromotionRedemption.objects.filter(
             user=request.user, promotion_code=promotion
         ).exists():
             return Response(
                 {"error": "Ya canjeaste este código."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate validity (includes global usage limit check)
+        if not promotion.is_valid():
+            if not promotion.has_uses_remaining():
+                return Response(
+                    {"error": "Este código ha alcanzado su límite de usos."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return Response(
+                {"error": "El código ha expirado o no es válido."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -58,8 +63,10 @@ class RedeemPromotionView(APIView):
                 )
 
             # Record redemption
-            PromotionRedemption.objects.create(
-                user=request.user, promotion_code=promotion
+            redemption = PromotionRedemption.objects.create(
+                user=request.user,
+                promotion_code=promotion,
+                amount_gifted=result.get("amount"),  # Store gifted amount if applicable
             )
 
         return Response(
