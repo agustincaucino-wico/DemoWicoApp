@@ -99,7 +99,7 @@ class InvitationViewSet(viewsets.ViewSet):
 
                     # Asignar rol de Flota al usuario adherido
                     try:
-                        fleet_group = Group.objects.get(name='Flota')
+                        fleet_group = Group.objects.get(name="Flota")
                         dependent_user.groups.add(fleet_group)
                     except Group.DoesNotExist:
                         pass
@@ -428,6 +428,7 @@ class UserInfoView(APIView):
                     account_data["fleet_owner"] = (
                         f"{holder_account_user.first_name} {holder_account_user.last_name}".strip()
                     )
+                    account_data["holder_email"] = holder_account_user.email
 
             accounts_data.append(account_data)
 
