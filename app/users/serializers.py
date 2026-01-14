@@ -10,6 +10,31 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 UserModel = get_user_model()
 
 
+class ResendVerificationSerializer(serializers.Serializer):
+    """Serializer for resending verification email"""
+
+    email = serializers.EmailField(required=True)
+
+
+class AssignRoleSerializer(serializers.Serializer):
+    """Serializer for assigning role to user"""
+
+    role_name = serializers.ChoiceField(choices=["Playero", "Encargado"], required=True)
+
+
+class RemoveRoleSerializer(serializers.Serializer):
+    """Serializer for removing role from user"""
+
+    role_name = serializers.ChoiceField(choices=["Playero", "Encargado"], required=True)
+
+
+class DevUserLoginSerializer(serializers.Serializer):
+    """Serializer for dev user login endpoint"""
+
+    user_id = serializers.IntegerField(required=False, allow_null=True)
+    email = serializers.EmailField(required=False, allow_null=True)
+
+
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     dni = serializers.CharField(required=False, allow_null=True, allow_blank=True)

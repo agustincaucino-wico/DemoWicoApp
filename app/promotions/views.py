@@ -3,20 +3,30 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import PromotionCode, PromotionRedemption
 from .actions import PromotionActions
+from .serializers import RedeemPromotionSerializer
 from django.db import transaction
 from rest_framework.permissions import IsAuthenticated
+from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
 
 
 class RedeemPromotionView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = RedeemPromotionSerializer
 
+    @extend_schema(
+        request=RedeemPromotionSerializer,
+        responses={
+            200: OpenApiTypes.OBJECT,
+            400: OpenApiTypes.OBJECT,
+        },
+        summary="Redeem Promotion Code",
+        description="Redeem a promotion code to receive benefits like account creation with balance.",
+    )
     def post(self, request):
-        code_str = request.data.get("code")
-        if not code_str:
-            return Response(
-                {"error": "Por favor ingrese un código."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        serializer = RedeemPromotionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        code_str = serializer.validated_data["code"]
 
         try:
             promotion = PromotionCode.objects.get(code=code_str)

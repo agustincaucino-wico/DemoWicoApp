@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 
 from operation.models import FuelLoadOperation, ModifyFunds
 
@@ -14,6 +15,7 @@ class FuelLoadOperationSerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ("timestamp_started",)
 
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_user_name(self, obj):
         if obj.account and obj.account.user:
             user = obj.account.user
@@ -21,17 +23,20 @@ class FuelLoadOperationSerializer(serializers.ModelSerializer):
             return full_name or user.email
         return None
 
+    @extend_schema_field(serializers.EmailField(allow_null=True))
     def get_user_email(self, obj):
         if obj.account and obj.account.user:
             return obj.account.user.email
         return None
 
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_attendant_name(self, obj):
         if obj.attendant:
             full_name = f"{obj.attendant.first_name or ''} {obj.attendant.last_name or ''}".strip()
             return full_name or obj.attendant.email
         return None
 
+    @extend_schema_field(serializers.EmailField(allow_null=True))
     def get_attendant_email(self, obj):
         if obj.attendant:
             return obj.attendant.email
@@ -68,11 +73,13 @@ class ModifyFundsSerializer(serializers.ModelSerializer):
             "gestor_full_name",
         )
 
+    @extend_schema_field(serializers.CharField())
     def get_account_user_full_name(self, obj):
         user = obj.account.user
         full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
         return full_name or user.email
 
+    @extend_schema_field(serializers.CharField())
     def get_gestor_full_name(self, obj):
         gestor = obj.gestor
         full_name = f"{gestor.first_name or ''} {gestor.last_name or ''}".strip()

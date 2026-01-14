@@ -6,7 +6,6 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.models import Group
 
 
-
 class Account(models.Model):
     ACCOUNT_TYPES = [("holder", "Titular"), ("dependent", "Adherido")]
 
@@ -14,6 +13,15 @@ class Account(models.Model):
     balance = models.DecimalField(max_digits=12, decimal_places=2)
     account_type = models.CharField(max_length=20, choices=ACCOUNT_TYPES)
     is_active = models.BooleanField(default=True)
+    deactivated_at = models.DateTimeField(null=True, blank=True)
+    deactivated_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="deactivated_accounts",
+    )
+    deactivation_reason = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -142,15 +150,14 @@ class DependentInvitation(models.Model):
                 dependent_account=dependent_account,
                 start_date=timezone.now().date(),
             )
-            
+
             # Asignar rol de Flota al usuario adherido
             try:
-                fleet_group = Group.objects.get(name='Flota')
+                fleet_group = Group.objects.get(name="Flota")
                 dependent_user = CustomUser.objects.get(email=self.dependent_email)
                 dependent_user.groups.add(fleet_group)
             except Group.DoesNotExist:
-                pass 
-
+                pass
 
     def reject_invitation(self):
         """Rechaza la invitación"""

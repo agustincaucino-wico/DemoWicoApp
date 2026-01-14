@@ -124,6 +124,142 @@ class AccountViewSet(BaseLCViewSet):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @extend_schema(
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {
+                    "reason": {
+                        "type": "string",
+                        "description": "Motivo de la desactivación",
+                    },
+                },
+            }
+        },
+        responses={200: AccountSerializer},
+        description="Desactiva una cuenta (titular o adherida). Cancela todas las relaciones activas asociadas a la cuenta.",
+    )
+    @action(detail=True, methods=["post"], url_path="deactivate")
+    def deactivate_account(self, request, pk=None):
+        """
+        Desactiva una cuenta (titular o adherida).
+
+        Para cuentas TITULARES:
+        - Finaliza relaciones de Dependents activos (end_date = hoy)
+        - Da de baja Plates activas (end_date = hoy)
+        - Revoca AuthorizedPlates (end_date = hoy)
+        - Cancela invitaciones pendientes
+        - Marca la cuenta como inactiva
+
+        Para cuentas ADHERIDAS:
+        - Finaliza su relación como dependiente (end_date = hoy)
+        - Revoca sus autorizaciones de patentes (end_date = hoy)
+        - Marca la cuenta como inactiva
+        """
+        from django.db import transaction
+
+        account = self.get_object()
+
+        # Validar que no esté ya desactivada
+        if not account.is_active:
+            return Response(
+                {
+                    "error": "Esta cuenta ya está desactivada",
+                    "deactivated_at": account.deactivated_at,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Obtener motivo de desactivación (opcional)
+        reason = request.data.get("reason", "")
+
+        try:
+            with transaction.atomic():
+                today = timezone.now().date()
+                summary = {}
+
+                if account.account_type == "holder":
+                    # CUENTA TITULAR: Desactivar todas sus relaciones
+
+                    # 1. Finalizar relaciones de Dependents activos
+                    active_dependents = Dependents.objects.filter(
+                        holder_account=account, end_date__isnull=True
+                    )
+                    dependents_count = active_dependents.count()
+                    active_dependents.update(end_date=today)
+                    summary["dependents_finalized"] = dependents_count
+
+                    # 2. Dar de baja Plates activas
+                    active_plates = Plates.objects.filter(
+                        holder_account=account, end_date__isnull=True
+                    )
+                    plates_count = active_plates.count()
+                    active_plates.update(end_date=today)
+                    summary["plates_deactivated"] = plates_count
+
+                    # 3. Revocar AuthorizedPlates activas
+                    active_authorized_plates = AuthorizedPlate.objects.filter(
+                        plate__holder_account=account, end_date__isnull=True
+                    )
+                    auth_plates_count = active_authorized_plates.count()
+                    active_authorized_plates.update(end_date=today)
+                    summary["authorized_plates_revoked"] = auth_plates_count
+
+                    # 4. Cancelar invitaciones pendientes
+                    pending_invitations = DependentInvitation.objects.filter(
+                        holder_account=account, status="pending"
+                    )
+                    invitations_count = pending_invitations.count()
+                    for invitation in pending_invitations:
+                        invitation.status = "cancelled"
+                        invitation.response_date = timezone.now()
+                        invitation.save()
+                    summary["invitations_cancelled"] = invitations_count
+
+                elif account.account_type == "dependent":
+                    # CUENTA ADHERIDA: Finalizar su relación como dependiente
+
+                    # 1. Finalizar relación como dependiente
+                    active_dependent_relations = Dependents.objects.filter(
+                        dependent_account=account, end_date__isnull=True
+                    )
+                    relations_count = active_dependent_relations.count()
+                    active_dependent_relations.update(end_date=today)
+                    summary["dependent_relations_finalized"] = relations_count
+
+                    # 2. Revocar autorizaciones de patentes
+                    active_authorized_plates = AuthorizedPlate.objects.filter(
+                        dependent_account=account, end_date__isnull=True
+                    )
+                    auth_plates_count = active_authorized_plates.count()
+                    active_authorized_plates.update(end_date=today)
+                    summary["authorized_plates_revoked"] = auth_plates_count
+
+                # 5. Desactivar la cuenta (aplica para ambos tipos)
+                account.is_active = False
+                account.deactivated_at = timezone.now()
+                account.deactivated_by = request.user
+                account.deactivation_reason = reason or None
+                account.save()
+
+                return Response(
+                    {
+                        "message": f"Cuenta {account.get_account_type_display().lower()} desactivada exitosamente",
+                        "account_id": account.id,
+                        "account_type": account.account_type,
+                        "deactivated_at": account.deactivated_at,
+                        "balance_remaining": float(account.balance),
+                        "summary": summary,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Error al desactivar la cuenta: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
 
 class DependentsViewSet(BaseLCViewSet):
     queryset = Dependents.objects.all().order_by("id")

@@ -4,9 +4,19 @@ from .models import Company, CompanyAssignment
 
 
 class AccountSerializer(serializers.ModelSerializer):
+    deactivated_by_email = serializers.EmailField(
+        source="deactivated_by.email", read_only=True
+    )
+
     class Meta:
         model = Account
         fields = "__all__"
+        read_only_fields = (
+            "is_active",
+            "deactivated_at",
+            "deactivated_by",
+            "deactivation_reason",
+        )
 
 
 class DependentsSerializer(serializers.ModelSerializer):

@@ -1,7 +1,14 @@
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from users.serializers import UserSerializer, EmailVerificationSerializer
+from users.serializers import (
+    UserSerializer,
+    EmailVerificationSerializer,
+    ResendVerificationSerializer,
+    DevUserLoginSerializer,
+    AssignRoleSerializer,
+    RemoveRoleSerializer,
+)
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from users.permissions import DjangoModelOrTargetUser
@@ -130,7 +137,7 @@ class UserViewSet(viewsets.ModelViewSet):
             )
 
     @extend_schema(
-        request={"type": "object", "properties": {"email": {"type": "string"}}},
+        request=ResendVerificationSerializer,
         responses={
             200: OpenApiTypes.OBJECT,
             400: OpenApiTypes.OBJECT,
@@ -140,13 +147,9 @@ class UserViewSet(viewsets.ModelViewSet):
     )
     @action(detail=False, methods=["post"], url_path="resend_verification")
     def resend_verification(self, request):
-        email = request.data.get("email")
-
-        if not email:
-            return Response(
-                {"error": "Email es requerido."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        serializer = ResendVerificationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
 
         try:
             user = User.objects.get(email__iexact=email)
@@ -213,13 +216,7 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 
     @extend_schema(
-        request={
-            "type": "object",
-            "properties": {
-                "role_name": {"type": "string", "enum": ["Playero", "Encargado"]}
-            },
-            "required": ["role_name"],
-        },
+        request=AssignRoleSerializer,
         responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
         summary="Assign Role to User",
         description="Assign 'Playero' or 'Encargado' role to a user. Requires Gestor permissions.",
@@ -233,21 +230,15 @@ class UserViewSet(viewsets.ModelViewSet):
     def assign_role(self, request, pk=None):
         """Assign Playero or Encargado role to a user."""
         user = self.get_object()
-        role_name = request.data.get("role_name")
+        serializer = AssignRoleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        role_name = serializer.validated_data["role_name"]
 
         # Verificar que el usuario autenticado tenga el rol de Gestor
         if not request.user.groups.filter(name="Gestor").exists():
             return Response(
                 {"error": "Solo los usuarios con rol Gestor pueden asignar roles."},
                 status=status.HTTP_403_FORBIDDEN,
-            )
-
-        if role_name not in ["Playero", "Encargado"]:
-            return Response(
-                {
-                    "error": "Rol inválido. Solo se pueden asignar 'Playero' o 'Encargado'."
-                },
-                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Validar que para asignar Encargado, el usuario debe tener Playero y estación asignada
@@ -296,13 +287,7 @@ class UserViewSet(viewsets.ModelViewSet):
             )
 
     @extend_schema(
-        request={
-            "type": "object",
-            "properties": {
-                "role_name": {"type": "string", "enum": ["Playero", "Encargado"]}
-            },
-            "required": ["role_name"],
-        },
+        request=RemoveRoleSerializer,
         responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
         summary="Remove Role from User",
         description="Remove 'Playero' or 'Encargado' role from a user. Requires Gestor permissions.",
@@ -316,21 +301,15 @@ class UserViewSet(viewsets.ModelViewSet):
     def remove_role(self, request, pk=None):
         """Remove Playero or Encargado role from a user."""
         user = self.get_object()
-        role_name = request.data.get("role_name")
+        serializer = RemoveRoleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        role_name = serializer.validated_data["role_name"]
 
         # Verificar que el usuario autenticado tenga el rol de Gestor
         if not request.user.groups.filter(name="Gestor").exists():
             return Response(
                 {"error": "Solo los usuarios con rol Gestor pueden remover roles."},
                 status=status.HTTP_403_FORBIDDEN,
-            )
-
-        if role_name not in ["Playero", "Encargado"]:
-            return Response(
-                {
-                    "error": "Rol inválido. Solo se pueden remover 'Playero' o 'Encargado'."
-                },
-                status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
@@ -410,6 +389,14 @@ class DevUserListView(APIView):
 
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        responses={
+            200: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+        },
+        summary="Dev User List",
+        description="DEV ONLY: Returns a list of all users for quick account switching.",
+    )
     def get(self, request):
         if not settings.DEBUG:
             return Response(
@@ -438,7 +425,18 @@ class DevUserLoginView(APIView):
     """
 
     permission_classes = [AllowAny]
+    serializer_class = DevUserLoginSerializer
 
+    @extend_schema(
+        request=DevUserLoginSerializer,
+        responses={
+            200: OpenApiTypes.OBJECT,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+        },
+        summary="Dev User Login",
+        description="DEV ONLY: Force login as any user by ID or email. Returns JWT tokens.",
+    )
     def post(self, request):
         if not settings.DEBUG:
             return Response(
