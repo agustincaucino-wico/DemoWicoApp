@@ -11,8 +11,10 @@ class PromotionActions:
         """
         Creates a holder account for the user if one does not exist and assigns the 'Flota' group.
         """
-        # Check if holder account already exists
-        if Account.objects.filter(user=user, account_type="holder").exists():
+        # Check if holder account already exists (only active accounts)
+        if Account.objects.filter(
+            user=user, account_type="holder", is_active=True
+        ).exists():
             return {"success": False, "message": "Ya tienes una cuenta de WICORED."}
 
         try:

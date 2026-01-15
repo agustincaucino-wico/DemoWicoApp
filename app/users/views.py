@@ -18,7 +18,6 @@ from utils.email_service import email_service
 from drf_spectacular.utils import extend_schema
 from drf_spectacular.types import OpenApiTypes
 from datetime import date
-from django.db import transaction
 from django.contrib.auth.models import Group
 from promotions.actions import PromotionActions
 

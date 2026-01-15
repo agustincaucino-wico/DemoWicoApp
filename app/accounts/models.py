@@ -32,9 +32,9 @@ class Account(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["user"],
-                condition=models.Q(account_type="holder"),
+                condition=models.Q(account_type="holder", is_active=True),
                 name="one_holder_account_per_user",
-                violation_error_message="Un usuario solo puede tener una única cuenta titular",
+                violation_error_message="Un usuario solo puede tener una única cuenta titular activa",
             )
         ]
 

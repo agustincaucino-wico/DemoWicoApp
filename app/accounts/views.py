@@ -242,17 +242,39 @@ class AccountViewSet(BaseLCViewSet):
                 account.deactivation_reason = reason or None
                 account.save()
 
-                return Response(
-                    {
-                        "message": f"Cuenta {account.get_account_type_display().lower()} desactivada exitosamente",
-                        "account_id": account.id,
-                        "account_type": account.account_type,
-                        "deactivated_at": account.deactivated_at,
-                        "balance_remaining": float(account.balance),
-                        "summary": summary,
-                    },
-                    status=status.HTTP_200_OK,
-                )
+                # 6. Verificar si el usuario queda sin cuentas activas y remover rol 'Flota'
+                from django.contrib.auth.models import Group
+
+                user = account.user
+                remaining_accounts = Account.objects.filter(user=user, is_active=True)
+                flota_role_removed = False
+
+                if not remaining_accounts.exists():
+                    try:
+                        flota_group = Group.objects.get(name="Flota")
+                        if user.groups.filter(name="Flota").exists():
+                            user.groups.remove(flota_group)
+                            user.save()
+                            flota_role_removed = True
+                    except Group.DoesNotExist:
+                        pass
+
+                response_data = {
+                    "message": f"Cuenta {account.get_account_type_display().lower()} desactivada exitosamente",
+                    "account_id": account.id,
+                    "account_type": account.account_type,
+                    "deactivated_at": account.deactivated_at,
+                    "balance_remaining": float(account.balance),
+                    "summary": summary,
+                }
+
+                if flota_role_removed:
+                    response_data["flota_role_removed"] = True
+                    response_data["message"] += (
+                        ". Se removió el rol 'Flota' porque el usuario quedó sin cuentas activas."
+                    )
+
+                return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response(
