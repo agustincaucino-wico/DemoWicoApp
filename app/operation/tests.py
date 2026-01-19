@@ -51,7 +51,9 @@ class FuelLoadOperationAPITests(TestCase):
             email="other-attendant@example.com", password="pass1234"
         )
 
-        self.account = Account.objects.get(user=self.user, account_type="holder")
+        self.account = Account.objects.create(
+            user=self.user, account_type="holder", balance=Decimal("0.00")
+        )
         self.plate = Plates.objects.create(
             plate_number="AAA111",
             holder_account=self.account,

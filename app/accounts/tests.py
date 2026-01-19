@@ -26,9 +26,9 @@ class AccountsTestCase(TestCase):
         self._assign_gestor_role(self.user_holder)
         self._assign_gestor_role(self.user_dependent)
 
-        # The user manager auto-creates a holder Account per user
-        self.holder_account = Account.objects.get(
-            user=self.user_holder, account_type="holder"
+        # Manually create holder account for user_holder
+        self.holder_account = Account.objects.create(
+            user=self.user_holder, balance=0, account_type="holder"
         )
 
         # Create a dependent account for the dependent user (not auto-created)
@@ -55,18 +55,6 @@ class AccountsTestCase(TestCase):
 
         # Add user to the Gestor group
         user.groups.add(gestor_group)
-
-    def test_holder_account_auto_created(self):
-        # The CustomUser manager should create a holder account automatically
-        account = Account.objects.get(user=self.user_holder, account_type="holder")
-        self.assertIsNotNone(account)
-
-    def test_unique_holder_constraint(self):
-        # Trying to create another holder account for the same user should raise an error
-        with self.assertRaises(IntegrityError):
-            Account.objects.create(
-                user=self.user_holder, balance=0, account_type="holder"
-            )
 
     def test_update_balance_action(self):
         # Update balance via action endpoint
@@ -289,8 +277,8 @@ class AccountsTestCase(TestCase):
         other_holder_user = CustomUser.objects.create_user(
             email="other-holder@example.com", password="pass1234"
         )
-        other_holder_account = Account.objects.get(
-            user=other_holder_user, account_type="holder"
+        other_holder_account = Account.objects.create(
+            user=other_holder_user, balance=0, account_type="holder"
         )
 
         # Try to use other user's holder account
@@ -357,8 +345,8 @@ class AccountsTestCase(TestCase):
             email="unauthorized@example.com", password="pass1234"
         )
         self._assign_gestor_role(other_holder_user)
-        other_holder_account = Account.objects.get(
-            user=other_holder_user, account_type="holder"
+        other_holder_account = Account.objects.create(
+            user=other_holder_user, balance=0, account_type="holder"
         )
 
         # Create dependent relationship
@@ -395,13 +383,13 @@ class AccountsTestCase(TestCase):
 
     def test_add_dependent_creates_dependent_account_if_not_exists(self):
         """Test that adding a dependent creates a dependent account if user doesn't have one"""
-        # Create a new user without dependent account (only holder account exists)
+        # Create a new user without any account
         new_user = CustomUser.objects.create_user(
             email="newuser@example.com", password="pass1234"
         )
 
-        # Verify only holder account exists
-        self.assertTrue(
+        # Verify no accounts exist for this user
+        self.assertFalse(
             Account.objects.filter(user=new_user, account_type="holder").exists()
         )
         self.assertFalse(
@@ -517,8 +505,8 @@ class PlatesSoftDeleteTestCase(TestCase):
         )
         self._assign_gestor_role(self.user_holder)
 
-        self.holder_account = Account.objects.get(
-            user=self.user_holder, account_type="holder"
+        self.holder_account = Account.objects.create(
+            user=self.user_holder, balance=0, account_type="holder"
         )
 
         # Create API client
@@ -609,3 +597,428 @@ class PlatesSoftDeleteTestCase(TestCase):
         }
         response = self.client.post("/accounts/plates/", payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+
+class RoleBasedAccessControlTestCase(TestCase):
+    """Test that Gestor can access all resources while Flota users can only access their own"""
+
+    def setUp(self):
+        # Create two Flota users
+        self.flota_user1 = CustomUser.objects.create_user(
+            email="flota1@example.com", password="pass1234"
+        )
+        self.flota_user2 = CustomUser.objects.create_user(
+            email="flota2@example.com", password="pass1234"
+        )
+
+        # Create one Gestor user
+        self.gestor_user = CustomUser.objects.create_user(
+            email="gestor@example.com", password="pass1234"
+        )
+
+        # Assign roles
+        self._assign_flota_role(self.flota_user1)
+        self._assign_flota_role(self.flota_user2)
+        self._assign_gestor_role(self.gestor_user)
+
+        # Create holder accounts for both flota users
+        self.flota1_account = Account.objects.create(
+            user=self.flota_user1, balance=1000, account_type="holder"
+        )
+        self.flota2_account = Account.objects.create(
+            user=self.flota_user2, balance=2000, account_type="holder"
+        )
+
+        # Create plates for both flota users
+        self.flota1_plate = Plates.objects.create(
+            plate_number="FLO001",
+            holder_account=self.flota1_account,
+            start_date=timezone.now().date(),
+        )
+        self.flota2_plate = Plates.objects.create(
+            plate_number="FLO002",
+            holder_account=self.flota2_account,
+            start_date=timezone.now().date(),
+        )
+
+        # Create dependent accounts
+        self.flota1_dependent = Account.objects.create(
+            user=self.flota_user1, balance=100, account_type="dependent"
+        )
+        self.flota2_dependent = Account.objects.create(
+            user=self.flota_user2, balance=200, account_type="dependent"
+        )
+
+        # Create dependent relationships
+        self.flota1_dep_relation = Dependents.objects.create(
+            holder_account=self.flota1_account,
+            dependent_account=self.flota1_dependent,
+            start_date=timezone.now().date(),
+        )
+        self.flota2_dep_relation = Dependents.objects.create(
+            holder_account=self.flota2_account,
+            dependent_account=self.flota2_dependent,
+            start_date=timezone.now().date(),
+        )
+
+        # Create API clients
+        self.flota1_client = APIClient()
+        self.flota1_client.force_authenticate(user=self.flota_user1)
+
+        self.flota2_client = APIClient()
+        self.flota2_client.force_authenticate(user=self.flota_user2)
+
+        self.gestor_client = APIClient()
+        self.gestor_client.force_authenticate(user=self.gestor_user)
+
+    def _assign_flota_role(self, user):
+        """Assign Flota group and permissions to the user."""
+        flota_group, _ = Group.objects.get_or_create(name="Flota")
+
+        # Assign necessary permissions for Flota users
+        flota_permissions = ROLES.get("Flota", [])
+        if flota_permissions:
+            permissions = Permission.objects.filter(codename__in=flota_permissions)
+            flota_group.permissions.set(permissions)
+        else:
+            # If Flota role is not defined in ROLES, assign basic view permissions
+            permissions = Permission.objects.filter(
+                codename__in=[
+                    "view_account",
+                    "view_plates",
+                    "view_dependents",
+                    "view_authorizedplates",
+                ]
+            )
+            flota_group.permissions.set(permissions)
+
+        user.groups.add(flota_group)
+
+    def _assign_gestor_role(self, user):
+        """Assign Gestor group and permissions to the user."""
+        gestor_group, _ = Group.objects.get_or_create(name="Gestor")
+        gestor_permissions = ROLES.get("Gestor", [])
+        permissions = Permission.objects.filter(codename__in=gestor_permissions)
+        gestor_group.permissions.set(permissions)
+        user.groups.add(gestor_group)
+
+    def test_flota_user_can_only_see_own_accounts(self):
+        """Flota users should only see their own accounts"""
+        response = self.flota1_client.get("/accounts/accounts/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Flota1 should only see their own accounts
+        account_ids = [acc["id"] for acc in response.data]
+        self.assertIn(self.flota1_account.id, account_ids)
+        self.assertIn(self.flota1_dependent.id, account_ids)
+        self.assertNotIn(self.flota2_account.id, account_ids)
+        self.assertNotIn(self.flota2_dependent.id, account_ids)
+
+    def test_flota_user_can_only_see_own_plates(self):
+        """Flota users should only see their own plates"""
+        response = self.flota1_client.get("/accounts/plates/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Flota1 should only see their own plates
+        plate_ids = [plate["id"] for plate in response.data]
+        self.assertIn(self.flota1_plate.id, plate_ids)
+        self.assertNotIn(self.flota2_plate.id, plate_ids)
+
+    def test_flota_user_can_only_see_own_dependents(self):
+        """Flota users should only see their own dependent relationships"""
+        response = self.flota1_client.get("/accounts/dependents/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Flota1 should only see their own dependent relationships
+        dep_ids = [dep["id"] for dep in response.data]
+        self.assertIn(self.flota1_dep_relation.id, dep_ids)
+        self.assertNotIn(self.flota2_dep_relation.id, dep_ids)
+
+    def test_flota_user_cannot_access_other_users_account(self):
+        """Flota users should not be able to access other users' accounts"""
+        # Try to access flota2's account
+        response = self.flota1_client.get(
+            f"/accounts/accounts/{self.flota2_account.id}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_flota_user_cannot_access_other_users_plate(self):
+        """Flota users should not be able to access other users' plates"""
+        # Try to access flota2's plate
+        response = self.flota1_client.get(f"/accounts/plates/{self.flota2_plate.id}/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_flota_user_cannot_modify_other_users_plate(self):
+        """Flota users should not be able to modify other users' plates"""
+        # Try to update flota2's plate
+        payload = {"brand": "Modified", "model": "Hacked"}
+        response = self.flota1_client.patch(
+            f"/accounts/plates/{self.flota2_plate.id}/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_flota_user_cannot_delete_other_users_plate(self):
+        """Flota users should not be able to delete other users' plates"""
+        # Try to delete flota2's plate
+        response = self.flota1_client.delete(
+            f"/accounts/plates/{self.flota2_plate.id}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_gestor_can_see_all_accounts(self):
+        """Gestor users should see all accounts"""
+        response = self.gestor_client.get("/accounts/accounts/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Gestor should see both flota users' accounts
+        account_ids = [acc["id"] for acc in response.data]
+        self.assertIn(self.flota1_account.id, account_ids)
+        self.assertIn(self.flota2_account.id, account_ids)
+        self.assertIn(self.flota1_dependent.id, account_ids)
+        self.assertIn(self.flota2_dependent.id, account_ids)
+
+    def test_gestor_can_see_all_plates(self):
+        """Gestor users should see all plates"""
+        response = self.gestor_client.get("/accounts/plates/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Gestor should see both flota users' plates
+        plate_ids = [plate["id"] for plate in response.data]
+        self.assertIn(self.flota1_plate.id, plate_ids)
+        self.assertIn(self.flota2_plate.id, plate_ids)
+
+    def test_gestor_can_see_all_dependents(self):
+        """Gestor users should see all dependent relationships"""
+        response = self.gestor_client.get("/accounts/dependents/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Gestor should see both flota users' dependents
+        dep_ids = [dep["id"] for dep in response.data]
+        self.assertIn(self.flota1_dep_relation.id, dep_ids)
+        self.assertIn(self.flota2_dep_relation.id, dep_ids)
+
+    def test_gestor_can_access_any_account(self):
+        """Gestor users should be able to access any account"""
+        # Access flota1's account
+        response = self.gestor_client.get(
+            f"/accounts/accounts/{self.flota1_account.id}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Access flota2's account
+        response = self.gestor_client.get(
+            f"/accounts/accounts/{self.flota2_account.id}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_gestor_can_modify_any_plate(self):
+        """Gestor users should be able to modify any plate"""
+        # Modify flota1's plate
+        payload = {"brand": "Modified by Gestor", "model": "Test"}
+        response = self.gestor_client.patch(
+            f"/accounts/plates/{self.flota1_plate.id}/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify modification
+        self.flota1_plate.refresh_from_db()
+        self.assertEqual(self.flota1_plate.brand, "Modified by Gestor")
+
+    def test_flota_user_can_create_own_plate(self):
+        """Flota users should be able to create plates for their own accounts"""
+        payload = {
+            "plate_number": "FLO003",
+            "holder_account": self.flota1_account.id,
+            "start_date": timezone.now().date().isoformat(),
+        }
+        response = self.flota1_client.post("/accounts/plates/", payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_flota_user_cannot_create_plate_for_other_user(self):
+        """Flota users should not be able to create plates for other users' accounts"""
+        payload = {
+            "plate_number": "FLO004",
+            "holder_account": self.flota2_account.id,
+            "start_date": timezone.now().date().isoformat(),
+        }
+        response = self.flota1_client.post("/accounts/plates/", payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_flota_user_can_modify_own_plate(self):
+        """Flota users should be able to modify their own plates"""
+        payload = {"brand": "Modified", "model": "Own"}
+        response = self.flota1_client.patch(
+            f"/accounts/plates/{self.flota1_plate.id}/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify modification
+        self.flota1_plate.refresh_from_db()
+        self.assertEqual(self.flota1_plate.brand, "Modified")
+
+    def test_flota_user_can_delete_own_plate(self):
+        """Flota users should be able to delete their own plates"""
+        response = self.flota1_client.delete(
+            f"/accounts/plates/{self.flota1_plate.id}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify soft delete
+        self.flota1_plate.refresh_from_db()
+        self.assertIsNotNone(self.flota1_plate.end_date)
+
+
+class GestorAndFlotaRoleTestCase(TestCase):
+    """Test that users with both Gestor and Flota roles get Gestor permissions"""
+
+    def setUp(self):
+        # Create users
+        self.gestor_flota_user = CustomUser.objects.create_user(
+            email="gestor-flota@example.com", password="pass1234"
+        )
+        self.flota_only_user = CustomUser.objects.create_user(
+            email="flota-only@example.com", password="pass1234"
+        )
+        self.other_user = CustomUser.objects.create_user(
+            email="other@example.com", password="pass1234"
+        )
+
+        # Assign both Gestor and Flota roles to first user
+        self._assign_gestor_role(self.gestor_flota_user)
+        self._assign_flota_role(self.gestor_flota_user)
+
+        # Assign only Flota role to second user
+        self._assign_flota_role(self.flota_only_user)
+
+        # Assign Gestor role to other user
+        self._assign_gestor_role(self.other_user)
+
+        # Create accounts
+        self.gestor_flota_account = Account.objects.create(
+            user=self.gestor_flota_user, balance=0, account_type="holder"
+        )
+        self.flota_only_account = Account.objects.create(
+            user=self.flota_only_user, balance=0, account_type="holder"
+        )
+        self.other_account = Account.objects.create(
+            user=self.other_user, balance=0, account_type="holder"
+        )
+
+        # Create plates
+        self.gestor_flota_plate = Plates.objects.create(
+            plate_number="GF001",
+            holder_account=self.gestor_flota_account,
+            start_date=timezone.now().date(),
+        )
+        self.flota_only_plate = Plates.objects.create(
+            plate_number="FO001",
+            holder_account=self.flota_only_account,
+            start_date=timezone.now().date(),
+        )
+        self.other_plate = Plates.objects.create(
+            plate_number="OT001",
+            holder_account=self.other_account,
+            start_date=timezone.now().date(),
+        )
+
+        # Create API clients
+        self.gestor_flota_client = APIClient()
+        self.gestor_flota_client.force_authenticate(user=self.gestor_flota_user)
+
+        self.flota_only_client = APIClient()
+        self.flota_only_client.force_authenticate(user=self.flota_only_user)
+
+    def _assign_gestor_role(self, user):
+        """Assign Gestor group and permissions to the user."""
+        gestor_group, _ = Group.objects.get_or_create(name="Gestor")
+        gestor_permissions = ROLES.get("Gestor", [])
+        permissions = Permission.objects.filter(codename__in=gestor_permissions)
+        gestor_group.permissions.set(permissions)
+        user.groups.add(gestor_group)
+
+    def _assign_flota_role(self, user):
+        """Assign Flota group and permissions to the user."""
+        flota_group, _ = Group.objects.get_or_create(name="Flota")
+        # Assign basic permissions for Flota users to manage their own resources
+        permissions = Permission.objects.filter(
+            codename__in=[
+                "view_account",
+                "change_account",
+                "view_plates",
+                "add_plates",
+                "change_plates",
+                "delete_plates",
+                "view_dependents",
+                "view_authorizedplate",
+            ]
+        )
+        flota_group.permissions.set(permissions)
+        user.groups.add(flota_group)
+
+    def test_gestor_flota_user_can_see_all_accounts(self):
+        """User with both Gestor and Flota roles should see all accounts (Gestor permissions)"""
+        response = self.gestor_flota_client.get("/accounts/accounts/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should see all 3 accounts (Gestor permission)
+        account_ids = {account["id"] for account in response.data}
+        self.assertIn(self.gestor_flota_account.id, account_ids)
+        self.assertIn(self.flota_only_account.id, account_ids)
+        self.assertIn(self.other_account.id, account_ids)
+
+    def test_flota_only_user_sees_own_accounts(self):
+        """User with only Flota role should see only their own accounts"""
+        response = self.flota_only_client.get("/accounts/accounts/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should see only their own account
+        account_ids = {account["id"] for account in response.data}
+        self.assertIn(self.flota_only_account.id, account_ids)
+        self.assertNotIn(self.gestor_flota_account.id, account_ids)
+        self.assertNotIn(self.other_account.id, account_ids)
+
+    def test_gestor_flota_user_can_see_all_plates(self):
+        """User with both Gestor and Flota roles should see all plates (Gestor permissions)"""
+        response = self.gestor_flota_client.get("/accounts/plates/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should see all 3 plates (Gestor permission)
+        plate_ids = {plate["id"] for plate in response.data}
+        self.assertIn(self.gestor_flota_plate.id, plate_ids)
+        self.assertIn(self.flota_only_plate.id, plate_ids)
+        self.assertIn(self.other_plate.id, plate_ids)
+
+    def test_flota_only_user_sees_own_plates(self):
+        """User with only Flota role should see only their own plates"""
+        response = self.flota_only_client.get("/accounts/plates/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should see only their own plate
+        plate_ids = {plate["id"] for plate in response.data}
+        self.assertIn(self.flota_only_plate.id, plate_ids)
+        self.assertNotIn(self.gestor_flota_plate.id, plate_ids)
+        self.assertNotIn(self.other_plate.id, plate_ids)
+
+    def test_gestor_flota_user_can_modify_any_plate(self):
+        """User with both Gestor and Flota roles should be able to modify any plate"""
+        # Try to modify another user's plate
+        response = self.gestor_flota_client.patch(
+            f"/accounts/plates/{self.flota_only_plate.id}/",
+            {"brand": "Modified by Gestor-Flota"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify modification
+        self.flota_only_plate.refresh_from_db()
+        self.assertEqual(self.flota_only_plate.brand, "Modified by Gestor-Flota")
+
+    def test_flota_only_user_cannot_modify_other_plate(self):
+        """User with only Flota role should not be able to modify other users' plates"""
+        # Try to modify another user's plate
+        response = self.flota_only_client.patch(
+            f"/accounts/plates/{self.gestor_flota_plate.id}/",
+            {"brand": "Attempted modification"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

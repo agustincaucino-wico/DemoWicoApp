@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from myapp.permissions import StrictDjangoModelPermissions
 from .permissions import DjangoModelOrObjectOwner
+from users.utils import should_apply_flota_restrictions
 
 
 from .models import (
@@ -60,6 +61,19 @@ class AccountViewSet(BaseLCViewSet):
     queryset = Account.objects.filter(is_active=True).order_by("id")
     serializer_class = AccountSerializer
 
+    def get_queryset(self):
+        """
+        Filtrar cuentas según el usuario:
+        - Usuarios Flota (sin rol Gestor): solo sus propias cuentas
+        - Usuarios con rol Gestor: acceso completo
+        - Otros: según permisos del modelo
+        """
+        queryset = super().get_queryset()
+        if should_apply_flota_restrictions(self.request.user):
+            # Usuarios Flota solo ven sus propias cuentas
+            return queryset.filter(user=self.request.user)
+        return queryset
+
     @extend_schema(
         request=AccountBalanceUpdateSerializer,
         responses={200: AccountBalanceUpdateSerializer},
@@ -81,7 +95,7 @@ class AccountViewSet(BaseLCViewSet):
         Actualiza únicamente el balance de una cuenta.
         También crea un registro en ModifyFunds con comentarios.
         """
-        from operation.models import ModifyFunds, PaymentMethod
+        from operation.models import ModifyFunds
         from django.db import transaction
 
         account = self.get_object()
@@ -282,11 +296,134 @@ class AccountViewSet(BaseLCViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @extend_schema(
+        description="Consulta el saldo de una cuenta por DNI y patente. Retorna información de la cuenta asociada.",
+        parameters=[
+            {
+                "name": "dni",
+                "in": "query",
+                "description": "DNI del usuario",
+                "required": True,
+                "schema": {"type": "string"},
+            },
+            {
+                "name": "plate_number",
+                "in": "query",
+                "description": "Número de patente",
+                "required": True,
+                "schema": {"type": "string"},
+            },
+        ],
+    )
+    @action(detail=False, methods=["get"], url_path="balance-by-dni-plate")
+    def balance_by_dni_plate(self, request):
+        """
+        Endpoint para playeros: consultar saldo de cuenta por DNI y patente.
+        Retorna el balance de la cuenta asociada al DNI y la patente proporcionada.
+        """
+        from users.models import CustomUser
+
+        dni = request.query_params.get("dni", "").strip()
+        plate_number = request.query_params.get("plate_number", "").strip().upper()
+
+        if not dni or not plate_number:
+            return Response(
+                {"error": "DNI y número de patente son requeridos"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # Buscar usuario por DNI
+            user = CustomUser.objects.filter(dni=dni).first()
+            if not user:
+                return Response(
+                    {"error": "No se encontró ningún usuario con ese DNI"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Buscar la patente activa
+            plate = Plates.objects.filter(
+                plate_number=plate_number, end_date__isnull=True
+            ).first()
+
+            if not plate:
+                return Response(
+                    {"error": "No se encontró ninguna patente activa con ese número"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Verificar que la patente esté asociada a una cuenta del usuario
+            # Puede ser titular o dependiente autorizado
+            holder_account = plate.holder_account
+
+            # Verificar si el usuario es el titular
+            if holder_account.user.id == user.id:
+                account = holder_account
+            else:
+                # Verificar si el usuario es un dependiente autorizado para esa patente
+                authorized_plate = AuthorizedPlate.objects.filter(
+                    plate=plate, dependent_account__user=user, end_date__isnull=True
+                ).first()
+
+                if authorized_plate:
+                    account = authorized_plate.dependent_account
+                else:
+                    return Response(
+                        {
+                            "error": "El DNI proporcionado no está asociado a esta patente"
+                        },
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+
+            # Verificar que la cuenta esté activa
+            if not account.is_active:
+                return Response(
+                    {"error": "La cuenta asociada está desactivada"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Retornar información de la cuenta
+            return Response(
+                {
+                    "account_id": account.id,
+                    "account_type": account.get_account_type_display(),
+                    "balance": float(account.balance),
+                    "user_name": f"{user.first_name} {user.last_name}".strip()
+                    or user.email,
+                    "user_email": user.email,
+                    "user_dni": user.dni,
+                    "plate_number": plate.plate_number,
+                    "plate_brand": plate.brand,
+                    "plate_model": plate.model,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Error al consultar la cuenta: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
 
 class DependentsViewSet(BaseLCViewSet):
     queryset = Dependents.objects.all().order_by("id")
     serializer_class = DependentsSerializer
     permission_classes = [DjangoModelOrObjectOwner]
+
+    def get_queryset(self):
+        """
+        Filtrar adheridos según el usuario:
+        - Usuarios Flota (sin rol Gestor): solo adheridos de sus cuentas titulares
+        - Usuarios con rol Gestor: acceso completo
+        - Otros: según permisos del modelo
+        """
+        queryset = super().get_queryset()
+        if should_apply_flota_restrictions(self.request.user):
+            # Usuarios Flota solo ven adheridos de sus cuentas titulares
+            user_accounts = self.request.user.account_set.filter(account_type="holder")
+            return queryset.filter(holder_account__in=user_accounts)
+        return queryset
 
 
 class PlatesViewSet(BaseLCUDViewSet):
@@ -296,12 +433,24 @@ class PlatesViewSet(BaseLCUDViewSet):
 
     def get_queryset(self):
         """
-        Filtrar solo patentes activas (end_date null) para listados.
-        Para retrieve, update y delete, devolver todas para permitir operaciones.
+        Filtrar patentes según el usuario y acción:
+        - Listado: solo patentes activas
+        - Usuarios Flota (sin rol Gestor): solo patentes de sus cuentas titulares
+        - Usuarios con rol Gestor: acceso completo
+        - Otros: según permisos del modelo
         """
+        queryset = super().get_queryset()
+
+        # Filtrar por usuario Flota
+        if should_apply_flota_restrictions(self.request.user):
+            user_accounts = self.request.user.account_set.filter(account_type="holder")
+            queryset = queryset.filter(holder_account__in=user_accounts)
+
+        # Filtrar solo activas para listados
         if self.action == "list":
-            return Plates.objects.filter(end_date__isnull=True).order_by("id")
-        return super().get_queryset()
+            queryset = queryset.filter(end_date__isnull=True)
+
+        return queryset.order_by("id")
 
     def get_serializer_class(self):
         """Usar PlatesUpdateSerializer solo para actualizaciones (PATCH/PUT)"""
@@ -363,14 +512,25 @@ class AuthorizedPlateViewSet(BaseLCViewSet):
 
     def get_queryset(self):
         """
-        Filtrar solo autorizaciones activas (end_date null) para listados.
-        También verificar que la patente asociada esté activa.
+        Filtrar autorizaciones según el usuario y acción:
+        - Listado: solo autorizaciones activas
+        - Usuarios Flota: solo autorizaciones de patentes de sus cuentas titulares
+        - Otros: según permisos del modelo
         """
+        queryset = super().get_queryset()
+
+        # Filtrar por usuario Flota
+        if self.request.user.groups.filter(name="Flota").exists():
+            user_accounts = self.request.user.account_set.filter(account_type="holder")
+            queryset = queryset.filter(plate__holder_account__in=user_accounts)
+
+        # Filtrar solo activas para listados
         if self.action == "list":
-            return AuthorizedPlate.objects.filter(
+            queryset = queryset.filter(
                 end_date__isnull=True, plate__end_date__isnull=True
-            ).order_by("id")
-        return super().get_queryset()
+            )
+
+        return queryset.order_by("id")
 
     def create(self, request, *args, **kwargs):
         """

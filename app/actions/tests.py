@@ -43,11 +43,9 @@ class FuelLoadFlowTests(TestCase):
         self.holder_user = CustomUser.objects.create_user(
             email="holder@example.com", password="pass1234"
         )
-        self.holder_account = Account.objects.get(
-            user=self.holder_user, account_type="holder"
+        self.holder_account = Account.objects.create(
+            user=self.holder_user, account_type="holder", balance=Decimal("100.00")
         )
-        self.holder_account.balance = Decimal("100.00")
-        self.holder_account.save()
 
         self.plate = Plates.objects.create(
             plate_number="ABC123",
@@ -59,11 +57,11 @@ class FuelLoadFlowTests(TestCase):
         self.other_holder_user = CustomUser.objects.create_user(
             email="other-holder@example.com", password="pass1234"
         )
-        self.other_holder_account = Account.objects.get(
-            user=self.other_holder_user, account_type="holder"
+        self.other_holder_account = Account.objects.create(
+            user=self.other_holder_user,
+            account_type="holder",
+            balance=Decimal("100.00"),
         )
-        self.other_holder_account.balance = Decimal("100.00")
-        self.other_holder_account.save()
 
         # Playero (attendant) with assignment
         self.attendant_user = CustomUser.objects.create_user(
@@ -127,7 +125,10 @@ class FuelLoadFlowTests(TestCase):
         )
         self.assertEqual(pending_response.status_code, status.HTTP_200_OK)
         self.assertTrue(
-            any(item["id_operation"] == operation_id for item in pending_response.data)
+            any(
+                item["id_operation"] == operation_id
+                for item in pending_response.data["pending_loads"]
+            )
         )
 
         start_response = self.attendant_client.post(
@@ -253,7 +254,7 @@ class FuelLoadFlowTests(TestCase):
             "/actions/fuel-load/attendant/pending-loads/"
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        returned_ids = {item["id_operation"] for item in response.data}
+        returned_ids = {item["id_operation"] for item in response.data["pending_loads"]}
         self.assertIn(first_op.data["id"], returned_ids)
         self.assertNotIn(second_response.data["id"], returned_ids)
 
@@ -264,11 +265,9 @@ class RemoveDependentTests(TestCase):
         self.holder_user = CustomUser.objects.create_user(
             email="holder@example.com", password="pass1234"
         )
-        self.holder_account = Account.objects.get(
-            user=self.holder_user, account_type="holder"
+        self.holder_account = Account.objects.create(
+            user=self.holder_user, account_type="holder", balance=Decimal("100.00")
         )
-        self.holder_account.balance = Decimal("100.00")
-        self.holder_account.save()
 
         # Dependent user + account
         self.dependent_user = CustomUser.objects.create_user(
