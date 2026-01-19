@@ -2,11 +2,12 @@ from rest_framework import mixins, viewsets, status
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema, OpenApiExample
 from django.utils import timezone
 
 from myapp.permissions import StrictDjangoModelPermissions
-from .permissions import DjangoModelOrObjectOwner
+from .permissions import DjangoModelOrObjectOwner, IsPlayero
 from users.utils import should_apply_flota_restrictions
 
 
@@ -315,7 +316,12 @@ class AccountViewSet(BaseLCViewSet):
             },
         ],
     )
-    @action(detail=False, methods=["get"], url_path="balance-by-dni-plate")
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="balance-by-dni-plate",
+        permission_classes=[IsPlayero],
+    )
     def balance_by_dni_plate(self, request):
         """
         Endpoint para playeros: consultar saldo de cuenta por DNI y patente.

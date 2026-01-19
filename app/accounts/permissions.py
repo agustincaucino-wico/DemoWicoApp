@@ -14,6 +14,19 @@ class IsAdminOrReadOnly(BasePermission):
         return request.user and request.user.is_staff
 
 
+class IsPlayero(BasePermission):
+    """
+    Permite acceso solo a usuarios con rol de Playero.
+    """
+
+    def has_permission(self, request, view):
+        return (
+            request.user
+            and request.user.is_authenticated
+            and request.user.groups.filter(name="Playero").exists()
+        )
+
+
 class DjangoModelOrObjectOwner(StrictDjangoModelPermissions):
     """
     Custom permission:
