@@ -61,10 +61,10 @@ def initiate_fuel_load(request):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # Check if plate is required (dependent accounts must provide a plate)
-        if account.account_type == "dependent" and not plate_id:
+        # Check if plate is required (all accounts must provide a plate)
+        if not plate_id:
             return Response(
-                {"error": "Las cuentas adherentes deben especificar una patente"},
+                {"error": "Todas las cuentas deben especificar una patente"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
