@@ -6,8 +6,8 @@ from datetime import timedelta
 load_dotenv()
 
 # Versión actual de la API
-API_VERSION = "1.1.1"
-MIN_APP_VERSION = "1.1.0"
+API_VERSION = "1.1.5"
+MIN_APP_VERSION = "1.1.5"
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY")
