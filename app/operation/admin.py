@@ -1,7 +1,15 @@
 from django.contrib import admin
+from django.utils import timezone
+from django.contrib import messages
 
 from myapp.admin import my_admin_site
-from operation.models import FuelLoadOperation, PaymentMethod, Transfer
+from operation.models import (
+    FuelLoadOperation,
+    PaymentMethod,
+    Transfer,
+    BalanceRechargeRequest,
+    ModifyFunds,
+)
 
 
 @admin.register(PaymentMethod, site=my_admin_site)
@@ -54,3 +62,135 @@ class TransferAdmin(admin.ModelAdmin):
     )
     autocomplete_fields = ("source_account", "destination_account")
     readonly_fields = ("timestamp",)
+
+
+@admin.register(BalanceRechargeRequest, site=my_admin_site)
+class BalanceRechargeRequestAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "account",
+        "requested_by",
+        "amount",
+        "status",
+        "created_at",
+        "reviewed_by",
+        "reviewed_at",
+    )
+    list_filter = (
+        "status",
+        "created_at",
+        "reviewed_at",
+    )
+    search_fields = (
+        "account__user__email",
+        "requested_by__email",
+        "reviewed_by__email",
+    )
+    autocomplete_fields = ("account", "requested_by", "reviewed_by")
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+        "reviewed_at",
+    )
+    fieldsets = (
+        (
+            "Información de la Solicitud",
+            {
+                "fields": (
+                    "account",
+                    "requested_by",
+                    "amount",
+                    "transfer_proof",
+                    "comments",
+                )
+            },
+        ),
+        (
+            "Estado",
+            {
+                "fields": (
+                    "status",
+                    "reviewed_by",
+                    "reviewed_at",
+                    "review_comments",
+                )
+            },
+        ),
+        (
+            "Timestamps",
+            {
+                "fields": (
+                    "created_at",
+                    "updated_at",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+    actions = ["approve_requests", "reject_requests"]
+
+    def approve_requests(self, request, queryset):
+        """Bulk approve selected requests"""
+        pending_requests = queryset.filter(status=BalanceRechargeRequest.STATUS_PENDING)
+        count = pending_requests.count()
+
+        if count == 0:
+            self.message_user(
+                request,
+                "No hay solicitudes pendientes para aprobar",
+                level=messages.WARNING,
+            )
+            return
+
+        # Get or create payment method
+        payment_method, _ = PaymentMethod.objects.get_or_create(
+            name="Transferencia Bancaria", defaults={"is_active": True}
+        )
+
+        for recharge_request in pending_requests:
+            # Update request
+            recharge_request.status = BalanceRechargeRequest.STATUS_APPROVED
+            recharge_request.reviewed_by = request.user
+            recharge_request.reviewed_at = timezone.now()
+            recharge_request.review_comments = "Aprobado desde admin panel"
+            recharge_request.save()
+
+            # Create ModifyFunds
+            ModifyFunds.objects.create(
+                account=recharge_request.account,
+                gestor=request.user,
+                amount=recharge_request.amount,
+                payment_method=payment_method,
+                comments=f"Recarga aprobada. Solicitud #{recharge_request.id}",
+            )
+
+            # Update balance
+            account = recharge_request.account
+            account.balance += recharge_request.amount
+            account.save()
+
+        self.message_user(
+            request,
+            f"Se aprobaron {count} solicitudes exitosamente",
+            level=messages.SUCCESS,
+        )
+
+    approve_requests.short_description = "Aprobar solicitudes seleccionadas"
+
+    def reject_requests(self, request, queryset):
+        """Bulk reject selected requests"""
+        pending_requests = queryset.filter(status=BalanceRechargeRequest.STATUS_PENDING)
+        count = pending_requests.update(
+            status=BalanceRechargeRequest.STATUS_REJECTED,
+            reviewed_by=request.user,
+            reviewed_at=timezone.now(),
+            review_comments="Rechazado desde admin panel",
+        )
+
+        self.message_user(
+            request,
+            f"Se rechazaron {count} solicitudes",
+            level=messages.SUCCESS if count > 0 else messages.WARNING,
+        )
+
+    reject_requests.short_description = "Rechazar solicitudes seleccionadas"

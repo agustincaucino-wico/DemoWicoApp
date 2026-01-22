@@ -32,7 +32,7 @@ from accounts.serializers import (
 )
 from users.models import CustomUser
 from users.serializers import UserSerializer
-from operation.models import Transfer, FuelLoadOperation
+from operation.models import Transfer, FuelLoadOperation, ModifyFunds
 from utils.email_service import email_service
 from utils.remito_pdf import build_fuel_load_remito_pdf
 from .serializers import (
@@ -836,7 +836,7 @@ def get_user_plates(request):
 
 @extend_schema(
     responses={200: AccountMovementSerializer(many=True)},
-    description="Get all movements (transactions) for user's accounts. Includes fuel loads, transfers sent (for holder accounts), and transfers received.",
+    description="Get all movements (transactions) for user's accounts. Includes fuel loads, transfers sent (for holder accounts), transfers received, and balance recharges.",
     summary="Get Account Movements",
     parameters=[
         OpenApiParameter(
@@ -858,6 +858,7 @@ def get_account_movements(request):
     - Fuel load operations
     - Transfers sent (for holder accounts)
     - Transfers received (for any account)
+    - Balance recharges (ModifyFunds with positive amounts)
 
     The list is sorted by timestamp in descending order (most recent first).
     """
@@ -975,6 +976,34 @@ def get_account_movements(request):
                     "station_name": None,
                     "plate_number": None,
                     "status": None,
+                }
+            )
+
+        # 4. Balance Recharges (ModifyFunds with positive amounts)
+        balance_recharges = ModifyFunds.objects.filter(
+            account=account, amount__gt=0
+        ).select_related("gestor", "payment_method")
+
+        for recharge in balance_recharges:
+            gestor_name = (
+                f"{recharge.gestor.first_name} {recharge.gestor.last_name}".strip()
+                or recharge.gestor.email
+            )
+            payment_info = (
+                recharge.payment_method.name if recharge.payment_method else "Manual"
+            )
+
+            movements.append(
+                {
+                    "id": recharge.id,
+                    "type": "balance_recharge",
+                    "timestamp": recharge.timestamp,
+                    "amount": recharge.amount,
+                    "description": f"Recarga de saldo - {payment_info}",
+                    "related_user_name": gestor_name,
+                    "station_name": None,
+                    "plate_number": None,
+                    "status": "Aprobada",
                 }
             )
 

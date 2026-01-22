@@ -1,7 +1,11 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from operation.views import FuelLoadOperationViewSet, ModifyFundsViewSet
+from operation.views import (
+    FuelLoadOperationViewSet,
+    ModifyFundsViewSet,
+    BalanceRechargeRequestViewSet,
+)
 
 router = DefaultRouter()
 router.register(
@@ -13,6 +17,11 @@ router.register(
     r"modify-funds",
     ModifyFundsViewSet,
     basename="modify-funds",
+)
+router.register(
+    r"recharge-requests",
+    BalanceRechargeRequestViewSet,
+    basename="recharge-requests",
 )
 
 urlpatterns = [

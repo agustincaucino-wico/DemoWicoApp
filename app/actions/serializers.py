@@ -229,7 +229,7 @@ class AccountMovementSerializer(serializers.Serializer):
 
     id = serializers.IntegerField(help_text="ID of the movement")
     type = serializers.CharField(
-        help_text="Type of movement: 'fuel_load', 'transfer_sent', 'transfer_received'"
+        help_text="Type of movement: 'fuel_load', 'transfer_sent', 'transfer_received', 'balance_recharge'"
     )
     timestamp = serializers.DateTimeField(help_text="Date and time of the movement")
     amount = serializers.DecimalField(

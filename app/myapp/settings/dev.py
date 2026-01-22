@@ -79,3 +79,8 @@ LOGGING = {
         },
     },
 }
+
+# Serve media files in development
+# In production, use nginx or similar to serve media files
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
