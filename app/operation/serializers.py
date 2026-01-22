@@ -202,13 +202,5 @@ class BalanceRechargeRequestApprovalSerializer(serializers.Serializer):
     """Serializer for approving/rejecting recharge requests"""
 
     review_comments = serializers.CharField(
-        required=True, help_text="Comentarios del revisor (requerido)"
+        required=False, allow_blank=True, help_text="Comentarios del revisor (opcional)"
     )
-
-    def validate_review_comments(self, value):
-        """Validate that review comments are not empty"""
-        if not value or not value.strip():
-            raise serializers.ValidationError(
-                "Debes proporcionar comentarios para la revisión"
-            )
-        return value.strip()

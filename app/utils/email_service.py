@@ -230,6 +230,59 @@ class EmailService:
 
         return self.send_email("email_verification", subject, to_email, context)
 
+    def send_balance_recharge_approved(
+        self, to_email, user_name, amount, new_balance, request_id
+    ):
+        """
+        Send a notification email when a balance recharge request is approved.
+
+        Args:
+            to_email: Email address of the user
+            user_name: Name of the user
+            amount: Amount that was approved and credited
+            new_balance: New account balance after the recharge
+            request_id: ID of the recharge request
+
+        Returns:
+            bool: True if email was sent successfully, False otherwise
+        """
+        subject = "Solicitud de recarga aprobada - WICORED"
+
+        context = {
+            "user_name": user_name,
+            "amount": f"{amount:,.2f}",
+            "new_balance": f"{new_balance:,.2f}",
+            "request_id": request_id,
+        }
+
+        return self.send_email("balance_recharge_approved", subject, to_email, context)
+
+    def send_balance_recharge_rejected(
+        self, to_email, user_name, amount, request_id, rejection_reason=None
+    ):
+        """
+        Send a notification email when a balance recharge request is rejected.
+
+        Args:
+            to_email: Email address of the user
+            user_name: Name of the user
+            amount: Amount that was requested
+            request_id: ID of the recharge request
+            rejection_reason: Optional reason for rejection
+
+        Returns:
+            bool: True if email was sent successfully, False otherwise
+        """
+        subject = "Solicitud de recarga rechazada - WICORED"
+
+        context = {
+            "user_name": user_name,
+            "amount": f"{amount:,.2f}",
+            "request_id": request_id,
+            "rejection_reason": rejection_reason or "No se especificó un motivo",
+        }
+
+        return self.send_email("balance_recharge_rejected", subject, to_email, context)
 
 
 # Global instance

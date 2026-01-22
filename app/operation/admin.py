@@ -10,6 +10,7 @@ from operation.models import (
     BalanceRechargeRequest,
     ModifyFunds,
 )
+from utils.email_service import email_service
 
 
 @admin.register(PaymentMethod, site=my_admin_site)
@@ -169,6 +170,17 @@ class BalanceRechargeRequestAdmin(admin.ModelAdmin):
             account.balance += recharge_request.amount
             account.save()
 
+            # Send approval email notification
+            user = recharge_request.requested_by
+            user_name = user.get_full_name() or user.email
+            email_service.send_balance_recharge_approved(
+                to_email=user.email,
+                user_name=user_name,
+                amount=recharge_request.amount,
+                new_balance=account.balance,
+                request_id=recharge_request.id,
+            )
+
         self.message_user(
             request,
             f"Se aprobaron {count} solicitudes exitosamente",
@@ -180,12 +192,29 @@ class BalanceRechargeRequestAdmin(admin.ModelAdmin):
     def reject_requests(self, request, queryset):
         """Bulk reject selected requests"""
         pending_requests = queryset.filter(status=BalanceRechargeRequest.STATUS_PENDING)
-        count = pending_requests.update(
-            status=BalanceRechargeRequest.STATUS_REJECTED,
-            reviewed_by=request.user,
-            reviewed_at=timezone.now(),
-            review_comments="Rechazado desde admin panel",
-        )
+
+        rejection_reason = "Rechazado desde admin panel"
+
+        for recharge_request in pending_requests:
+            # Update request
+            recharge_request.status = BalanceRechargeRequest.STATUS_REJECTED
+            recharge_request.reviewed_by = request.user
+            recharge_request.reviewed_at = timezone.now()
+            recharge_request.review_comments = rejection_reason
+            recharge_request.save()
+
+            # Send rejection email notification
+            user = recharge_request.requested_by
+            user_name = user.get_full_name() or user.email
+            email_service.send_balance_recharge_rejected(
+                to_email=user.email,
+                user_name=user_name,
+                amount=recharge_request.amount,
+                request_id=recharge_request.id,
+                rejection_reason=recharge_request.review_comments,
+            )
+
+        count = pending_requests.count()
 
         self.message_user(
             request,

@@ -12,6 +12,12 @@ class AppConfig(models.Model):
         verbose_name="Modo mantenimiento",
         help_text="Activar para mostrar pantalla de mantenimiento en la app",
     )
+    recharge_cbu = models.CharField(
+        max_length=22,
+        blank=True,
+        verbose_name="CBU para Recargas",
+        help_text="CBU de la cuenta bancaria para recibir transferencias de recarga de saldo",
+    )
     updated_at = models.DateTimeField(
         auto_now=True, verbose_name="Última actualización"
     )

@@ -21,6 +21,7 @@ from operation.serializers import (
     BalanceRechargeRequestApprovalSerializer,
 )
 from myapp.permissions import StrictDjangoModelPermissions
+from utils.email_service import email_service
 
 
 class BaseLCDViewSet(
@@ -163,7 +164,7 @@ class BalanceRechargeRequestViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        review_comments = serializer.validated_data["review_comments"]
+        review_comments = serializer.validated_data.get("review_comments", "")
 
         try:
             with transaction.atomic():
@@ -192,6 +193,20 @@ class BalanceRechargeRequestViewSet(viewsets.ModelViewSet):
                 account = recharge_request.account
                 account.balance += recharge_request.amount
                 account.save()
+
+                # Send approval email notification (non-blocking)
+                try:
+                    user = recharge_request.requested_by
+                    user_name = user.get_full_name() or user.email
+                    email_service.send_balance_recharge_approved(
+                        to_email=user.email,
+                        user_name=user_name,
+                        amount=recharge_request.amount,
+                        new_balance=account.balance,
+                        request_id=recharge_request.id,
+                    )
+                except Exception as email_error:
+                    print(f"Error al enviar email de aprobación: {email_error}")
 
             return Response(
                 {
@@ -222,7 +237,7 @@ class BalanceRechargeRequestViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        review_comments = serializer.validated_data["review_comments"]
+        review_comments = serializer.validated_data.get("review_comments", "")
 
         try:
             recharge_request.status = BalanceRechargeRequest.STATUS_REJECTED
@@ -230,6 +245,20 @@ class BalanceRechargeRequestViewSet(viewsets.ModelViewSet):
             recharge_request.reviewed_at = timezone.now()
             recharge_request.review_comments = review_comments
             recharge_request.save()
+
+            # Send rejection email notification (non-blocking)
+            try:
+                user = recharge_request.requested_by
+                user_name = user.get_full_name() or user.email
+                email_service.send_balance_recharge_rejected(
+                    to_email=user.email,
+                    user_name=user_name,
+                    amount=recharge_request.amount,
+                    request_id=recharge_request.id,
+                    rejection_reason=review_comments,
+                )
+            except Exception as email_error:
+                print(f"Error al enviar email de rechazo: {email_error}")
 
             return Response(
                 {"message": "Solicitud rechazada", "request_id": recharge_request.id},

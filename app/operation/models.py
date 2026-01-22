@@ -10,7 +10,11 @@ def validate_file_size(file):
     """Validate that file size is not greater than 5MB"""
     max_size_mb = 5
     if file.size > max_size_mb * 1024 * 1024:
-        raise ValidationError(f"El archivo no puede superar {max_size_mb}MB")
+        file_size_mb = file.size / (1024 * 1024)
+        raise ValidationError(
+            f"El archivo es demasiado grande ({file_size_mb:.2f}MB). "
+            f"El tamaño máximo permitido es {max_size_mb}MB. "
+        )
 
 
 class PaymentMethod(models.Model):
