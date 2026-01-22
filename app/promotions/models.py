@@ -1,6 +1,15 @@
 from django.db import models
 from django.utils import timezone
+from django.core.validators import FileExtensionValidator
 from users.models import CustomUser
+
+
+def validate_image_size(value):
+    """Validates that image file is not larger than 5MB"""
+    filesize = value.size
+    if filesize > 5 * 1024 * 1024:  # 5MB
+        raise models.ValidationError("El tamaño máximo del archivo es 5MB")
+    return value
 
 
 class PromotionCode(models.Model):
@@ -76,3 +85,53 @@ class PromotionRedemption(models.Model):
 
     def __str__(self):
         return f"{self.user.email} - {self.promotion_code.code} - {self.redeemed_at.strftime('%Y-%m-%d %H:%M')}"
+
+
+class PromotionalImage(models.Model):
+    """
+    Model for storing promotional/advertising images displayed in the mobile app carousel.
+    Can be managed by Marketing and Gestor roles.
+    """
+
+    title = models.CharField(
+        max_length=200, help_text="Título descriptivo de la imagen promocional"
+    )
+    image = models.ImageField(
+        upload_to="promotional_images/%Y/%m/",
+        validators=[
+            FileExtensionValidator(
+                allowed_extensions=["jpg", "jpeg", "png", "webp"],
+                message="Solo se permiten archivos JPG, PNG o WebP",
+            ),
+            validate_image_size,
+        ],
+        help_text="Imagen promocional (JPG, PNG, WebP - Max 5MB)",
+    )
+    is_active = models.BooleanField(
+        default=True, help_text="Si está activa, se mostrará en la app"
+    )
+    order = models.IntegerField(
+        default=0, help_text="Orden de aparición (menor número = aparece primero)"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_promotional_images",
+        help_text="Usuario que creó esta imagen promocional",
+    )
+
+    class Meta:
+        ordering = ["order", "-created_at"]
+        verbose_name = "Imagen Promocional"
+        verbose_name_plural = "Imágenes Promocionales"
+        indexes = [
+            models.Index(fields=["is_active", "order"]),
+        ]
+
+    def __str__(self):
+        status = "Activa" if self.is_active else "Inactiva"
+        return f"{self.title} ({status}) - Orden: {self.order}"

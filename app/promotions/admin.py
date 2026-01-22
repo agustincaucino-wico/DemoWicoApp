@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.utils import timezone
-from .models import PromotionCode, PromotionRedemption
+from .models import PromotionCode, PromotionRedemption, PromotionalImage
 from myapp.admin import my_admin_site
 
 
@@ -195,3 +195,74 @@ class PromotionRedemptionAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         """Permitir eliminar canjes solo con permisos de superusuario"""
         return request.user.is_superuser
+
+
+@admin.register(PromotionalImage, site=my_admin_site)
+class PromotionalImageAdmin(admin.ModelAdmin):
+    list_display = [
+        "title",
+        "image_preview",
+        "is_active",
+        "order",
+        "created_by",
+        "created_at",
+    ]
+    list_filter = ["is_active", "created_at"]
+    search_fields = ["title", "created_by__email"]
+    readonly_fields = ["created_at", "updated_at", "created_by", "image_preview_large"]
+    list_editable = ["is_active", "order"]
+    ordering = ["order", "-created_at"]
+
+    fieldsets = (
+        (
+            "Información Básica",
+            {"fields": ("title", "image", "image_preview_large", "is_active", "order")},
+        ),
+        (
+            "Metadatos",
+            {
+                "fields": ("created_by", "created_at", "updated_at"),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+    def save_model(self, request, obj, form, change):
+        """Automatically set created_by on creation"""
+        if not change:  # Only on creation
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+    def image_preview(self, obj):
+        """Small preview in list view"""
+        if obj.image:
+            return format_html(
+                '<img src="{}" style="max-height: 50px; max-width: 100px; border-radius: 4px;" />',
+                obj.image.url,
+            )
+        return "-"
+
+    image_preview.short_description = "Vista Previa"
+
+    def image_preview_large(self, obj):
+        """Larger preview in detail view"""
+        if obj.image:
+            return format_html(
+                '<img src="{}" style="max-width: 400px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />',
+                obj.image.url,
+            )
+        return "-"
+
+    image_preview_large.short_description = "Imagen"
+
+    def status_badge(self, obj):
+        """Visual badge for active/inactive status"""
+        if obj.is_active:
+            return format_html(
+                '<span style="background-color: #22c55e; color: white; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;">ACTIVA</span>'
+            )
+        return format_html(
+            '<span style="background-color: #94a3b8; color: white; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;">INACTIVA</span>'
+        )
+
+    status_badge.short_description = "Estado"
