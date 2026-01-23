@@ -18,6 +18,12 @@ class AppConfig(models.Model):
         verbose_name="CBU para Recargas",
         help_text="CBU de la cuenta bancaria para recibir transferencias de recarga de saldo",
     )
+    support_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name="Teléfono de Soporte",
+        help_text="Número de teléfono de WhatsApp para soporte (incluir código de país)",
+    )
     updated_at = models.DateTimeField(
         auto_now=True, verbose_name="Última actualización"
     )

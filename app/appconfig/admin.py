@@ -4,7 +4,13 @@ from myapp.admin import my_admin_site
 
 
 class AppConfigAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "maintenance_mode", "recharge_cbu", "updated_at")
+    list_display = (
+        "__str__",
+        "maintenance_mode",
+        "recharge_cbu",
+        "support_phone",
+        "updated_at",
+    )
     readonly_fields = ("updated_at",)
 
     fieldsets = (
@@ -20,6 +26,13 @@ class AppConfigAdmin(admin.ModelAdmin):
             {
                 "fields": ("recharge_cbu",),
                 "description": "Configuración para las recargas de saldo por transferencia bancaria.",
+            },
+        ),
+        (
+            "Soporte",
+            {
+                "fields": ("support_phone",),
+                "description": "Número de WhatsApp para contacto y soporte.",
             },
         ),
         (

@@ -17,5 +17,6 @@ def get_app_config(request):
         {
             "maintenance_mode": config.maintenance_mode,
             "recharge_cbu": config.recharge_cbu,
+            "support_phone": config.support_phone,
         }
     )
