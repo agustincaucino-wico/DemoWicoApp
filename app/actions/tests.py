@@ -63,6 +63,12 @@ class FuelLoadFlowTests(TestCase):
             balance=Decimal("100.00"),
         )
 
+        self.other_plate = Plates.objects.create(
+            plate_number="XYZ789",
+            holder_account=self.other_holder_account,
+            start_date=timezone.now().date(),
+        )
+
         # Playero (attendant) with assignment
         self.attendant_user = CustomUser.objects.create_user(
             email="playero@example.com", password="pass1234"
@@ -244,6 +250,7 @@ class FuelLoadFlowTests(TestCase):
             "account": self.other_holder_account.id,
             "amount": "15.00",
             "station": self.other_station.id,
+            "plate": self.other_plate.id,
         }
         second_response = self.other_holder_client.post(
             "/actions/fuel-load/initiate-fuel-load/", second_payload, format="json"
