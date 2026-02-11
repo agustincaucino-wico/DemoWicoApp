@@ -85,4 +85,4 @@ LOGGING = {
 # MEDIA_URL = "/media/"
 # MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_ROOT = "/mnt/backend-appmobile-tst"
-MEDIA_URL = "/media/"
+MEDIA_URL = "https://back-appmobile-tst.wico.com.ar/media/"
