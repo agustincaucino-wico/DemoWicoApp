@@ -22,6 +22,17 @@ class StationViewSet(
 
     def get_queryset(self):
         queryset = Station.objects.select_related("province", "city").order_by("name")
+
+        # Solo filtrar por is_active en operaciones de lista (GET)
+        # Para UPDATE/DELETE/etc, necesitamos acceso a todas las estaciones
+        if self.action == "list":
+            include_inactive = (
+                self.request.query_params.get("include_inactive", "false").lower()
+                == "true"
+            )
+            if not include_inactive:
+                queryset = queryset.filter(is_active=True)
+
         province_id = self.request.query_params.get("province")
         city_id = self.request.query_params.get("city")
         if province_id:

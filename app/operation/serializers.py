@@ -1,3 +1,4 @@
+from decimal import Decimal
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 
@@ -99,9 +100,15 @@ class BalanceRechargeRequestCreateSerializer(serializers.ModelSerializer):
         )
 
     def validate_amount(self, value):
-        """Validate that amount is positive"""
+        """Validate that amount is positive and within limits"""
         if value <= 0:
             raise serializers.ValidationError("El monto debe ser mayor a cero")
+        # Límite: 13 dígitos enteros + 2 decimales = 9,999,999,999,999.99
+        max_value = Decimal("9999999999999.99")
+        if value > max_value:
+            raise serializers.ValidationError(
+                f"El monto no puede exceder {max_value:,.2f}"
+            )
         return value
 
     def validate_account(self, value):

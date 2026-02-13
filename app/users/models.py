@@ -95,6 +95,8 @@ class PasswordResetToken(models.Model):
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(
         unique=True,
+        blank=False,
+        null=False,
         error_messages={"unique": "El correo electrónico ya se encuentra registrado."},
     )
     dni = models.CharField(

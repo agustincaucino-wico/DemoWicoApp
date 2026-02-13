@@ -1,3 +1,4 @@
+from decimal import Decimal
 from rest_framework import serializers
 from .models import Account, Dependents, Plates, AuthorizedPlate
 from .models import Company, CompanyAssignment
@@ -31,10 +32,28 @@ class PlatesSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def validate_plate_number(self, value):
-        """Validar que la patente sea única globalmente para patentes activas"""
+        """Validar formato y que la patente sea única globalmente para patentes activas"""
+        import re
+
         if value:
             # Normalizar la patente (convertir a mayúsculas y quitar espacios)
             normalized_plate = value.upper().strip()
+
+            # Validar formato de patente argentina
+            old_format = re.match(
+                r"^[A-Z]{3}\d{3}$", normalized_plate
+            )  # ABC123 (autos viejos)
+            new_format = re.match(
+                r"^[A-Z]{2}\d{3}[A-Z]{2}$", normalized_plate
+            )  # AB123CD (autos nuevos)
+            moto_format = re.match(
+                r"^[A-Z]\d{3}[A-Z]{3}$", normalized_plate
+            )  # A123BCD (motos)
+
+            if not (old_format or new_format or moto_format):
+                raise serializers.ValidationError(
+                    "El formato de patente no es válido. Usa el formato ABC123, AB123CD o A123BCD"
+                )
 
             existing_plates = Plates.objects.filter(
                 plate_number=normalized_plate, end_date__isnull=True
@@ -159,7 +178,13 @@ class AccountBalanceUpdateSerializer(serializers.ModelSerializer):
         fields = ["balance", "comments"]
 
     def validate_balance(self, value):
-        """Validar que el balance sea un valor positivo o cero"""
+        """Validar que el balance sea un valor positivo o cero y no exceda el límite"""
         if value < 0:
             raise serializers.ValidationError("El balance no puede ser negativo")
+        # Límite: 13 dígitos enteros + 2 decimales = 9,999,999,999,999.99
+        max_value = Decimal("9999999999999.99")
+        if value > max_value:
+            raise serializers.ValidationError(
+                f"El balance no puede exceder {max_value:,.2f}"
+            )
         return value

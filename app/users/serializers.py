@@ -19,13 +19,17 @@ class ResendVerificationSerializer(serializers.Serializer):
 class AssignRoleSerializer(serializers.Serializer):
     """Serializer for assigning role to user"""
 
-    role_name = serializers.ChoiceField(choices=["Playero", "Encargado"], required=True)
+    role_name = serializers.ChoiceField(
+        choices=["Playero", "Encargado", "Marketing"], required=True
+    )
 
 
 class RemoveRoleSerializer(serializers.Serializer):
     """Serializer for removing role from user"""
 
-    role_name = serializers.ChoiceField(choices=["Playero", "Encargado"], required=True)
+    role_name = serializers.ChoiceField(
+        choices=["Playero", "Encargado", "Marketing"], required=True
+    )
 
 
 class DevUserLoginSerializer(serializers.Serializer):
@@ -37,7 +41,8 @@ class DevUserLoginSerializer(serializers.Serializer):
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
-    dni = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    email = serializers.EmailField(required=True)
+    dni = serializers.CharField(required=True)  # Obligatorio en el registro
     gender = serializers.ChoiceField(
         choices=["M", "F"], required=False, allow_null=True
     )
@@ -76,6 +81,17 @@ class UserSerializer(serializers.ModelSerializer):
             "email_verified",
             "is_superuser",
         ]
+
+    def __init__(self, *args, **kwargs):
+        """
+        Hacer DNI obligatorio solo en creación, no en actualizaciones.
+        """
+        super().__init__(*args, **kwargs)
+        # Si es una actualización (instance existe), hacer DNI opcional
+        if self.instance is not None:
+            self.fields["dni"].required = False
+            self.fields["dni"].allow_blank = True
+            self.fields["dni"].allow_null = True
 
     def validate_dni(self, value):
         if value:

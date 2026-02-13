@@ -68,6 +68,40 @@ class AccountsTestCase(TestCase):
         response = self.holder_client.patch(url, {"balance": -10}, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_balance_max_limit_15_digits(self):
+        """Test that balance can support up to 15 digits (13 integer + 2 decimal)"""
+        url = f"/accounts/accounts/{self.holder_account.id}/update-balance/"
+
+        # Test maximum valid balance: 9,999,999,999,999.99
+        max_balance = "9999999999999.99"
+        response = self.holder_client.patch(
+            url, {"balance": max_balance}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.holder_account.refresh_from_db()
+        self.assertEqual(str(self.holder_account.balance), max_balance)
+
+        # Test large valid balance with 13 integer digits
+        large_balance = "1234567890123.45"
+        response = self.holder_client.patch(
+            url, {"balance": large_balance}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.holder_account.refresh_from_db()
+        self.assertEqual(str(self.holder_account.balance), large_balance)
+
+    def test_balance_exceeds_max_limit(self):
+        """Test that balance exceeding 15 digits is rejected"""
+        url = f"/accounts/accounts/{self.holder_account.id}/update-balance/"
+
+        # Test balance exceeding maximum: 10,000,000,000,000.00
+        over_max_balance = "10000000000000.00"
+        response = self.holder_client.patch(
+            url, {"balance": over_max_balance}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("balance", str(response.data).lower())
+
     def test_plate_and_authorized_plate_creation_and_validation(self):
         # Create a plate owned by the holder
         plate_payload = {

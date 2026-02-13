@@ -220,7 +220,11 @@ class TransferBalanceSerializer(serializers.Serializer):
         help_text="ID of the destination account"
     )
     amount = serializers.DecimalField(
-        max_digits=12, decimal_places=2, min_value=0.01, help_text="Amount to transfer"
+        max_digits=15,
+        decimal_places=2,
+        min_value=0.01,
+        max_value=9999999999.99,
+        help_text="Amount to transfer (max: 9,999,999,999.99)",
     )
 
 
@@ -233,7 +237,7 @@ class AccountMovementSerializer(serializers.Serializer):
     )
     timestamp = serializers.DateTimeField(help_text="Date and time of the movement")
     amount = serializers.DecimalField(
-        max_digits=12, decimal_places=2, help_text="Amount of the movement"
+        max_digits=15, decimal_places=2, help_text="Amount of the movement"
     )
     description = serializers.CharField(help_text="Description of the movement")
 

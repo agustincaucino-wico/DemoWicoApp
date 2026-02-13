@@ -80,6 +80,7 @@ class UserViewSetPermissionTests(APITestCase):
         payload = {
             "email": "newuser@test.com",
             "password": "securepass123",
+            "dni": "12345678",
         }
         response = self.anon_client.post("/users/", payload, format="json")
         # Should succeed (201 Created)

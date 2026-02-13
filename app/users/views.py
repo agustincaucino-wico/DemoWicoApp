@@ -218,7 +218,7 @@ class UserViewSet(viewsets.ModelViewSet):
         request=AssignRoleSerializer,
         responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
         summary="Assign Role to User",
-        description="Assign 'Playero' or 'Encargado' role to a user. Requires Gestor permissions.",
+        description="Assign 'Playero', 'Encargado', or 'Marketing' role to a user. Requires Gestor permissions.",
     )
     @action(
         detail=True,
@@ -227,7 +227,7 @@ class UserViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated],
     )
     def assign_role(self, request, pk=None):
-        """Assign Playero or Encargado role to a user."""
+        """Assign Playero, Encargado, or Marketing role to a user."""
         user = self.get_object()
         serializer = AssignRoleSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -289,7 +289,7 @@ class UserViewSet(viewsets.ModelViewSet):
         request=RemoveRoleSerializer,
         responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
         summary="Remove Role from User",
-        description="Remove 'Playero' or 'Encargado' role from a user. Requires Gestor permissions.",
+        description="Remove 'Playero', 'Encargado', or 'Marketing' role from a user. Requires Gestor permissions.",
     )
     @action(
         detail=True,
@@ -298,7 +298,7 @@ class UserViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated],
     )
     def remove_role(self, request, pk=None):
-        """Remove Playero or Encargado role from a user."""
+        """Remove Playero, Encargado, or Marketing role from a user."""
         user = self.get_object()
         serializer = RemoveRoleSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

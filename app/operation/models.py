@@ -68,9 +68,9 @@ class FuelLoadOperation(models.Model):
         blank=True,
     )
     station = models.ForeignKey(Station, on_delete=models.CASCADE)
-    initial_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    initial_amount = models.DecimalField(max_digits=15, decimal_places=2)
     final_amount = models.DecimalField(
-        max_digits=12, decimal_places=2, null=True, blank=True
+        max_digits=15, decimal_places=2, null=True, blank=True
     )
     fill_full_tank = models.BooleanField(default=False)
 
@@ -100,7 +100,7 @@ class Transfer(models.Model):
         Account, on_delete=models.CASCADE, related_name="transfers_received"
     )
     timestamp = models.DateTimeField(auto_now_add=True)
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
 
     class Meta:
         ordering = ("-timestamp",)
@@ -113,7 +113,7 @@ class ModifyFunds(models.Model):
     account = models.ForeignKey(Account, on_delete=models.CASCADE)
     gestor = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     timestamp = models.DateTimeField(auto_now_add=True)
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
     payment_method = models.ForeignKey(
         PaymentMethod, on_delete=models.PROTECT, null=True, blank=True
     )
@@ -164,7 +164,7 @@ class BalanceRechargeRequest(models.Model):
         help_text="User who requested the recharge",
     )
     amount = models.DecimalField(
-        max_digits=12, decimal_places=2, help_text="Amount to be added to the account"
+        max_digits=15, decimal_places=2, help_text="Amount to be added to the account"
     )
     transfer_proof = models.FileField(
         upload_to="recharge_proofs/%Y/%m/",
