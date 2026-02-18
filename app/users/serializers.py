@@ -29,6 +29,8 @@ class UserSerializer(serializers.ModelSerializer):
     province_name = serializers.SerializerMethodField()
     city_name = serializers.SerializerMethodField()
     date_joined = serializers.DateTimeField(read_only=True)
+    is_superuser = serializers.BooleanField(read_only=True)
+    is_staff = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = UserModel
