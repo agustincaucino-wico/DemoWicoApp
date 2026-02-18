@@ -60,6 +60,8 @@ class UserSerializer(serializers.ModelSerializer):
     city_name = serializers.SerializerMethodField()
     date_joined = serializers.DateTimeField(read_only=True)
     email_verified = serializers.BooleanField(required=False)
+    is_superuser = serializers.BooleanField(read_only=True)
+    is_staff = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = UserModel
@@ -80,6 +82,7 @@ class UserSerializer(serializers.ModelSerializer):
             "date_joined",
             "email_verified",
             "is_superuser",
+            "is_staff",
         ]
 
     def __init__(self, *args, **kwargs):
@@ -108,8 +111,30 @@ class UserSerializer(serializers.ModelSerializer):
         return [group.name for group in obj.groups.all()]
 
     def create(self, validated_data):
+        # Remover campos sensibles de seguridad para prevenir escalación de privilegios
+        validated_data.pop("is_superuser", None)
+        validated_data.pop("is_staff", None)
         user = UserModel.objects.create_user(**validated_data)
         return user
+
+    def update(self, instance, validated_data):
+        # Remover campos sensibles de seguridad para prevenir escalación de privilegios
+        validated_data.pop("is_superuser", None)
+        validated_data.pop("is_staff", None)
+
+        # Manejar la contraseña de forma segura si se proporciona
+        password = validated_data.pop("password", None)
+
+        # Actualizar campos normales
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        # Actualizar contraseña si se proporcionó
+        if password:
+            instance.set_password(password)
+
+        instance.save()
+        return instance
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_province_name(self, obj) -> str | None:

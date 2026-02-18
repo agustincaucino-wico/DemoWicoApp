@@ -115,3 +115,35 @@ class UserViewSetPermissionTests(APITestCase):
         """The /users/me/ endpoint requires authentication."""
         response = self.anon_client.get("/users/me/")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_cannot_create_superuser_via_api(self):
+        """Cannot create a superuser via the API endpoint."""
+        payload = {
+            "email": "hacker@test.com",
+            "password": "securepass123",
+            "dni": "87654321",
+            "is_superuser": True,
+            "is_staff": True,
+        }
+        response = self.anon_client.post("/users/", payload, format="json")
+        # Should succeed but not create a superuser
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = User.objects.get(email="hacker@test.com")
+        # Verify user is NOT a superuser or staff
+        self.assertFalse(user.is_superuser)
+        self.assertFalse(user.is_staff)
+
+    def test_cannot_escalate_to_superuser_via_update(self):
+        """Cannot escalate privileges to superuser via update."""
+        payload = {
+            "is_superuser": True,
+            "is_staff": True,
+        }
+        response = self.no_perm_client.patch(
+            f"/users/{self.user_without_perms.id}/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user_without_perms.refresh_from_db()
+        # Verify user is still NOT a superuser or staff
+        self.assertFalse(self.user_without_perms.is_superuser)
+        self.assertFalse(self.user_without_perms.is_staff)
