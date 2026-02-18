@@ -7,7 +7,7 @@ load_dotenv()
 
 # Versión actual de la API
 API_VERSION = "1.1.15"
-MIN_APP_VERSION = "1.1.9"
+MIN_APP_VERSION = "1.1.11"
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY")
