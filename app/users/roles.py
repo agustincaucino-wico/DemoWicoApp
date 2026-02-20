@@ -88,11 +88,6 @@ ROLES = {
         "view_fuelloadoperation",
         "view_paymentmethod",
     ],
-    "Cliente": [
-        "view_city",
-        "view_province",
-        "view_country",
-    ],
 }
 
 ALL = (
