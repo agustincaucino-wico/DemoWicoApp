@@ -20,13 +20,6 @@ class CustomUserManager(BaseUserManager):
         )
         NotificationPreference.objects.get_or_create(user=user)
 
-        Account = apps.get_model("accounts", "Account")
-        Account.objects.get_or_create(
-            user=user,
-            account_type="holder",
-            defaults={"balance": Decimal("0")},
-        )
-
         return user
 
     def create_superuser(self, email, password=None, **extra_fields):

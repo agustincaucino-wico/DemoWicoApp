@@ -12,9 +12,17 @@ from myapp.admin import my_admin_site
 
 
 class AccountAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "balance", "account_type", "created_at", "updated_at")
+    list_display = (
+        "id",
+        "user",
+        "balance",
+        "account_type",
+        "is_active",
+        "created_at",
+        "updated_at",
+    )
     search_fields = ("user__email", "user__first_name", "user__last_name")
-    list_filter = ("account_type", "created_at")
+    list_filter = ("account_type", "is_active", "created_at")
     readonly_fields = ("created_at", "updated_at")
     autocomplete_fields = ("user",)
 

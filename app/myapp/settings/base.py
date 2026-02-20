@@ -6,8 +6,8 @@ from datetime import timedelta
 load_dotenv()
 
 # Versión actual de la API
-API_VERSION = "1.1.1"
-MIN_APP_VERSION = "1.1.0"
+API_VERSION = "1.1.13"
+MIN_APP_VERSION = "1.1.13"
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "operation",
     "support",
     "notifications",
+    "promotions",
 ]
 
 REST_FRAMEWORK = {
@@ -45,6 +46,14 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "40/min",
+        "user": "1000/min",
+    },
 }
 
 SIMPLE_JWT = {
@@ -102,5 +111,13 @@ LANGUAGE_CODE = "en-us"
 TIME_ZONE = "America/Argentina/Buenos_Aires"
 USE_I18N = True
 USE_TZ = True
+
+# Static files (CSS, JavaScript, Images)
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Media files (User uploads)
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

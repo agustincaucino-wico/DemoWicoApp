@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from accounts.models import Account, Plates
+from accounts.models import Account, Plates, Dependents
 from locations.models import Country, Province, City
 from operation.models import FuelLoadOperation
 from stations.models import Station, StationAttendantAssignment
@@ -43,11 +43,9 @@ class FuelLoadFlowTests(TestCase):
         self.holder_user = CustomUser.objects.create_user(
             email="holder@example.com", password="pass1234"
         )
-        self.holder_account = Account.objects.get(
-            user=self.holder_user, account_type="holder"
+        self.holder_account = Account.objects.create(
+            user=self.holder_user, account_type="holder", balance=Decimal("100.00")
         )
-        self.holder_account.balance = Decimal("100.00")
-        self.holder_account.save()
 
         self.plate = Plates.objects.create(
             plate_number="ABC123",
@@ -59,11 +57,17 @@ class FuelLoadFlowTests(TestCase):
         self.other_holder_user = CustomUser.objects.create_user(
             email="other-holder@example.com", password="pass1234"
         )
-        self.other_holder_account = Account.objects.get(
-            user=self.other_holder_user, account_type="holder"
+        self.other_holder_account = Account.objects.create(
+            user=self.other_holder_user,
+            account_type="holder",
+            balance=Decimal("100.00"),
         )
-        self.other_holder_account.balance = Decimal("100.00")
-        self.other_holder_account.save()
+
+        self.other_plate = Plates.objects.create(
+            plate_number="XYZ789",
+            holder_account=self.other_holder_account,
+            start_date=timezone.now().date(),
+        )
 
         # Playero (attendant) with assignment
         self.attendant_user = CustomUser.objects.create_user(
@@ -127,7 +131,10 @@ class FuelLoadFlowTests(TestCase):
         )
         self.assertEqual(pending_response.status_code, status.HTTP_200_OK)
         self.assertTrue(
-            any(item["id_operation"] == operation_id for item in pending_response.data)
+            any(
+                item["id_operation"] == operation_id
+                for item in pending_response.data["pending_loads"]
+            )
         )
 
         start_response = self.attendant_client.post(
@@ -243,6 +250,7 @@ class FuelLoadFlowTests(TestCase):
             "account": self.other_holder_account.id,
             "amount": "15.00",
             "station": self.other_station.id,
+            "plate": self.other_plate.id,
         }
         second_response = self.other_holder_client.post(
             "/actions/fuel-load/initiate-fuel-load/", second_payload, format="json"
@@ -253,6 +261,101 @@ class FuelLoadFlowTests(TestCase):
             "/actions/fuel-load/attendant/pending-loads/"
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        returned_ids = {item["id_operation"] for item in response.data}
+        returned_ids = {item["id_operation"] for item in response.data["pending_loads"]}
         self.assertIn(first_op.data["id"], returned_ids)
         self.assertNotIn(second_response.data["id"], returned_ids)
+
+
+class RemoveDependentTests(TestCase):
+    def setUp(self):
+        # Holder user + account
+        self.holder_user = CustomUser.objects.create_user(
+            email="holder@example.com", password="pass1234"
+        )
+        self.holder_account = Account.objects.create(
+            user=self.holder_user, account_type="holder", balance=Decimal("100.00")
+        )
+
+        # Dependent user + account
+        self.dependent_user = CustomUser.objects.create_user(
+            email="dependent@example.com", password="pass1234"
+        )
+        self.dependent_account = Account.objects.create(
+            user=self.dependent_user,
+            account_type="dependent",
+            balance=Decimal("50.00"),
+            is_active=True,
+        )
+
+        # Link them
+        self.dependent_relation = Dependents.objects.create(
+            holder_account=self.holder_account,
+            dependent_account=self.dependent_account,
+            start_date=timezone.now().date(),
+        )
+
+        # API client
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.holder_user)
+
+    def test_remove_dependent_sets_inactive(self):
+        """
+        Test that removing a dependent sets the account to inactive
+        and transfers balance.
+        """
+        url = "/actions/remove-dependent/"
+        data = {
+            "holder_account_id": self.holder_account.id,
+            "dependent_account_id": self.dependent_account.id,
+        }
+
+        response = self.client.post(url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Refresh accounts
+        self.holder_account.refresh_from_db()
+        self.dependent_account.refresh_from_db()
+        self.dependent_relation.refresh_from_db()
+
+        # Check balance transfer
+        self.assertEqual(self.holder_account.balance, Decimal("150.00"))
+        self.assertEqual(self.dependent_account.balance, Decimal("0.00"))
+
+        # Check relationship ended
+        self.assertIsNotNone(self.dependent_relation.end_date)
+
+        # Check account is inactive
+        self.assertFalse(self.dependent_account.is_active)
+
+    def test_inactive_dependent_not_in_user_info(self):
+        """
+        Test that inactive dependent accounts are not returned in UserInfoView.
+        """
+        # First verify it is returned
+        url = "/actions/info/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check dependents list
+        dependents = response.data["dependents"]
+        self.assertEqual(len(dependents), 1)
+        self.assertEqual(
+            dependents[0]["dependent_account"]["id"], self.dependent_account.id
+        )
+
+        # Now remove the dependent
+        self.client.post(
+            "/actions/remove-dependent/",
+            {
+                "holder_account_id": self.holder_account.id,
+                "dependent_account_id": self.dependent_account.id,
+            },
+            format="json",
+        )
+
+        # Verify it is NOT returned
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        dependents = response.data["dependents"]
+        self.assertEqual(len(dependents), 0)

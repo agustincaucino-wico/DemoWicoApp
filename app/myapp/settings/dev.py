@@ -5,22 +5,25 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DEBUG = True
+# IMPORTANTE DEJAR EN FALSE
+# Si DEBUG = True las cuentas son publicas
+DEBUG = False
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 ALLOWED_HOSTS = [
     "back-appmobile-tst.wico.com.ar",
-    # etc
+    "172.31.25.8",
 ]
-
-ROOT_URLCONF = "myapp.urls"
 
 # Permite hacer llamados a la API desde el back office
 CORS_ALLOWED_ORIGINS = ["https://front-intappestacion-tst.wico.com.ar"]
 
 # CSRF Settings for HTTPS
-CSRF_TRUSTED_ORIGINS = ["https://front-intappestacion-tst.wico.com.ar"]
+CSRF_TRUSTED_ORIGINS = [
+    "https://front-intappestacion-tst.wico.com.ar",
+    "https://back-appmobile-tst.wico.com.ar",
+]
 
 GRAPH_MODELS = {
     "all_applications": True,
@@ -40,7 +43,11 @@ DATABASES = {
 }
 
 STATIC_URL = "/static/"
+STATIC_ROOT = "/appContainer/staticfiles"
 
+ROOT_URLCONF = "myapp.urls"
+
+# EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 SERVER_EMAIL = os.getenv("SERVER_EMAIL")
 EMAIL_HOST = os.getenv("EMAIL_HOST")
@@ -72,3 +79,10 @@ LOGGING = {
         },
     },
 }
+
+# Serve media files in development
+# In production, use nginx or similar to serve media files
+# MEDIA_URL = "/media/"
+# MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = "/mnt/backend-appmobile-tst"
+MEDIA_URL = "https://back-appmobile-tst.wico.com.ar/media/"

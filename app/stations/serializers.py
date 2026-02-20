@@ -22,6 +22,7 @@ class StationSerializer(serializers.ModelSerializer):
             "street_number",
             "lat",
             "lon",
+            "is_active",
         )
         read_only_fields = ("id", "province_name", "city_name")
 

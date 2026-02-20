@@ -1,6 +1,14 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
-from .views import InvitationViewSet, UserInfoView, RemoveDependentView, get_user_plates
+from .views import (
+    InvitationViewSet,
+    UserInfoView,
+    RemoveDependentView,
+    get_user_plates,
+    get_account_movements,
+    TransferBalanceView,
+    get_fuel_load_remito,
+)
 from . import fuel_load_views
 
 
@@ -11,11 +19,22 @@ urlpatterns = [
     path("", include(router.urls)),
     path("info/", UserInfoView.as_view(), name="user-info"),
     path("remove-dependent/", RemoveDependentView.as_view(), name="remove-dependent"),
+    path("transfer-balance/", TransferBalanceView.as_view(), name="transfer-balance"),
     # User Actions
     path(
         "user/plates/",
         get_user_plates,
         name="get-user-plates",
+    ),
+    path(
+        "user/movements/",
+        get_account_movements,
+        name="get-account-movements",
+    ),
+    path(
+        "user/movements/fuel-load/<int:operation_id>/remito/",
+        get_fuel_load_remito,
+        name="get-fuel-load-remito",
     ),
     # Fuel Load - Cliente
     path(
@@ -63,5 +82,11 @@ urlpatterns = [
         "fuel-load/get-fuel-load-status/<int:operation_id>/",
         fuel_load_views.get_fuel_load_status,
         name="get-fuel-load-status",
+    ),
+    # Fuel Load - Encargado (manager)
+    path(
+        "fuel-load/station/<int:station_id>/operations/",
+        fuel_load_views.get_station_operations,
+        name="get-station-operations",
     ),
 ]

@@ -3,14 +3,25 @@ from django.utils import timezone
 from users.models import CustomUser
 from locations.models import Province
 from django.core.exceptions import ValidationError
+from django.contrib.auth.models import Group
 
 
 class Account(models.Model):
     ACCOUNT_TYPES = [("holder", "Titular"), ("dependent", "Adherido")]
 
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True)
-    balance = models.DecimalField(max_digits=12, decimal_places=2)
+    balance = models.DecimalField(max_digits=15, decimal_places=2)
     account_type = models.CharField(max_length=20, choices=ACCOUNT_TYPES)
+    is_active = models.BooleanField(default=True)
+    deactivated_at = models.DateTimeField(null=True, blank=True)
+    deactivated_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="deactivated_accounts",
+    )
+    deactivation_reason = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -21,9 +32,9 @@ class Account(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=["user"],
-                condition=models.Q(account_type="holder"),
+                condition=models.Q(account_type="holder", is_active=True),
                 name="one_holder_account_per_user",
-                violation_error_message="Un usuario solo puede tener una única cuenta titular",
+                violation_error_message="Un usuario solo puede tener una única cuenta titular activa",
             )
         ]
 
@@ -116,7 +127,7 @@ class DependentInvitation(models.Model):
             raise ValidationError("Ya existe una relación activa entre estas cuentas")
 
     def accept_invitation(self):
-        """Acepta la invitación y crea la relación de dependiente"""
+        """Acepta la invitación y crea la relación de dependiente (adherido)"""
         if self.status != "pending":
             raise ValidationError("Solo se pueden aceptar invitaciones pendientes")
 
@@ -133,12 +144,20 @@ class DependentInvitation(models.Model):
             self.response_date = timezone.now()
             self.save()
 
-            # Crear la relación de dependiente
+            # Crear la relación de dependiente (adherida)
             Dependents.objects.create(
                 holder_account=self.holder_account,
                 dependent_account=dependent_account,
                 start_date=timezone.now().date(),
             )
+
+            # Asignar rol de Flota al usuario adherido
+            try:
+                fleet_group = Group.objects.get(name="Flota")
+                dependent_user = CustomUser.objects.get(email=self.dependent_email)
+                dependent_user.groups.add(fleet_group)
+            except Group.DoesNotExist:
+                pass
 
     def reject_invitation(self):
         """Rechaza la invitación"""
@@ -177,7 +196,13 @@ class Plates(models.Model):
                 condition=models.Q(end_date__isnull=True),
                 name="unique_active_plate_per_holder",
                 violation_error_message="Ya existe una patente activa con este número para esta cuenta titular",
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["plate_number"],
+                condition=models.Q(end_date__isnull=True),
+                name="unique_active_plate_globally",
+                violation_error_message="Ya existe una patente activa con este número en el sistema",
+            ),
         ]
 
     def clean(self):
@@ -188,6 +213,21 @@ class Plates(models.Model):
             raise ValidationError(
                 "Solo las cuentas titulares pueden tener patentes asignadas"
             )
+
+        # Validar que la patente sea única globalmente para patentes activas
+        if self.plate_number:
+            existing_plates = Plates.objects.filter(
+                plate_number=self.plate_number, end_date__isnull=True
+            )
+
+            # Si estamos editando una patente existente, excluirla de la validación
+            if self.pk:
+                existing_plates = existing_plates.exclude(pk=self.pk)
+
+            if existing_plates.exists():
+                raise ValidationError(
+                    f"La patente '{self.plate_number}' ya está registrada en el sistema"
+                )
 
     def __str__(self):
         return f"{self.plate_number}"

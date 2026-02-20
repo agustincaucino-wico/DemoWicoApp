@@ -52,17 +52,19 @@ def initiate_fuel_load(request):
         from accounts.models import Account
 
         try:
-            account = Account.objects.get(id=account_id, user=request.user)
+            account = Account.objects.get(
+                id=account_id, user=request.user, is_active=True
+            )
         except Account.DoesNotExist:
             return Response(
-                {"error": "Cuenta no encontrada o no te pertenece"},
+                {"error": "Cuenta no encontrada, inactiva o no te pertenece"},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # Check if plate is required (dependent accounts must provide a plate)
-        if account.account_type == "dependent" and not plate_id:
+        # Check if plate is required (all accounts must provide a plate)
+        if not plate_id:
             return Response(
-                {"error": "Las cuentas adherentes deben especificar una patente"},
+                {"error": "Todas las cuentas deben especificar una patente"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -101,6 +103,13 @@ def initiate_fuel_load(request):
             except Plates.DoesNotExist:
                 return Response(
                     {"error": "Patente no encontrada"}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Verify that the plate is active (end_date is null)
+            if plate.end_date is not None:
+                return Response(
+                    {"error": "Esta patente ya no está activa"},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             # Check if user has access to this plate through the specified account
@@ -293,6 +302,9 @@ def pending_fuel_loads(request):
             )
 
         # Filter operations by station and pending/in_progress status
+        # For IN_PROGRESS operations, only show those assigned to this attendant
+        from django.db.models import Q
+
         operations = (
             FuelLoadOperation.objects.filter(
                 station=assignment.station,
@@ -301,12 +313,24 @@ def pending_fuel_loads(request):
                     FuelLoadOperation.STATUS_IN_PROGRESS,
                 ],
             )
+            .filter(
+                Q(status=FuelLoadOperation.STATUS_PENDING)
+                | Q(status=FuelLoadOperation.STATUS_IN_PROGRESS, attendant=request.user)
+            )
             .select_related("account__user", "plate")
             .order_by("timestamp_started")
         )
 
         serializer = PendingFuelLoadSerializer(operations, many=True)
-        return Response(serializer.data)
+
+        # Include station information in the response
+        station_info = {
+            "id": assignment.station.id,
+            "name": assignment.station.name,
+            "city": assignment.station.city.name if assignment.station.city else None,
+        }
+
+        return Response({"station": station_info, "pending_loads": serializer.data})
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -507,10 +531,7 @@ def check_last_operation_status(request):
         )
 
         if not operation:
-            return Response(
-                {"error": "No se encontró ninguna operación de carga de combustible"},
-                status=status.HTTP_204_NO_CONTENT,
-            )
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
         serializer = CheckOperationStatusSerializer(
             {
@@ -569,3 +590,128 @@ def get_fuel_load_status(request, operation_id):
         )
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+###########################
+### Manager (Encargado) endpoints
+###########################
+
+from drf_spectacular.utils import OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
+
+
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name="station_id",
+            type=OpenApiTypes.INT,
+            location=OpenApiParameter.PATH,
+            description="ID de la estación de la cual obtener las operaciones",
+            required=True,
+        ),
+        OpenApiParameter(
+            name="status",
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description="Filtrar por estado de la operación (pending, in_progress, completed, no_balance, waiting_canceled, canceled_by_attendee, canceled_by_user)",
+            required=False,
+            enum=[
+                "pending",
+                "in_progress",
+                "completed",
+                "no_balance",
+                "waiting_canceled",
+                "canceled_by_attendee",
+                "canceled_by_user",
+            ],
+        ),
+        OpenApiParameter(
+            name="date_from",
+            type=OpenApiTypes.DATE,
+            location=OpenApiParameter.QUERY,
+            description="Filtrar operaciones desde esta fecha (formato: YYYY-MM-DD)",
+            required=False,
+        ),
+        OpenApiParameter(
+            name="date_to",
+            type=OpenApiTypes.DATE,
+            location=OpenApiParameter.QUERY,
+            description="Filtrar operaciones hasta esta fecha (formato: YYYY-MM-DD)",
+            required=False,
+        ),
+    ],
+    responses={
+        200: FuelLoadOperationSerializer(many=True),
+        403: None,
+    },
+    tags=["actions - fuel load - encargado"],
+    description=(
+        "Obtiene todas las operaciones de carga de combustible de una estación específica.\n\n"
+        "**Permisos requeridos:**\n"
+        "- El usuario debe tener el rol 'Encargado'\n"
+        "- El usuario debe estar asignado a la estación solicitada (asignación activa sin fecha de fin)\n\n"
+        "**Filtros disponibles:**\n"
+        "- `status`: Filtra por estado de la operación\n"
+        "- `date_from`: Filtra operaciones desde una fecha específica\n"
+        "- `date_to`: Filtra operaciones hasta una fecha específica"
+    ),
+    summary="Obtener operaciones de una estación (Encargado)",
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_station_operations(request, station_id):
+    """
+    Get all fuel load operations for a specific station.
+    Only accessible by users with Encargado role who are assigned to the station.
+    """
+    user = request.user
+
+    # Check if user has Encargado role
+    if not user.groups.filter(name="Encargado").exists():
+        return Response(
+            {"error": "No tenés permisos para ver las operaciones de esta estación"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    # Check if user is assigned to this station
+    assignment = StationAttendantAssignment.objects.filter(
+        attendant=user,
+        station_id=station_id,
+        end_date__isnull=True,
+    ).first()
+
+    if not assignment:
+        return Response(
+            {"error": "No estás asignado a esta estación"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    # Get query params for filtering
+    status_filter = request.query_params.get("status")
+    date_from = request.query_params.get("date_from")
+    date_to = request.query_params.get("date_to")
+
+    # Get operations for the station
+    operations = (
+        FuelLoadOperation.objects.filter(station_id=station_id)
+        .select_related(
+            "account__user",
+            "plate",
+            "attendant",
+            "station",
+            "payment_method",
+        )
+        .order_by("-timestamp_started")
+    )
+
+    # Apply filters
+    if status_filter:
+        operations = operations.filter(status=status_filter)
+    if date_from:
+        operations = operations.filter(timestamp_started__date__gte=date_from)
+    if date_to:
+        operations = operations.filter(timestamp_started__date__lte=date_to)
+
+    # Serialize and return
+    serializer = FuelLoadOperationSerializer(operations, many=True)
+    return Response(serializer.data)

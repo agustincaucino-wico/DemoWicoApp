@@ -51,7 +51,9 @@ class FuelLoadOperationAPITests(TestCase):
             email="other-attendant@example.com", password="pass1234"
         )
 
-        self.account = Account.objects.get(user=self.user, account_type="holder")
+        self.account = Account.objects.create(
+            user=self.user, account_type="holder", balance=Decimal("0.00")
+        )
         self.plate = Plates.objects.create(
             plate_number="AAA111",
             holder_account=self.account,
@@ -156,3 +158,57 @@ class FuelLoadOperationAPITests(TestCase):
         response = self.client.delete(detail_url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(FuelLoadOperation.objects.filter(id=operation.id).exists())
+
+    def test_fuel_operation_amount_max_limit_15_digits(self):
+        """Test that fuel operation amounts can support up to 15 digits (13 integer + 2 decimal)"""
+        # Test maximum valid amount: 9,999,999,999,999.99
+        max_amount = Decimal("9999999999999.99")
+        payload = {
+            "account": self.account.id,
+            "plate": self.plate.id,
+            "station": self.station.id,
+            "initial_amount": str(max_amount),
+            "payment_method": self.payment_method.id,
+        }
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        operation = FuelLoadOperation.objects.get(id=response.data["id"])
+        self.assertEqual(operation.initial_amount, max_amount)
+
+        # Test large valid amount with 13 integer digits
+        large_amount = Decimal("1234567890123.45")
+        payload["initial_amount"] = str(large_amount)
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        operation = FuelLoadOperation.objects.get(id=response.data["id"])
+        self.assertEqual(operation.initial_amount, large_amount)
+
+    def test_balance_recharge_max_limit_validation(self):
+        """Test that balance recharge request validates max amount of 15 digits"""
+        from operation.serializers import BalanceRechargeRequestCreateSerializer
+        from decimal import Decimal
+
+        # Create a mock request object with the user
+        class MockRequest:
+            def __init__(self, user):
+                self.user = user
+
+        # Test maximum valid amount: 9,999,999,999,999.99 (just validate amount field)
+        max_amount = Decimal("9999999999999.99")
+        serializer = BalanceRechargeRequestCreateSerializer(
+            context={"request": MockRequest(self.user)}
+        )
+        # Validate just the amount field
+        validated_amount = serializer.validate_amount(max_amount)
+        self.assertEqual(validated_amount, max_amount)
+
+        # Test amount exceeding maximum: 10,000,000,000,000.00
+        from rest_framework.exceptions import ValidationError
+
+        over_max = Decimal("10000000000000.00")
+        serializer = BalanceRechargeRequestCreateSerializer(
+            context={"request": MockRequest(self.user)}
+        )
+        with self.assertRaises(ValidationError) as context:
+            serializer.validate_amount(over_max)
+        self.assertIn("exceder", str(context.exception).lower())
