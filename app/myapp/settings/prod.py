@@ -87,3 +87,6 @@ LOGGING = {
         },
     },
 }
+
+MEDIA_ROOT = "/mnt/backend-appmobile-prd"
+MEDIA_URL = "https://back-appmobile-prod.wico.com.ar/media/"
