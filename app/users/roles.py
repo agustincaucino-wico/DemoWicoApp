@@ -72,6 +72,10 @@ ROLES = {
         "change_errorreport",
         "delete_errorreport",
         "view_errorreport",
+        "add_fleetcontactrequest",
+        "change_fleetcontactrequest",
+        "delete_fleetcontactrequest",
+        "view_fleetcontactrequest",
     ],
     "Playero": [
         "view_customuser",
