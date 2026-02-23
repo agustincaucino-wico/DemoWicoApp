@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from rest_framework import mixins, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -5,6 +7,8 @@ from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.db import transaction
 from django.utils import timezone
+
+from appconfig.models import AppConfig, BonificationTier
 
 from operation.models import (
     FuelLoadOperation,
@@ -156,6 +160,30 @@ class BalanceRechargeRequestViewSet(viewsets.ModelViewSet):
 
         review_comments = serializer.validated_data.get("review_comments", "")
 
+        # Calculate applicable bonification bonus
+        config = AppConfig.get_config()
+        fuel_price = config.fuel_price
+        bonus_amount = Decimal("0")
+        applied_tier_percent = None
+
+        if fuel_price:
+            applicable_tier = None
+            for (
+                tier
+            ) in BonificationTier.objects.all():  # ordered by order, min_liters asc
+                min_amount = tier.min_liters * fuel_price
+                if recharge_request.amount >= min_amount:
+                    applicable_tier = tier
+            if applicable_tier:
+                bonus_amount = (
+                    recharge_request.amount
+                    * applicable_tier.bonus_percent
+                    / Decimal("100")
+                ).quantize(Decimal("1"), rounding="ROUND_DOWN")
+                applied_tier_percent = float(applicable_tier.bonus_percent)
+
+        total_credited = recharge_request.amount + bonus_amount
+
         try:
             with transaction.atomic():
                 # Update request status
@@ -170,18 +198,26 @@ class BalanceRechargeRequestViewSet(viewsets.ModelViewSet):
                     name="Transferencia Bancaria", defaults={"is_active": True}
                 )
 
-                # Create ModifyFunds entry
+                # Build comment including bonus info
+                bonus_comment = (
+                    f"Bonificación {applied_tier_percent}%" if bonus_amount > 0 else ""
+                )
+
+                # Create ModifyFunds entry with total (base + bonus)
                 ModifyFunds.objects.create(
                     account=recharge_request.account,
                     gestor=request.user,
-                    amount=recharge_request.amount,
+                    amount=total_credited,
                     payment_method=payment_method,
-                    comments=f"Recarga aprobada. Solicitud #{recharge_request.id}. {review_comments}",
+                    comments=(
+                        "Recarga aprobada."
+                        + (f"\n{bonus_comment}" if bonus_comment else "")
+                    ),
                 )
 
-                # Update account balance
+                # Update account balance with total (base + bonus)
                 account = recharge_request.account
-                account.balance += recharge_request.amount
+                account.balance += total_credited
                 account.save()
 
                 # Send approval email notification (non-blocking)
@@ -191,7 +227,7 @@ class BalanceRechargeRequestViewSet(viewsets.ModelViewSet):
                     email_service.send_balance_recharge_approved(
                         to_email=user.email,
                         user_name=user_name,
-                        amount=recharge_request.amount,
+                        amount=total_credited,
                         new_balance=account.balance,
                         request_id=recharge_request.id,
                     )
@@ -203,6 +239,9 @@ class BalanceRechargeRequestViewSet(viewsets.ModelViewSet):
                     "message": "Solicitud aprobada exitosamente",
                     "request_id": recharge_request.id,
                     "new_balance": float(account.balance),
+                    "bonus_amount": float(bonus_amount),
+                    "applied_tier_percent": applied_tier_percent,
+                    "total_credited": float(total_credited),
                 },
                 status=status.HTTP_200_OK,
             )

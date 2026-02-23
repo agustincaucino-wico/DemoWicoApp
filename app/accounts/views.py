@@ -96,7 +96,7 @@ class AccountViewSet(BaseLCViewSet):
         Actualiza únicamente el balance de una cuenta.
         También crea un registro en ModifyFunds con comentarios.
         """
-        from operation.models import ModifyFunds
+        from operation.models import ModifyFunds, PaymentMethod
         from django.db import transaction
 
         account = self.get_object()
@@ -114,12 +114,17 @@ class AccountViewSet(BaseLCViewSet):
                     # Actualizar el balance
                     serializer.save()
 
+                    # Obtener o crear el método de pago "Ajuste manual"
+                    payment_method, _ = PaymentMethod.objects.get_or_create(
+                        name="Ajuste manual", defaults={"is_active": True}
+                    )
+
                     # Crear entrada en ModifyFunds
                     ModifyFunds.objects.create(
                         account=account,
                         gestor=request.user,
                         amount=amount_change,
-                        payment_method=None,  # Metodo de pago no implementado aun TODO
+                        payment_method=payment_method,
                         comments=comments or None,
                     )
 

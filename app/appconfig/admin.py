@@ -1,9 +1,19 @@
 from django.contrib import admin
-from .models import AppConfig
+from .models import AppConfig, BonificationTier
 from myapp.admin import my_admin_site
 
 
+class BonificationTierInline(admin.TabularInline):
+    model = BonificationTier
+    extra = 0
+    fields = ("order", "min_liters", "bonus_percent", "color_intensity")
+    ordering = ("order", "min_liters")
+    verbose_name = "Tramo de bonificación"
+    verbose_name_plural = "Tramos de bonificación"
+
+
 class AppConfigAdmin(admin.ModelAdmin):
+    inlines = [BonificationTierInline]
     list_display = (
         "__str__",
         "maintenance_mode",
