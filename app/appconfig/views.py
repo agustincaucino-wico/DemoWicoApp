@@ -7,17 +7,15 @@ from .models import AppConfig
 from .serializers import AppConfigSerializer
 
 
-class IsAdminOrGestor(BasePermission):
-    """Solo Administradores, Gestores y superusuarios pueden modificar la configuración."""
+class IsAdminOnly(BasePermission):
+    """Solo Administradores y superusuarios pueden modificar la configuración."""
 
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
         if request.user.is_staff or request.user.is_superuser:
             return True
-        return request.user.groups.filter(
-            name__in=["Administrador", "Admin", "Gestor"]
-        ).exists()
+        return request.user.groups.filter(name__in=["Administrador", "Admin"]).exists()
 
 
 @api_view(["GET"])
@@ -39,7 +37,7 @@ def get_app_config(request):
 
 
 @api_view(["PATCH"])
-@permission_classes([IsAdminOrGestor])
+@permission_classes([IsAdminOnly])
 def update_app_config(request):
     """
     Partially update app configuration. Restricted to Admins and Gestores.

@@ -102,12 +102,17 @@ class BalanceRechargeRequestViewSet(viewsets.ModelViewSet):
     """
     API endpoint for balance recharge requests.
 
-    - Users can create and view their own requests
-    - Gestores/Admins can view all requests and approve/reject them
+    - Any authenticated user can create a request (POST).
+    - Only Gestores/Admins can list, retrieve, approve or reject requests.
     """
 
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action == "create":
+            return [IsAuthenticated()]
+        return [IsAdminRole()]
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -119,25 +124,10 @@ class BalanceRechargeRequestViewSet(viewsets.ModelViewSet):
         return BalanceRechargeRequestListSerializer
 
     def get_queryset(self):
-        """
-        Users see only their own requests.
-        Gestores/Admins see all requests.
-        """
-        user = self.request.user
+        """Only Gestores/Admins reach this point (create doesn't call get_queryset)."""
         queryset = BalanceRechargeRequest.objects.select_related(
             "account__user", "requested_by", "reviewed_by"
         ).all()
-
-        # Check if user is admin/gestor
-        is_admin = (
-            user.is_staff
-            or user.is_superuser
-            or user.groups.filter(name__in=IsAdminRole.admin_groups).exists()
-        )
-
-        if not is_admin:
-            # Regular users only see their own requests
-            queryset = queryset.filter(requested_by=user)
 
         # Optional filters
         status_filter = self.request.query_params.get("status")
