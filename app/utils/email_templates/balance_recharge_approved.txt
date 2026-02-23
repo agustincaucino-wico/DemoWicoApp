@@ -4,12 +4,6 @@ Hola {user_name},
 
 ¡Buenas noticias! Tu solicitud de recarga de saldo ha sido APROBADA y el monto ha sido acreditado en tu cuenta.
 
-DETALLES DE LA RECARGA
------------------------
-Solicitud N°: #{request_id}
-Monto acreditado: ${amount}
-Nuevo saldo: ${new_balance}
-
 Ya puedes utilizar tu saldo para cargar combustible en cualquiera de nuestras estaciones de servicio adheridas.
 
 NOTA: El saldo estará disponible inmediatamente en tu cuenta de Wicored.
