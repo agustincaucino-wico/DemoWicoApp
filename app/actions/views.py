@@ -238,6 +238,13 @@ class InvitationViewSet(viewsets.ViewSet):
                 {"error": "Invitation not found"}, status=status.HTTP_404_NOT_FOUND
             )
 
+        # Verify invitation belongs to the requesting user
+        if invitation.dependent_email.lower() != request.user.email.lower():
+            return Response(
+                {"error": "You are not authorized to respond to this invitation"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         # Verify invitation is still pending
         if invitation.status != "pending":
             return Response(

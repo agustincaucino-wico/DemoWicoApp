@@ -13,6 +13,10 @@ class AccountSerializer(serializers.ModelSerializer):
         model = Account
         fields = "__all__"
         read_only_fields = (
+            "balance",
+            "user",
+            "account_type",
+            "verification_status",
             "is_active",
             "deactivated_at",
             "deactivated_by",
