@@ -6,7 +6,7 @@ from datetime import timedelta
 load_dotenv()
 
 # Versión actual de la API
-API_VERSION = "1.1.16"
+API_VERSION = "1.1.20"
 MIN_APP_VERSION = "1.1.15"
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
