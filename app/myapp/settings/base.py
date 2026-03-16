@@ -7,7 +7,7 @@ load_dotenv()
 
 # Versión actual de la API
 API_VERSION = (
-    "1.1.99"  # API_VERSION < app version => muestra el servidor en mantenimiento
+    "99.99.99"  # API_VERSION < app version => muestra el servidor en mantenimiento
 )
 MIN_APP_VERSION = "1.1.15"  # subir a 1.1.16 cuando se suba la version tienda de IOS
 
