@@ -6,7 +6,9 @@ from datetime import timedelta
 load_dotenv()
 
 # Versión actual de la API
-API_VERSION = "1.1.99"
+API_VERSION = (
+    "1.1.99"  # API_VERSION < app version => muestra el servidor en mantenimiento
+)
 MIN_APP_VERSION = "1.1.15"  # subir a 1.1.16 cuando se suba la version tienda de IOS
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -59,6 +61,7 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=120),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "UPDATE_LAST_LOGIN": True,
 }
 
 SPECTACULAR_SETTINGS = {

@@ -1,6 +1,7 @@
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from django.db import IntegrityError
 from users.serializers import (
     UserSerializer,
     EmailVerificationSerializer,
@@ -42,7 +43,13 @@ class UserViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+        try:
+            user = serializer.save()
+        except IntegrityError:
+            return Response(
+                {"email": ["El correo electrónico ya se encuentra registrado."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Generate verification token
         token = EmailVerificationToken.create_for_user(user)
@@ -349,6 +356,49 @@ class UserViewSet(viewsets.ModelViewSet):
                 {"error": f"Error al remover el rol: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @extend_schema(
+        request=None,
+        responses={
+            200: OpenApiTypes.OBJECT,
+            400: OpenApiTypes.OBJECT,
+            403: OpenApiTypes.OBJECT,
+        },
+        summary="Mark Email as Verified",
+        description="Admin action to mark a user's email as verified. Requires Gestor permissions.",
+    )
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="mark_email_verified",
+        permission_classes=[IsAuthenticated],
+    )
+    def mark_email_verified(self, request, pk=None):
+        """Mark a user's email as verified. Gestor/superuser only."""
+        if (
+            not request.user.is_superuser
+            and not request.user.groups.filter(name="Gestor").exists()
+        ):
+            return Response(
+                {
+                    "error": "Solo los usuarios con rol Gestor pueden marcar emails como verificados."
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        user = self.get_object()
+
+        if user.email_verified:
+            return Response(
+                {"error": "El email del usuario ya está verificado."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.email_verified = True
+        user.save()
+
+        serializer = self.get_serializer(user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(
         detail=False,

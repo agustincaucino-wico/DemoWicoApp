@@ -20,6 +20,27 @@ class PaymentMethodAdmin(admin.ModelAdmin):
     search_fields = ("name",)
 
 
+@admin.register(ModifyFunds, site=my_admin_site)
+class ModifyFundsAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "account",
+        "gestor",
+        "amount",
+        "payment_method",
+        "timestamp",
+        "comments",
+    )
+    list_filter = ("timestamp", "payment_method")
+    search_fields = (
+        "account__user__email",
+        "gestor__email",
+        "comments",
+    )
+    autocomplete_fields = ("account", "gestor", "payment_method")
+    readonly_fields = ("timestamp",)
+
+
 @admin.register(FuelLoadOperation, site=my_admin_site)
 class FuelLoadOperationAdmin(admin.ModelAdmin):
     list_display = (

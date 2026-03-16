@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from appconfig.models import AppConfig
+from .store_version import get_latest_ios_version, get_latest_android_version
 
 
 def get_docs_permission():
@@ -43,6 +44,8 @@ class HealthCheckView(APIView):
             "status": "ok",
             "api_version": getattr(settings, "API_VERSION", None),
             "min_app_version": getattr(settings, "MIN_APP_VERSION", None),
+            "latest_ios_version": get_latest_ios_version(),
+            "latest_android_version": get_latest_android_version(),
             "maintenance_mode": config.maintenance_mode,
         }
         return Response(payload, status=200)

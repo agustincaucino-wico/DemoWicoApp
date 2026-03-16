@@ -10,6 +10,7 @@ class FuelLoadOperationSerializer(serializers.ModelSerializer):
     user_email = serializers.SerializerMethodField()
     attendant_name = serializers.SerializerMethodField()
     attendant_email = serializers.SerializerMethodField()
+    plate_number = serializers.SerializerMethodField()
 
     class Meta:
         model = FuelLoadOperation
@@ -41,6 +42,12 @@ class FuelLoadOperationSerializer(serializers.ModelSerializer):
     def get_attendant_email(self, obj):
         if obj.attendant:
             return obj.attendant.email
+        return None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_plate_number(self, obj):
+        if obj.plate:
+            return obj.plate.plate_number
         return None
 
 
