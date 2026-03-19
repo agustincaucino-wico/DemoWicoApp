@@ -436,6 +436,9 @@ class UserInfoView(APIView):
                         f"{holder_account_user.first_name} {holder_account_user.last_name}".strip()
                     )
                     account_data["holder_email"] = holder_account_user.email
+                else:
+                    # Dependent account with no active relation — skip it
+                    continue
 
             accounts_data.append(account_data)
 
