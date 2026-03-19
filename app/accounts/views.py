@@ -201,13 +201,54 @@ class AccountViewSet(BaseLCViewSet):
                 if account.account_type == "holder":
                     # CUENTA TITULAR: Desactivar todas sus relaciones
 
-                    # 1. Finalizar relaciones de Dependents activos
+                    # 1. Finalizar relaciones de Dependents activos y desactivar las cuentas adheridas
                     active_dependents = Dependents.objects.filter(
                         holder_account=account, end_date__isnull=True
-                    )
+                    ).select_related("dependent_account__user")
                     dependents_count = active_dependents.count()
+
+                    dependent_accounts_to_deactivate = []
+                    for dep_relation in active_dependents:
+                        dep_account = dep_relation.dependent_account
+                        if dep_account.is_active:
+                            dependent_accounts_to_deactivate.append(dep_account)
+
                     active_dependents.update(end_date=today)
                     summary["dependents_finalized"] = dependents_count
+
+                    # Desactivar cada cuenta adherida y gestionar rol Flota
+                    from django.contrib.auth.models import Group as AuthGroup
+
+                    flota_group_obj = None
+                    try:
+                        flota_group_obj = AuthGroup.objects.get(name="Flota")
+                    except AuthGroup.DoesNotExist:
+                        pass
+
+                    for dep_account in dependent_accounts_to_deactivate:
+                        dep_account.is_active = False
+                        dep_account.deactivated_at = timezone.now()
+                        dep_account.deactivated_by = request.user
+                        dep_account.deactivation_reason = "Cuenta titular dada de baja"
+                        dep_account.save()
+
+                        # Revocar autorizaciones de patentes del adherido
+                        AuthorizedPlate.objects.filter(
+                            dependent_account=dep_account, end_date__isnull=True
+                        ).update(end_date=today)
+
+                        # Quitar rol Flota si ya no tiene cuentas activas
+                        if flota_group_obj and dep_account.user:
+                            dep_user = dep_account.user
+                            remaining = Account.objects.filter(
+                                user=dep_user, is_active=True
+                            ).exists()
+                            if not remaining:
+                                dep_user.groups.remove(flota_group_obj)
+
+                    summary["dependent_accounts_deactivated"] = len(
+                        dependent_accounts_to_deactivate
+                    )
 
                     # 2. Dar de baja Plates activas
                     active_plates = Plates.objects.filter(
