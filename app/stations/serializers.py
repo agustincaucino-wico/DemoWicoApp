@@ -1,6 +1,21 @@
 from rest_framework import serializers
 
-from .models import Station, StationAttendantAssignment
+from .models import FuelType, FuelTypePrice, Station, StationAttendantAssignment
+
+
+class FuelTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FuelType
+        fields = "__all__"
+
+
+class FuelTypePriceSerializer(serializers.ModelSerializer):
+    fuel_type_name = serializers.CharField(source="fuel_type.name", read_only=True)
+    company_name = serializers.CharField(source="company.name", read_only=True)
+
+    class Meta:
+        model = FuelTypePrice
+        fields = "__all__"
 
 
 class StationSerializer(serializers.ModelSerializer):
@@ -23,6 +38,7 @@ class StationSerializer(serializers.ModelSerializer):
             "lat",
             "lon",
             "is_active",
+            "expendio",
         )
         read_only_fields = ("id", "province_name", "city_name")
 

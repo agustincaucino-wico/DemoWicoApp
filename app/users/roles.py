@@ -76,6 +76,21 @@ ROLES = {
         "change_fleetcontactrequest",
         "delete_fleetcontactrequest",
         "view_fleetcontactrequest",
+        # Organism
+        "add_organism",
+        "change_organism",
+        "delete_organism",
+        "view_organism",
+        # FuelType
+        "add_fueltype",
+        "change_fueltype",
+        "delete_fueltype",
+        "view_fueltype",
+        # FuelTypePrice
+        "add_fueltypeprice",
+        "change_fueltypeprice",
+        "delete_fueltypeprice",
+        "view_fueltypeprice",
     ],
     "Playero": [
         "view_customuser",

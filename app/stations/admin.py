@@ -1,7 +1,22 @@
 from django.contrib import admin
 from myapp.admin import my_admin_site
 
-from .models import Station, StationAttendantAssignment
+from .models import FuelType, FuelTypePrice, Station, StationAttendantAssignment
+
+
+@admin.register(FuelType, site=my_admin_site)
+class FuelTypeAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "is_active")
+    search_fields = ("name",)
+    list_filter = ("is_active",)
+
+
+@admin.register(FuelTypePrice, site=my_admin_site)
+class FuelTypePriceAdmin(admin.ModelAdmin):
+    list_display = ("id", "fuel_type", "company", "price", "effective_date")
+    search_fields = ("fuel_type__name", "company__name")
+    list_filter = ("fuel_type", "effective_date")
+    autocomplete_fields = ("fuel_type", "company")
 
 
 @admin.register(Station, site=my_admin_site)

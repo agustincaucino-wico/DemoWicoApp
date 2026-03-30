@@ -19,6 +19,7 @@ from .models import (
     Company,
     CompanyAssignment,
     DependentInvitation,
+    Organism,
 )
 from .serializers import (
     AccountSerializer,
@@ -29,6 +30,7 @@ from .serializers import (
     AuthorizedPlateSerializer,
     CompanySerializer,
     CompanyAssignmentSerializer,
+    OrganismSerializer,
 )
 from actions.serializers import DependentInvitationSerializer
 
@@ -645,6 +647,11 @@ class CompanyViewSet(BaseLCViewSet):
 class CompanyAssignmentViewSet(BaseLCViewSet):
     queryset = CompanyAssignment.objects.all().order_by("id")
     serializer_class = CompanyAssignmentSerializer
+
+
+class OrganismViewSet(BaseLCUDViewSet):
+    queryset = Organism.objects.all().order_by("id")
+    serializer_class = OrganismSerializer
 
 
 class DependentInvitationsViewSet(BaseLCViewSet):

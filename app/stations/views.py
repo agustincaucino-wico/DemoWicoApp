@@ -4,9 +4,62 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.contrib.auth.models import Group
 
 from myapp.permissions import StrictDjangoModelPermissions
-from .models import Station, StationAttendantAssignment
+from .models import FuelType, FuelTypePrice, Station, StationAttendantAssignment
 from .permissions import AuthenticatedReadDjangoModelPermissions
-from .serializers import StationSerializer, StationAttendantAssignmentSerializer
+from .serializers import (
+    FuelTypeSerializer,
+    FuelTypePriceSerializer,
+    StationSerializer,
+    StationAttendantAssignmentSerializer,
+)
+
+
+class FuelTypeViewSet(
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """CRUD de tipos de combustible. Solo Gestores."""
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [StrictDjangoModelPermissions]
+    queryset = FuelType.objects.all().order_by("name")
+    serializer_class = FuelTypeSerializer
+
+
+class FuelTypePriceViewSet(
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """CRUD de precios de combustible por empresa. Solo Gestores."""
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [StrictDjangoModelPermissions]
+    serializer_class = FuelTypePriceSerializer
+
+    def get_queryset(self):
+        queryset = (
+            FuelTypePrice.objects.select_related("fuel_type", "company")
+            .all()
+            .order_by("-effective_date")
+        )
+
+        fuel_type_id = self.request.query_params.get("fuel_type")
+        company_id = self.request.query_params.get("company")
+
+        if fuel_type_id:
+            queryset = queryset.filter(fuel_type_id=fuel_type_id)
+        if company_id:
+            queryset = queryset.filter(company_id=company_id)
+
+        return queryset
 
 
 class StationViewSet(

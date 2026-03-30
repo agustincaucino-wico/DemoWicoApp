@@ -6,12 +6,33 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.models import Group
 
 
+class Organism(models.Model):
+    BILLING_TYPES = [
+        ("invoice", "Facturación"),
+        ("prepaid", "Prepago"),
+    ]
+
+    name = models.CharField(max_length=255, unique=True)
+    cuit = models.CharField(max_length=13, unique=True)
+    billing_type = models.CharField(max_length=20, choices=BILLING_TYPES)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Organismo"
+        verbose_name_plural = "Organismos"
+
+    def __str__(self):
+        return self.name
+
+
 class Account(models.Model):
     ACCOUNT_TYPES = [("holder", "Titular"), ("dependent", "Adherido")]
 
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True)
     balance = models.DecimalField(max_digits=15, decimal_places=2)
     account_type = models.CharField(max_length=20, choices=ACCOUNT_TYPES)
+    special = models.CharField(max_length=50, null=True, blank=True)
+    unlimited_balance = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     deactivated_at = models.DateTimeField(null=True, blank=True)
     deactivated_by = models.ForeignKey(
@@ -186,6 +207,7 @@ class Plates(models.Model):
     holder_account = models.ForeignKey(Account, on_delete=models.CASCADE)
     brand = models.CharField(max_length=50, null=True, blank=True)
     model = models.CharField(max_length=50, null=True, blank=True)
+    year = models.PositiveIntegerField(null=True, blank=True)
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
 
@@ -258,6 +280,17 @@ class AuthorizedPlate(models.Model):
 class Company(models.Model):
     name = models.CharField(max_length=255, unique=True)
     province = models.ForeignKey(Province, on_delete=models.CASCADE)
+    organism = models.ForeignKey(
+        Organism,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="companies",
+    )
+
+    class Meta:
+        verbose_name = "Empresa"
+        verbose_name_plural = "Empresas"
 
     def __str__(self):
         return self.name

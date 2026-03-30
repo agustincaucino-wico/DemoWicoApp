@@ -1,7 +1,13 @@
 from decimal import Decimal
 from rest_framework import serializers
 from .models import Account, Dependents, Plates, AuthorizedPlate
-from .models import Company, CompanyAssignment
+from .models import Company, CompanyAssignment, Organism
+
+
+class OrganismSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organism
+        fields = "__all__"
 
 
 class AccountSerializer(serializers.ModelSerializer):
@@ -150,6 +156,10 @@ class AuthorizedPlateSerializer(serializers.ModelSerializer):
 
 
 class CompanySerializer(serializers.ModelSerializer):
+    organism_name = serializers.CharField(
+        source="organism.name", read_only=True, allow_null=True
+    )
+
     class Meta:
         model = Company
         fields = "__all__"

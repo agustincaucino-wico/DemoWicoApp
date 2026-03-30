@@ -7,6 +7,7 @@ from .models import (
     Company,
     CompanyAssignment,
     DependentInvitation,
+    Organism,
 )
 from myapp.admin import my_admin_site
 
@@ -122,3 +123,12 @@ my_admin_site.register(AuthorizedPlate, AuthorizedPlateAdmin)
 my_admin_site.register(Company, CompanyAdmin)
 my_admin_site.register(CompanyAssignment, CompanyAssignmentAdmin)
 my_admin_site.register(DependentInvitation, DependentInvitationAdmin)
+
+
+class OrganismAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "cuit", "billing_type")
+    search_fields = ("name", "cuit")
+    list_filter = ("billing_type",)
+
+
+my_admin_site.register(Organism, OrganismAdmin)

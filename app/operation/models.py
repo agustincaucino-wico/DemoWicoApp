@@ -84,6 +84,17 @@ class FuelLoadOperation(models.Model):
     payment_method = models.ForeignKey(
         PaymentMethod, on_delete=models.PROTECT, null=True, blank=True
     )
+    fuel_type = models.ForeignKey(
+        "stations.FuelType",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="fuel_operations",
+    )
+    odometer_km = models.PositiveIntegerField(null=True, blank=True)
+    quantity_liters = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
 
     class Meta:
         ordering = ("-timestamp_started",)

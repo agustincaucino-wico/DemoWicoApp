@@ -10,6 +10,10 @@ router.register(
     views.StationAttendantAssignmentViewSet,
     basename="station-attendant-assignments",
 )
+router.register(r"fuel-types", views.FuelTypeViewSet, basename="fuel-types")
+router.register(
+    r"fuel-type-prices", views.FuelTypePriceViewSet, basename="fuel-type-prices"
+)
 
 urlpatterns = [
     path("", include(router.urls)),

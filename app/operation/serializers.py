@@ -2,7 +2,11 @@ from decimal import Decimal
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 
-from operation.models import FuelLoadOperation, ModifyFunds, BalanceRechargeRequest
+from operation.models import (
+    FuelLoadOperation,
+    ModifyFunds,
+    BalanceRechargeRequest,
+)
 
 
 class FuelLoadOperationSerializer(serializers.ModelSerializer):
@@ -11,6 +15,9 @@ class FuelLoadOperationSerializer(serializers.ModelSerializer):
     attendant_name = serializers.SerializerMethodField()
     attendant_email = serializers.SerializerMethodField()
     plate_number = serializers.SerializerMethodField()
+    fuel_type_name = serializers.CharField(
+        source="fuel_type.name", read_only=True, allow_null=True
+    )
 
     class Meta:
         model = FuelLoadOperation

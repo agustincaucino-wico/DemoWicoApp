@@ -2,6 +2,45 @@ from django.conf import settings
 from django.db import models
 
 
+class FuelType(models.Model):
+    """Tipo de combustible (ej: Nafta Super, Diesel, GNC)."""
+
+    name = models.CharField(max_length=100, unique=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Tipo de combustible"
+        verbose_name_plural = "Tipos de combustible"
+
+    def __str__(self):
+        return self.name
+
+
+class FuelTypePrice(models.Model):
+    """Precio histórico de un tipo de combustible por empresa y fecha."""
+
+    fuel_type = models.ForeignKey(
+        FuelType, on_delete=models.CASCADE, related_name="prices"
+    )
+    company = models.ForeignKey(
+        "accounts.Company", on_delete=models.CASCADE, related_name="fuel_prices"
+    )
+    price = models.DecimalField(max_digits=12, decimal_places=2)
+    effective_date = models.DateField()
+
+    class Meta:
+        ordering = ["-effective_date"]
+        verbose_name = "Precio de combustible"
+        verbose_name_plural = "Precios de combustible"
+
+    def __str__(self):
+        return (
+            f"{self.fuel_type.name} - {self.company.name}: "
+            f"${self.price} ({self.effective_date})"
+        )
+
+
 class Station(models.Model):
     name = models.CharField(max_length=255)
     province = models.ForeignKey("locations.Province", on_delete=models.CASCADE)
@@ -11,6 +50,7 @@ class Station(models.Model):
     lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     lon = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    expendio = models.CharField(max_length=100, null=True, blank=True)
 
     class Meta:
         verbose_name = "Station"
