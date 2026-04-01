@@ -9,6 +9,7 @@ from .views import (
     CompanyAssignmentViewSet,
     DependentInvitationsViewSet,
     OrganismViewSet,
+    AuthorizedEmailViewSet,
 )
 
 
@@ -25,6 +26,7 @@ router.register(
     basename="dependent-invitations",
 )
 router.register(r"organisms", OrganismViewSet)
+router.register(r"authorized-emails", AuthorizedEmailViewSet)
 
 urlpatterns = [
     path("", include(router.urls)),

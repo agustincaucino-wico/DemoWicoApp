@@ -20,6 +20,7 @@ from .models import (
     CompanyAssignment,
     DependentInvitation,
     Organism,
+    AuthorizedEmail,
 )
 from .serializers import (
     AccountSerializer,
@@ -31,6 +32,7 @@ from .serializers import (
     CompanySerializer,
     CompanyAssignmentSerializer,
     OrganismSerializer,
+    AuthorizedEmailSerializer,
 )
 from actions.serializers import DependentInvitationSerializer
 
@@ -658,3 +660,36 @@ class DependentInvitationsViewSet(BaseLCViewSet):
     queryset = DependentInvitation.objects.all().order_by("-invitation_date")
     serializer_class = DependentInvitationSerializer
     permission_classes = [DjangoModelOrObjectOwner]
+
+
+class AuthorizedEmailViewSet(BaseLCViewSet):
+    """ViewSet for managing AuthorizedEmail records (invitations to unregistered users)."""
+
+    queryset = AuthorizedEmail.objects.all().order_by("-invited_at")
+    serializer_class = AuthorizedEmailSerializer
+    permission_classes = [DjangoModelOrObjectOwner]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if should_apply_flota_restrictions(self.request.user):
+            user_accounts = self.request.user.account_set.filter(
+                account_type="holder", is_active=True
+            )
+            return queryset.filter(dependent_of__in=user_accounts)
+        return queryset
+
+    @action(detail=True, methods=["post"], url_path="cancel")
+    def cancel_authorized_email(self, request, pk=None):
+        """Cancel a pending authorized email invitation."""
+        authorized_email = self.get_object()
+        if authorized_email.status != "pending":
+            return Response(
+                {"error": "Solo se pueden cancelar invitaciones pendientes"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        authorized_email.cancel()
+        serializer = self.get_serializer(authorized_email)
+        return Response(
+            {"message": "Invitación cancelada exitosamente", "data": serializer.data},
+            status=status.HTTP_200_OK,
+        )

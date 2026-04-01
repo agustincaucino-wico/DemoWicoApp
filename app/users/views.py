@@ -61,6 +61,9 @@ class UserViewSet(viewsets.ModelViewSet):
             verification_code=token.token,
         )
 
+        # Process any pending AuthorizedEmail records for this user
+        authorized_emails_processed = self._process_authorized_emails(user)
+
         headers = self.get_success_headers(serializer.data)
 
         response_data = serializer.data
@@ -73,7 +76,47 @@ class UserViewSet(viewsets.ModelViewSet):
                 "Usuario creado, pero hubo un error al enviar el correo de verificación."
             )
 
+        if authorized_emails_processed > 0:
+            response_data["authorized_emails_processed"] = authorized_emails_processed
+            response_data["fleet_message"] = (
+                f"Se procesaron {authorized_emails_processed} invitación(es) pendiente(s). "
+                "Ya tenés cuenta(s) de adherente activa(s)."
+            )
+
         return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def _process_authorized_emails(self, user):
+        """
+        Process any pending AuthorizedEmail records for this user's email.
+        Auto-creates dependent accounts, Dependents relationships,
+        assigns Flota role, and CompanyAssignment if applicable.
+        Returns the number of processed records.
+        """
+        from accounts.models import AuthorizedEmail
+        from django.db import transaction as db_transaction
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        pending_authorizations = AuthorizedEmail.objects.filter(
+            email__iexact=user.email,
+            status="pending",
+        ).select_related("dependent_of", "company")
+
+        processed_count = 0
+
+        for auth_email in pending_authorizations:
+            try:
+                with db_transaction.atomic():
+                    auth_email.accept(user)
+                    processed_count += 1
+            except Exception as e:
+                # Log but don't fail registration if one authorization fails
+                logger.error(
+                    f"Error processing AuthorizedEmail {auth_email.id} for user {user.email}: {e}"
+                )
+
+        return processed_count
 
     @extend_schema(
         request=EmailVerificationSerializer,

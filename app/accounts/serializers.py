@@ -1,7 +1,7 @@
 from decimal import Decimal
 from rest_framework import serializers
 from .models import Account, Dependents, Plates, AuthorizedPlate
-from .models import Company, CompanyAssignment, Organism
+from .models import Company, CompanyAssignment, Organism, AuthorizedEmail
 
 
 class OrganismSerializer(serializers.ModelSerializer):
@@ -202,3 +202,34 @@ class AccountBalanceUpdateSerializer(serializers.ModelSerializer):
                 f"El balance no puede exceder {max_value:,.2f}"
             )
         return value
+
+
+class AuthorizedEmailSerializer(serializers.ModelSerializer):
+    dependent_of_email = serializers.EmailField(
+        source="dependent_of.user.email", read_only=True
+    )
+    company_name = serializers.CharField(
+        source="company.name", read_only=True, allow_null=True
+    )
+    organism_name = serializers.CharField(
+        source="organism.name", read_only=True, allow_null=True
+    )
+
+    class Meta:
+        model = AuthorizedEmail
+        fields = [
+            "id",
+            "email",
+            "dependent_of",
+            "dependent_of_email",
+            "special",
+            "unlimited_balance",
+            "company",
+            "company_name",
+            "organism",
+            "organism_name",
+            "status",
+            "invited_at",
+            "accepted_at",
+        ]
+        read_only_fields = ["status", "invited_at", "accepted_at"]

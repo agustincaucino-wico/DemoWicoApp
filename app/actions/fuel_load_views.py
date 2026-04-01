@@ -136,7 +136,10 @@ def initiate_fuel_load(request):
                     status=status.HTTP_403_FORBIDDEN,
                 )
 
-        if account.balance < amount:
+        # Accounts with unlimited_balance skip balance validation (e.g. Cordoba accounts)
+        if account.unlimited_balance:
+            operation_status = "pending"
+        elif account.balance < amount:
             operation_status = "no_balance"
             operation = FuelLoadOperation.objects.create(
                 account=account,
@@ -414,6 +417,9 @@ def complete_fuel_load(request):
     if serializer.is_valid():
         operation_id = serializer.validated_data["id_operation"]
         final_amount = serializer.validated_data["final_amount"]
+        fuel_type_id = serializer.validated_data.get("fuel_type")
+        odometer_km = serializer.validated_data.get("odometer_km")
+        quantity_liters = serializer.validated_data.get("quantity_liters")
 
         try:
             with transaction.atomic():
@@ -423,23 +429,59 @@ def complete_fuel_load(request):
                     attendant=request.user,
                 )
 
-                # Verify the account has sufficient balance
-                if operation.account.balance < final_amount:
-                    return Response(
-                        {
-                            "error": "Saldo insuficiente en la cuenta para completar la carga"
-                        },
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
+                account = operation.account
 
-                # Deduct the final amount from the account balance
-                operation.account.balance -= final_amount
-                operation.account.save()
+                # Cordoba accounts require fuel_type, odometer_km, and quantity_liters
+                if account.special == "cordoba":
+                    missing = []
+                    if not fuel_type_id:
+                        missing.append("fuel_type")
+                    if odometer_km is None:
+                        missing.append("odometer_km")
+                    if not quantity_liters:
+                        missing.append("quantity_liters")
+                    if missing:
+                        return Response(
+                            {
+                                "error": f"Los campos: {', '.join(missing)} son obligatorios"
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                # Balance validation & deduction: skip for unlimited_balance accounts
+                if not account.unlimited_balance:
+                    if account.balance < final_amount:
+                        return Response(
+                            {
+                                "error": "Saldo insuficiente en la cuenta para completar la carga"
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    # Deduct the final amount from the account balance
+                    account.balance -= final_amount
+                    account.save()
 
                 # Update the operation
                 operation.status = FuelLoadOperation.STATUS_COMPLETED
                 operation.final_amount = final_amount
                 operation.timestamp_finished = timezone.now()
+
+                # Save optional fuel load details
+                if fuel_type_id:
+                    from stations.models import FuelType
+
+                    try:
+                        operation.fuel_type = FuelType.objects.get(id=fuel_type_id)
+                    except FuelType.DoesNotExist:
+                        return Response(
+                            {"error": "Tipo de combustible no encontrado"},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                if odometer_km is not None:
+                    operation.odometer_km = odometer_km
+                if quantity_liters:
+                    operation.quantity_liters = quantity_liters
+
                 operation.save()
 
                 response_serializer = FuelLoadOperationSerializer(operation)

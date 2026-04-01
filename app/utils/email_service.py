@@ -188,6 +188,28 @@ class EmailService:
             "dependent_added", subject, dependent_user.email, context
         )
 
+    def send_app_download_invitation(self, to_email, holder_name, holder_email):
+        """
+        Send an invitation email to an unregistered user to download the app.
+        This is used when a holder tries to add a dependent whose email is not registered.
+
+        Args:
+            to_email: Email address of the invited user
+            holder_name: Full name of the holder who sent the invitation
+            holder_email: Email address of the holder
+
+        Returns:
+            bool: True if email was sent successfully, False otherwise
+        """
+        subject = "Invitación a WICO - Descargá la app"
+
+        context = {
+            "holder_name": holder_name,
+            "holder_email": holder_email,
+        }
+
+        return self.send_email("app_download_invitation", subject, to_email, context)
+
     def send_password_reset_email(self, to_email, user_name, reset_code):
         """
         Send a password reset code email.

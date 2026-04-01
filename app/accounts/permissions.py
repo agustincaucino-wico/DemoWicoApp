@@ -46,7 +46,13 @@ class DjangoModelOrObjectOwner(StrictDjangoModelPermissions):
             model_name = getattr(view, "queryset", None)
             if model_name is not None:
                 model_name = model_name.model.__name__
-                if model_name in ["Plates", "AuthorizedPlate", "Dependents", "Account"]:
+                if model_name in [
+                    "Plates",
+                    "AuthorizedPlate",
+                    "Dependents",
+                    "Account",
+                    "AuthorizedEmail",
+                ]:
                     return True
 
         return super().has_permission(request, view)
@@ -78,6 +84,11 @@ class DjangoModelOrObjectOwner(StrictDjangoModelPermissions):
             # Account objects: allow access to user's own accounts
             if hasattr(obj, "user") and getattr(obj, "user") == request.user:
                 return True
+
+            # AuthorizedEmail: allow access if dependent_of is a holder account of the user
+            if hasattr(obj, "dependent_of"):
+                if obj.dependent_of in user_accounts:
+                    return True
 
         # Otherwise, use default StrictDjangoModelPermissions
         return super().has_object_permission(request, view, obj)

@@ -36,13 +36,14 @@ class FuelTypePriceModelTests(TestCase):
     def setUp(self):
         self.country = Country.objects.create(name="Argentina")
         self.province = Province.objects.create(name="Córdoba", country=self.country)
-        self.organism = Organism.objects.create(
-            name="Gobierno de Córdoba", cuit="30-12345678-9", billing_type="invoice"
-        )
+        self.organism = Organism.objects.get_or_create(
+            name="Gobierno de Córdoba",
+            defaults={"cuit": "30-12345678-9", "billing_type": "invoice"},
+        )[0]
         self.company = Company.objects.create(
             name="Empresa Test", province=self.province, organism=self.organism
         )
-        self.fuel_type = FuelType.objects.create(name="Nafta Super")
+        self.fuel_type = FuelType.objects.create(name="Nafta Super Test")
 
     def test_create_fuel_type_price(self):
         ftp = FuelTypePrice.objects.create(
@@ -51,7 +52,7 @@ class FuelTypePriceModelTests(TestCase):
             price=Decimal("350.50"),
             effective_date=date.today(),
         )
-        self.assertIn("Nafta Super", str(ftp))
+        self.assertIn("Nafta Super Test", str(ftp))
         self.assertIn("Empresa Test", str(ftp))
 
     def test_multiple_prices_same_fuel_type(self):
@@ -102,11 +103,12 @@ class FuelTypeAPITests(TestCase):
         user.groups.add(group)
 
     def test_gestor_can_list_fuel_types(self):
-        FuelType.objects.create(name="Nafta Super")
-        FuelType.objects.create(name="Diesel")
+        existing = FuelType.objects.count()
+        FuelType.objects.create(name="Nafta Super Test")
+        FuelType.objects.create(name="Diesel Test")
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(len(response.data), existing + 2)
 
     def test_gestor_can_create_fuel_type(self):
         response = self.client.post(
@@ -145,17 +147,18 @@ class FuelTypePriceAPITests(TestCase):
     def setUp(self):
         self.country = Country.objects.create(name="Argentina")
         self.province = Province.objects.create(name="Córdoba", country=self.country)
-        self.organism = Organism.objects.create(
-            name="Gobierno de Córdoba", cuit="30-12345678-9", billing_type="invoice"
-        )
+        self.organism = Organism.objects.get_or_create(
+            name="Gobierno de Córdoba",
+            defaults={"cuit": "30-12345678-9", "billing_type": "invoice"},
+        )[0]
         self.company = Company.objects.create(
             name="Empresa Test", province=self.province, organism=self.organism
         )
         self.other_company = Company.objects.create(
             name="Otra Empresa", province=self.province, organism=self.organism
         )
-        self.fuel_type = FuelType.objects.create(name="Nafta Super")
-        self.other_fuel_type = FuelType.objects.create(name="Diesel")
+        self.fuel_type = FuelType.objects.create(name="Nafta Super Test")
+        self.other_fuel_type = FuelType.objects.create(name="Diesel Test")
 
         self.user = CustomUser.objects.create_user(
             email="gestor@example.com", password="pass1234"
@@ -184,10 +187,11 @@ class FuelTypePriceAPITests(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["fuel_type_name"], "Nafta Super")
+        self.assertEqual(response.data["fuel_type_name"], "Nafta Super Test")
         self.assertEqual(response.data["company_name"], "Empresa Test")
 
     def test_list_fuel_type_prices(self):
+        existing = FuelTypePrice.objects.count()
         FuelTypePrice.objects.create(
             fuel_type=self.fuel_type,
             company=self.company,
@@ -196,7 +200,7 @@ class FuelTypePriceAPITests(TestCase):
         )
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
+        self.assertEqual(len(response.data), existing + 1)
 
     def test_filter_by_fuel_type(self):
         FuelTypePrice.objects.create(
@@ -215,7 +219,7 @@ class FuelTypePriceAPITests(TestCase):
             self.list_url, {"fuel_type": self.fuel_type.id}
         )
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["fuel_type_name"], "Nafta Super")
+        self.assertEqual(response.data[0]["fuel_type_name"], "Nafta Super Test")
 
     def test_filter_by_company(self):
         FuelTypePrice.objects.create(

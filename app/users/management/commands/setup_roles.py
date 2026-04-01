@@ -17,10 +17,10 @@ class Command(BaseCommand):
             group.permissions.clear()  # reset before re-adding
 
             for perm_codename in perms:
-                try:
-                    perm = Permission.objects.get(codename=perm_codename)
-                    group.permissions.add(perm)
-                except Permission.DoesNotExist:
+                found = Permission.objects.filter(codename=perm_codename)
+                if found.exists():
+                    group.permissions.add(*found)
+                else:
                     self.stdout.write(
                         self.style.WARNING(f"Permission {perm_codename} not found")
                     )

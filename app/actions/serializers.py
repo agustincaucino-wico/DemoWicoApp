@@ -122,30 +122,45 @@ class AddDependentDirectlySerializer(serializers.Serializer):
                     "La cuenta titular no existe, está inactiva o no te pertenece"
                 )
 
-        # Validate that the user to add exists
+        # Check if user exists - if not, we'll create an AuthorizedEmail
         try:
             dependent_user = CustomUser.objects.get(email=dependent_email)
+            attrs["dependent_user"] = dependent_user
+            attrs["user_registered"] = True
         except CustomUser.DoesNotExist:
-            raise serializers.ValidationError("No existe un usuario con ese email")
+            attrs["dependent_user"] = None
+            attrs["user_registered"] = False
 
         # Validate user is not inviting themselves
-        if request and dependent_user == request.user:
+        if request and attrs.get("dependent_user") == request.user:
             raise serializers.ValidationError(
                 "No puedes agregarte como adherido a ti mismo"
             )
 
-        # Validate there's no active relationship already
-        if Dependents.objects.filter(
-            holder_account=holder_account,
-            dependent_account__user__email=dependent_email,
-            end_date__isnull=True,
+        # Validate there's no active relationship already (only if user is registered)
+        if attrs["user_registered"]:
+            if Dependents.objects.filter(
+                holder_account=holder_account,
+                dependent_account__user__email=dependent_email,
+                end_date__isnull=True,
+            ).exists():
+                raise serializers.ValidationError(
+                    "Ya existe una relación activa con esta cuenta"
+                )
+
+        # Check if there's already a pending AuthorizedEmail for unregistered users
+        from accounts.models import AuthorizedEmail
+
+        if AuthorizedEmail.objects.filter(
+            email=dependent_email,
+            dependent_of=holder_account,
+            status="pending",
         ).exists():
             raise serializers.ValidationError(
-                "Ya existe una relación activa con esta cuenta"
+                "Ya existe una invitación pendiente para este email"
             )
 
         attrs["holder_account"] = holder_account
-        attrs["dependent_user"] = dependent_user
         return attrs
 
 

@@ -8,6 +8,7 @@ from .models import (
     CompanyAssignment,
     DependentInvitation,
     Organism,
+    AuthorizedEmail,
 )
 from myapp.admin import my_admin_site
 
@@ -132,3 +133,32 @@ class OrganismAdmin(admin.ModelAdmin):
 
 
 my_admin_site.register(Organism, OrganismAdmin)
+
+
+class AuthorizedEmailAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "email",
+        "holder_email",
+        "special",
+        "unlimited_balance",
+        "status",
+        "invited_at",
+        "accepted_at",
+    )
+    search_fields = ("email", "dependent_of__user__email")
+    list_filter = ("status", "special", "unlimited_balance", "invited_at")
+    readonly_fields = ("invited_at", "accepted_at")
+    autocomplete_fields = ("dependent_of", "company", "organism")
+
+    def holder_email(self, obj):
+        return (
+            obj.dependent_of.user.email
+            if obj.dependent_of and obj.dependent_of.user
+            else None
+        )
+
+    holder_email.short_description = "Email Titular"
+
+
+my_admin_site.register(AuthorizedEmail, AuthorizedEmailAdmin)

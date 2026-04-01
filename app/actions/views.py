@@ -22,6 +22,7 @@ from accounts.models import (
     Plates,
     CompanyAssignment,
     AuthorizedPlate,
+    AuthorizedEmail,
 )
 from stations.models import StationAttendantAssignment
 from stations.serializers import StationSerializer
@@ -69,8 +70,9 @@ class InvitationViewSet(viewsets.ViewSet):
     def add_dependent_directly(self, request):
         """
         Directly add a user as dependent to a holder account.
-        Creates the dependent account and relationship without requiring invitation acceptance.
-        Expects: holder_account_id, dependent_email
+        If the user is registered, creates the dependent account and relationship directly.
+        If the user is NOT registered, creates an AuthorizedEmail and sends an invitation
+        to download the app. When the user registers, the dependent account is auto-created.
         """
         serializer = AddDependentDirectlySerializer(
             data=request.data, context={"request": request}
@@ -82,12 +84,60 @@ class InvitationViewSet(viewsets.ViewSet):
                 with transaction.atomic():
                     holder_account = validated_data["holder_account"]
                     dependent_user = validated_data["dependent_user"]
+                    user_registered = validated_data["user_registered"]
 
-                    # Create dependent account
+                    # If user is not registered, create AuthorizedEmail and send invitation
+                    if not user_registered:
+                        # Get holder's company assignment if any
+                        holder_company_assignment = CompanyAssignment.objects.filter(
+                            user=holder_account.user
+                        ).first()
+                        holder_company = getattr(
+                            holder_company_assignment, "company", None
+                        )
+
+                        authorized_email = AuthorizedEmail.objects.create(
+                            email=validated_data["dependent_email"],
+                            dependent_of=holder_account,
+                            special=holder_account.special,
+                            unlimited_balance=holder_account.unlimited_balance,
+                            company=holder_company,
+                            organism=holder_company.organism
+                            if holder_company
+                            else None,
+                        )
+
+                        # Send invitation email to download the app
+                        try:
+                            holder_user = holder_account.user
+                            holder_name = (
+                                f"{holder_user.first_name} {holder_user.last_name}".strip()
+                                or holder_user.email
+                            )
+                            email_service.send_app_download_invitation(
+                                to_email=validated_data["dependent_email"],
+                                holder_name=holder_name,
+                                holder_email=holder_user.email,
+                            )
+                        except Exception:
+                            print("Error sending app download invitation email")
+
+                        return Response(
+                            {
+                                "message": "El usuario no está registrado en la app. Se envió una invitación por email.",
+                                "authorized_email_id": authorized_email.id,
+                                "user_registered": False,
+                            },
+                            status=status.HTTP_201_CREATED,
+                        )
+
+                    # User is registered - proceed with direct addition
                     dependent_account = Account.objects.create(
                         user=dependent_user,
                         balance=0,
                         account_type="dependent",
+                        special=holder_account.special,
+                        unlimited_balance=holder_account.unlimited_balance,
                     )
 
                     # Create dependent relationship
@@ -103,6 +153,22 @@ class InvitationViewSet(viewsets.ViewSet):
                         dependent_user.groups.add(fleet_group)
                     except Group.DoesNotExist:
                         pass
+
+                    # Assign CompanyAssignment if holder has one and dependent doesn't
+                    holder_company = CompanyAssignment.objects.filter(
+                        user=holder_account.user
+                    ).first()
+                    if (
+                        holder_company
+                        and not CompanyAssignment.objects.filter(
+                            user=dependent_user
+                        ).exists()
+                    ):
+                        CompanyAssignment.objects.create(
+                            user=dependent_user,
+                            company=holder_company.company,
+                            start_date=timezone.now().date(),
+                        )
 
                     # Send notification email to the dependent
                     try:
@@ -121,6 +187,7 @@ class InvitationViewSet(viewsets.ViewSet):
                             "message": "Dependent added successfully",
                             "dependent_account_id": dependent_account.id,
                             "relationship_id": dependent_relationship.id,
+                            "user_registered": True,
                         },
                         status=status.HTTP_201_CREATED,
                     )

@@ -17,6 +17,11 @@ class StartFuelLoadSerializer(serializers.Serializer):
 class CompleteFuelLoadSerializer(serializers.Serializer):
     id_operation = serializers.IntegerField()
     final_amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    fuel_type = serializers.IntegerField(required=False, allow_null=True)
+    odometer_km = serializers.IntegerField(required=False, allow_null=True)
+    quantity_liters = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False, allow_null=True
+    )
 
 
 class CancelFuelLoadRequestSerializer(serializers.Serializer):

@@ -3,13 +3,21 @@ from django.test import TestCase
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import Permission, Group
+from django.urls import reverse
 
 from rest_framework.test import APIClient
 from rest_framework import status
 
 from users.models import CustomUser
 from users.roles import ROLES
-from .models import Account, Dependents, Plates, DependentInvitation
+from .models import (
+    Account,
+    Dependents,
+    Plates,
+    DependentInvitation,
+    Organism,
+    AuthorizedEmail,
+)
 
 
 class AccountsTestCase(TestCase):
@@ -295,7 +303,7 @@ class AccountsTestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_add_dependent_with_nonexistent_email(self):
-        """Test adding dependent with email that doesn't exist"""
+        """Test adding dependent with email that doesn't exist creates a pending invitation"""
         payload = {
             "holder_account_id": self.holder_account.id,
             "dependent_email": "nonexistent@example.com",
@@ -303,7 +311,15 @@ class AccountsTestCase(TestCase):
         response = self.holder_client.post(
             "/actions/invitations/add-dependent/", payload, format="json"
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertFalse(response.data.get("user_registered", True))
+        self.assertTrue(
+            AuthorizedEmail.objects.filter(
+                email="nonexistent@example.com",
+                dependent_of=self.holder_account,
+                status="pending",
+            ).exists()
+        )
 
     def test_add_dependent_with_invalid_holder_account(self):
         """Test adding dependent with holder account that doesn't belong to user"""
@@ -1056,3 +1072,379 @@ class GestorAndFlotaRoleTestCase(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+# ---------------------------------------------------------------------------
+# Organism tests
+# ---------------------------------------------------------------------------
+
+
+class OrganismModelTests(TestCase):
+    def test_create_organism(self):
+        org = Organism.objects.create(
+            name="Organismo genérico",
+            cuit="30-12345678-9",
+            billing_type="invoice",
+        )
+        self.assertEqual(str(org), "Organismo genérico")
+        self.assertEqual(org.billing_type, "invoice")
+
+    def test_organism_unique_name(self):
+        Organism.objects.create(
+            name="Organismo A", cuit="30-11111111-1", billing_type="invoice"
+        )
+        with self.assertRaises(Exception):
+            Organism.objects.create(
+                name="Organismo A", cuit="30-22222222-2", billing_type="prepaid"
+            )
+
+    def test_organism_unique_cuit(self):
+        Organism.objects.create(
+            name="Organismo A", cuit="30-11111111-1", billing_type="invoice"
+        )
+        with self.assertRaises(Exception):
+            Organism.objects.create(
+                name="Organismo B", cuit="30-11111111-1", billing_type="prepaid"
+            )
+
+    def test_organism_billing_types(self):
+        org_invoice = Organism.objects.create(
+            name="Facturación", cuit="30-11111111-1", billing_type="invoice"
+        )
+        org_prepaid = Organism.objects.create(
+            name="Prepago", cuit="30-22222222-2", billing_type="prepaid"
+        )
+        self.assertEqual(org_invoice.billing_type, "invoice")
+        self.assertEqual(org_prepaid.billing_type, "prepaid")
+
+
+class OrganismAPITests(TestCase):
+    def setUp(self):
+        self.gestor_user = CustomUser.objects.create_user(
+            email="gestor@example.com", password="pass1234"
+        )
+        self._assign_role(self.gestor_user, "Gestor")
+        self.gestor_client = APIClient()
+        self.gestor_client.force_authenticate(user=self.gestor_user)
+
+        self.regular_user = CustomUser.objects.create_user(
+            email="regular@example.com", password="pass1234"
+        )
+        self.regular_client = APIClient()
+        self.regular_client.force_authenticate(user=self.regular_user)
+
+        self.flota_user = CustomUser.objects.create_user(
+            email="flota@example.com", password="pass1234"
+        )
+        self._assign_role(self.flota_user, "Flota")
+        self.flota_client = APIClient()
+        self.flota_client.force_authenticate(user=self.flota_user)
+
+        self.list_url = reverse("organism-list")
+
+    def _assign_role(self, user, role_name):
+        group, _ = Group.objects.get_or_create(name=role_name)
+        permissions = Permission.objects.filter(codename__in=ROLES.get(role_name, []))
+        group.permissions.set(permissions)
+        user.groups.add(group)
+
+    def test_gestor_can_list_organisms(self):
+        Organism.objects.create(
+            name="Org A", cuit="30-11111111-1", billing_type="invoice"
+        )
+        response = self.gestor_client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), Organism.objects.count())
+
+    def test_gestor_can_create_organism(self):
+        response = self.gestor_client.post(
+            self.list_url,
+            {
+                "name": "Organismo de Prueba",
+                "cuit": "30-99999999-9",
+                "billing_type": "invoice",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(Organism.objects.filter(name="Organismo de Prueba").exists())
+
+    def test_gestor_can_update_organism(self):
+        org = Organism.objects.create(
+            name="Original", cuit="30-11111111-1", billing_type="invoice"
+        )
+        url = reverse("organism-detail", args=[org.id])
+        response = self.gestor_client.patch(
+            url, {"billing_type": "prepaid"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        org.refresh_from_db()
+        self.assertEqual(org.billing_type, "prepaid")
+
+    def test_gestor_can_delete_organism(self):
+        org = Organism.objects.create(
+            name="To Delete", cuit="30-11111111-1", billing_type="invoice"
+        )
+        url = reverse("organism-detail", args=[org.id])
+        response = self.gestor_client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Organism.objects.filter(id=org.id).exists())
+
+    def test_regular_user_cannot_list(self):
+        response = self.regular_client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_regular_user_cannot_create(self):
+        response = self.regular_client.post(
+            self.list_url,
+            {"name": "Hack", "cuit": "30-99999999-9", "billing_type": "invoice"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_flota_user_cannot_list(self):
+        """Flota users have no organism permissions."""
+        response = self.flota_client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_flota_user_cannot_create(self):
+        response = self.flota_client.post(
+            self.list_url,
+            {"name": "Org Flota", "cuit": "30-88888888-8", "billing_type": "prepaid"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+# ---------------------------------------------------------------------------
+# AuthorizedEmail (invitation) tests
+# ---------------------------------------------------------------------------
+
+
+class AuthorizedEmailTestCase(TestCase):
+    """Tests for the AuthorizedEmail invitation flow and permissions."""
+
+    LIST_URL = "/accounts/authorized-emails/"
+
+    def setUp(self):
+        # Holder user with Flota role and a holder account
+        self.holder_user = CustomUser.objects.create_user(
+            email="holder@example.com", password="pass1234"
+        )
+        self._assign_role(self.holder_user, "Flota")
+        self.holder_account = Account.objects.create(
+            user=self.holder_user, balance=500, account_type="holder"
+        )
+        self.holder_client = APIClient()
+        self.holder_client.force_authenticate(user=self.holder_user)
+
+        # Another Flota holder (different user)
+        self.other_holder_user = CustomUser.objects.create_user(
+            email="other-holder@example.com", password="pass1234"
+        )
+        self._assign_role(self.other_holder_user, "Flota")
+        self.other_holder_account = Account.objects.create(
+            user=self.other_holder_user, balance=0, account_type="holder"
+        )
+        self.other_holder_client = APIClient()
+        self.other_holder_client.force_authenticate(user=self.other_holder_user)
+
+        # Gestor user
+        self.gestor_user = CustomUser.objects.create_user(
+            email="gestor@example.com", password="pass1234"
+        )
+        self._assign_role(self.gestor_user, "Gestor")
+        self.gestor_client = APIClient()
+        self.gestor_client.force_authenticate(user=self.gestor_user)
+
+        # Unauthenticated / plain user with no role
+        self.plain_user = CustomUser.objects.create_user(
+            email="plain@example.com", password="pass1234"
+        )
+        self.plain_client = APIClient()
+        self.plain_client.force_authenticate(user=self.plain_user)
+
+    def _assign_role(self, user, role_name):
+        group, _ = Group.objects.get_or_create(name=role_name)
+        permissions = Permission.objects.filter(codename__in=ROLES.get(role_name, []))
+        group.permissions.set(permissions)
+        user.groups.add(group)
+
+    def _create_invitation(self, email="unregistered@example.com", holder_account=None):
+        holder_account = holder_account or self.holder_account
+        return AuthorizedEmail.objects.create(
+            email=email,
+            dependent_of=holder_account,
+            status="pending",
+        )
+
+    # --- model-level tests ---
+
+    def test_create_invitation_model(self):
+        inv = self._create_invitation()
+        self.assertEqual(inv.status, "pending")
+        self.assertEqual(inv.email, "unregistered@example.com")
+        self.assertEqual(inv.dependent_of, self.holder_account)
+
+    def test_cancel_invitation_model(self):
+        inv = self._create_invitation()
+        inv.cancel()
+        inv.refresh_from_db()
+        self.assertEqual(inv.status, "cancelled")
+
+    def test_cancel_already_cancelled_raises(self):
+        inv = self._create_invitation()
+        inv.cancel()
+        inv.refresh_from_db()
+        with self.assertRaises(ValidationError):
+            inv.cancel()
+
+    def test_cancel_accepted_invitation_raises(self):
+        inv = self._create_invitation()
+        inv.status = "accepted"
+        inv.save()
+        with self.assertRaises(ValidationError):
+            inv.cancel()
+
+    def test_multiple_cancelled_same_email_allowed(self):
+        """After removing the unique constraint, multiple cancelled records are allowed."""
+        inv1 = self._create_invitation(email="dup@example.com")
+        inv1.cancel()
+        inv2 = self._create_invitation(email="dup@example.com")
+        inv2.cancel()
+        self.assertEqual(
+            AuthorizedEmail.objects.filter(
+                email="dup@example.com", status="cancelled"
+            ).count(),
+            2,
+        )
+
+    # --- API via add-dependent endpoint ---
+
+    def test_invite_unregistered_user_creates_authorized_email(self):
+        payload = {
+            "holder_account_id": self.holder_account.id,
+            "dependent_email": "newuser@example.com",
+        }
+        response = self.holder_client.post(
+            "/actions/invitations/add-dependent/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertFalse(response.data.get("user_registered", True))
+        self.assertTrue(
+            AuthorizedEmail.objects.filter(
+                email="newuser@example.com",
+                dependent_of=self.holder_account,
+                status="pending",
+            ).exists()
+        )
+
+    def test_invite_same_unregistered_user_twice_fails(self):
+        """Cannot create a second pending invitation for the same email+account."""
+        payload = {
+            "holder_account_id": self.holder_account.id,
+            "dependent_email": "twice@example.com",
+        }
+        self.holder_client.post(
+            "/actions/invitations/add-dependent/", payload, format="json"
+        )
+        response = self.holder_client.post(
+            "/actions/invitations/add-dependent/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_can_reinvite_after_cancellation(self):
+        """After cancelling an invitation, the same email can be invited again."""
+        inv = self._create_invitation(email="reinvite@example.com")
+        inv.cancel()
+
+        payload = {
+            "holder_account_id": self.holder_account.id,
+            "dependent_email": "reinvite@example.com",
+        }
+        response = self.holder_client.post(
+            "/actions/invitations/add-dependent/", payload, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            AuthorizedEmail.objects.filter(
+                email="reinvite@example.com",
+                dependent_of=self.holder_account,
+                status="pending",
+            ).count(),
+            1,
+        )
+
+    # --- GET /accounts/authorized-emails/ ---
+
+    def test_flota_user_sees_own_invitations(self):
+        self._create_invitation(
+            email="a@example.com", holder_account=self.holder_account
+        )
+        self._create_invitation(
+            email="b@example.com", holder_account=self.other_holder_account
+        )
+
+        response = self.holder_client.get(self.LIST_URL)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        emails = [i["email"] for i in response.data]
+        self.assertIn("a@example.com", emails)
+        self.assertNotIn("b@example.com", emails)
+
+    def test_gestor_sees_all_invitations(self):
+        self._create_invitation(
+            email="a@example.com", holder_account=self.holder_account
+        )
+        self._create_invitation(
+            email="b@example.com", holder_account=self.other_holder_account
+        )
+
+        response = self.gestor_client.get(self.LIST_URL)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        emails = [i["email"] for i in response.data]
+        self.assertIn("a@example.com", emails)
+        self.assertIn("b@example.com", emails)
+
+    def test_plain_user_cannot_list_invitations(self):
+        response = self.plain_client.get(self.LIST_URL)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # --- POST /accounts/authorized-emails/{id}/cancel/ ---
+
+    def test_flota_user_can_cancel_own_invitation(self):
+        inv = self._create_invitation()
+        response = self.holder_client.post(f"{self.LIST_URL}{inv.id}/cancel/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        inv.refresh_from_db()
+        self.assertEqual(inv.status, "cancelled")
+
+    def test_flota_user_cannot_cancel_other_users_invitation(self):
+        inv = self._create_invitation(
+            email="other@example.com", holder_account=self.other_holder_account
+        )
+        response = self.holder_client.post(f"{self.LIST_URL}{inv.id}/cancel/")
+        # 403 or 404 — not allowed either way
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND],
+        )
+
+    def test_gestor_can_cancel_any_invitation(self):
+        inv = self._create_invitation(
+            email="x@example.com", holder_account=self.other_holder_account
+        )
+        response = self.gestor_client.post(f"{self.LIST_URL}{inv.id}/cancel/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        inv.refresh_from_db()
+        self.assertEqual(inv.status, "cancelled")
+
+    def test_cancel_already_cancelled_returns_400(self):
+        inv = self._create_invitation()
+        inv.cancel()
+        response = self.holder_client.post(f"{self.LIST_URL}{inv.id}/cancel/")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_plain_user_cannot_cancel(self):
+        inv = self._create_invitation()
+        response = self.plain_client.post(f"{self.LIST_URL}{inv.id}/cancel/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

@@ -306,3 +306,118 @@ class CompanyAssignment(models.Model):
         return (
             f"Company Assignment {self.id} - {self.user.email} to {self.company.name}"
         )
+
+
+class AuthorizedEmail(models.Model):
+    """
+    Represents an invitation sent to an unregistered email.
+    When a holder tries to add a dependent whose email is not registered in the app,
+    an AuthorizedEmail record is created and an invitation email is sent.
+    When the user registers with that email, the dependent account is auto-created.
+    """
+
+    STATUS_CHOICES = [
+        ("pending", "Pendiente"),
+        ("accepted", "Aceptada"),
+        ("expired", "Expirada"),
+        ("cancelled", "Cancelada"),
+    ]
+
+    email = models.EmailField()
+    dependent_of = models.ForeignKey(
+        Account,
+        on_delete=models.CASCADE,
+        related_name="authorized_emails",
+        help_text="Cuenta titular a la que se asociará el adherente",
+    )
+    special = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="Si tiene valor, la cuenta adherente creada también será special",
+    )
+    unlimited_balance = models.BooleanField(
+        default=False,
+        help_text="Si es True, la cuenta adherente creada tendrá saldo ilimitado",
+    )
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="authorized_emails",
+    )
+    organism = models.ForeignKey(
+        Organism,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="authorized_emails",
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    invited_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-invited_at"]
+        verbose_name = "Email autorizado"
+        verbose_name_plural = "Emails autorizados"
+
+    def __str__(self):
+        return f"AuthorizedEmail {self.email} -> {self.dependent_of.user.email} ({self.status})"
+
+    def accept(self, user):
+        """
+        Accept the authorized email: create dependent account, Dependents relation,
+        assign Flota role, and CompanyAssignment if applicable.
+        """
+        if self.status != "pending":
+            raise ValidationError("Solo se pueden aceptar invitaciones pendientes")
+
+        with transaction.atomic():
+            # Create dependent account with matching special and unlimited_balance fields
+            dependent_account = Account.objects.create(
+                user=user,
+                balance=0,
+                account_type="dependent",
+                special=self.special,
+                unlimited_balance=self.unlimited_balance,
+            )
+
+            # Create the dependent relationship
+            Dependents.objects.create(
+                holder_account=self.dependent_of,
+                dependent_account=dependent_account,
+                start_date=timezone.now().date(),
+            )
+
+            # Assign Flota role
+            try:
+                fleet_group = Group.objects.get(name="Flota")
+                user.groups.add(fleet_group)
+            except Group.DoesNotExist:
+                pass
+
+            # Create CompanyAssignment if company is specified
+            if self.company:
+                CompanyAssignment.objects.get_or_create(
+                    user=user,
+                    defaults={
+                        "company": self.company,
+                        "start_date": timezone.now().date(),
+                    },
+                )
+
+            # Update status
+            self.status = "accepted"
+            self.accepted_at = timezone.now()
+            self.save()
+
+            return dependent_account
+
+    def cancel(self):
+        """Cancel this authorized email invitation."""
+        if self.status != "pending":
+            raise ValidationError("Solo se pueden cancelar invitaciones pendientes")
+        self.status = "cancelled"
+        self.save()
