@@ -1,3 +1,4 @@
+import math
 from decimal import Decimal
 
 from rest_framework import mixins, viewsets, status
@@ -171,7 +172,9 @@ class BalanceRechargeRequestViewSet(viewsets.ModelViewSet):
             for (
                 tier
             ) in BonificationTier.objects.all():  # ordered by order, min_liters asc
-                min_amount = tier.min_liters * fuel_price
+                raw_amount = tier.min_liters * fuel_price
+                # Redondeo hacia abajo al millar, igual que en la UI
+                min_amount = Decimal(str(math.floor(float(raw_amount) / 1000) * 1000))
                 if recharge_request.amount >= min_amount:
                     applicable_tier = tier
             if applicable_tier:
