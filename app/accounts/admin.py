@@ -19,12 +19,22 @@ class AccountAdmin(admin.ModelAdmin):
         "user",
         "balance",
         "account_type",
+        "display_type",
+        "special",
+        "unlimited_balance",
         "is_active",
         "created_at",
         "updated_at",
     )
     search_fields = ("user__email", "user__first_name", "user__last_name")
-    list_filter = ("account_type", "is_active", "created_at")
+    list_filter = (
+        "account_type",
+        "display_type",
+        "special",
+        "unlimited_balance",
+        "is_active",
+        "created_at",
+    )
     readonly_fields = ("created_at", "updated_at")
     autocomplete_fields = ("user",)
 
@@ -49,6 +59,7 @@ class PlatesAdmin(admin.ModelAdmin):
         "holder_account",
         "brand",
         "model",
+        "year",
         "start_date",
         "end_date",
     )
@@ -80,10 +91,10 @@ class AuthorizedPlateAdmin(admin.ModelAdmin):
 
 
 class CompanyAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "province")
-    search_fields = ("name", "province__name")
-    list_filter = ("province",)
-    autocomplete_fields = ("province",)
+    list_display = ("id", "name", "province", "organism")
+    search_fields = ("name", "province__name", "organism__name")
+    list_filter = ("province", "organism")
+    autocomplete_fields = ("province", "organism")
 
 
 class CompanyAssignmentAdmin(admin.ModelAdmin):
@@ -127,9 +138,9 @@ my_admin_site.register(DependentInvitation, DependentInvitationAdmin)
 
 
 class OrganismAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "cuit", "billing_type")
+    list_display = ("id", "name", "cuit", "billing_type", "tax_condition")
     search_fields = ("name", "cuit")
-    list_filter = ("billing_type",)
+    list_filter = ("billing_type", "tax_condition")
 
 
 my_admin_site.register(Organism, OrganismAdmin)
@@ -141,13 +152,27 @@ class AuthorizedEmailAdmin(admin.ModelAdmin):
         "email",
         "holder_email",
         "special",
+        "display_type",
         "unlimited_balance",
+        "company",
+        "organism",
         "status",
         "invited_at",
         "accepted_at",
     )
-    search_fields = ("email", "dependent_of__user__email")
-    list_filter = ("status", "special", "unlimited_balance", "invited_at")
+    search_fields = (
+        "email",
+        "dependent_of__user__email",
+        "company__name",
+        "organism__name",
+    )
+    list_filter = (
+        "status",
+        "special",
+        "display_type",
+        "unlimited_balance",
+        "invited_at",
+    )
     readonly_fields = ("invited_at", "accepted_at")
     autocomplete_fields = ("dependent_of", "company", "organism")
 

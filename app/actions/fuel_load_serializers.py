@@ -8,6 +8,12 @@ class InitiateFuelLoadSerializer(serializers.Serializer):
     station = serializers.IntegerField()
     plate = serializers.IntegerField(required=False, allow_null=True)
     fill_full_tank = serializers.BooleanField(default=False)
+    # Córdoba-specific fields (required for special="cordoba" accounts)
+    fuel_type = serializers.IntegerField(required=False, allow_null=True)
+    odometer_km = serializers.IntegerField(required=False, allow_null=True)
+    quantity_liters = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False, allow_null=True
+    )
 
 
 class StartFuelLoadSerializer(serializers.Serializer):
@@ -45,6 +51,13 @@ class PendingFuelLoadSerializer(serializers.Serializer):
     status = serializers.CharField()
     initial_amount = serializers.DecimalField(max_digits=12, decimal_places=2)
     fill_full_tank = serializers.BooleanField()
+    display_type = serializers.SerializerMethodField()
+    special = serializers.SerializerMethodField()
+    fuel_type_name = serializers.SerializerMethodField()
+    quantity_liters = serializers.DecimalField(
+        max_digits=12, decimal_places=2, allow_null=True, required=False
+    )
+    odometer_km = serializers.IntegerField(allow_null=True, required=False)
 
     @extend_schema_field(serializers.CharField)
     def get_client_full_name(self, obj) -> str:
@@ -57,6 +70,20 @@ class PendingFuelLoadSerializer(serializers.Serializer):
     def get_plate(self, obj) -> str | None:
         if obj.plate:
             return obj.plate.plate_number
+        return None
+
+    @extend_schema_field(serializers.CharField)
+    def get_display_type(self, obj) -> str:
+        return obj.account.display_type or "pesos"
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_special(self, obj) -> str | None:
+        return obj.account.special
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_fuel_type_name(self, obj) -> str | None:
+        if obj.fuel_type:
+            return obj.fuel_type.name
         return None
 
 

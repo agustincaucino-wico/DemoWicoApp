@@ -47,6 +47,9 @@ def initiate_fuel_load(request):
         station_id = serializer.validated_data["station"]
         plate_id = serializer.validated_data.get("plate")
         fill_full_tank = serializer.validated_data.get("fill_full_tank", False)
+        # Córdoba-specific fields
+        fuel_type_id = serializer.validated_data.get("fuel_type")
+        odometer_km = serializer.validated_data.get("odometer_km")
 
         # Validate account exists and belongs to user
         from accounts.models import Account
@@ -156,6 +159,29 @@ def initiate_fuel_load(request):
         else:
             operation_status = "pending"
 
+        # Validate required fields
+        from stations.models import FuelType
+
+        # fuel_type: optional in backend (older app versions may not send it)
+        # but enforced as required from the frontend
+        fuel_type_obj = None
+        if fuel_type_id:
+            try:
+                fuel_type_obj = FuelType.objects.get(id=fuel_type_id, is_active=True)
+            except FuelType.DoesNotExist:
+                return Response(
+                    {"error": "Tipo de combustible no encontrado o inactivo"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        # Cordoba accounts: odometer is required
+        if account.special == "cordoba":
+            if odometer_km is None:
+                return Response(
+                    {"error": "El odómetro es obligatorio."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         # For future implementation of payment methods
         # from operation.models import PaymentMethod
 
@@ -180,6 +206,8 @@ def initiate_fuel_load(request):
             initial_amount=amount,
             status=operation_status,
             fill_full_tank=fill_full_tank,
+            fuel_type=fuel_type_obj,
+            odometer_km=odometer_km,
         )
 
         response_serializer = FuelLoadOperationSerializer(operation)
@@ -320,7 +348,7 @@ def pending_fuel_loads(request):
                 Q(status=FuelLoadOperation.STATUS_PENDING)
                 | Q(status=FuelLoadOperation.STATUS_IN_PROGRESS, attendant=request.user)
             )
-            .select_related("account__user", "plate")
+            .select_related("account__user", "plate", "fuel_type")
             .order_by("timestamp_started")
         )
 
@@ -431,19 +459,13 @@ def complete_fuel_load(request):
 
                 account = operation.account
 
-                # Cordoba accounts require fuel_type, odometer_km, and quantity_liters
+                # Cordoba accounts require quantity_liters from attendant
+                # (fuel_type and odometer_km were already set during initiation)
                 if account.special == "cordoba":
-                    missing = []
-                    if not fuel_type_id:
-                        missing.append("fuel_type")
-                    if odometer_km is None:
-                        missing.append("odometer_km")
                     if not quantity_liters:
-                        missing.append("quantity_liters")
-                    if missing:
                         return Response(
                             {
-                                "error": f"Los campos: {', '.join(missing)} son obligatorios"
+                                "error": "El campo cantidad de litros es obligatorio para cuentas Córdoba"
                             },
                             status=status.HTTP_400_BAD_REQUEST,
                         )

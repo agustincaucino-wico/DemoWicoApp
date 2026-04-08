@@ -35,7 +35,10 @@ from users.models import CustomUser
 from users.serializers import UserSerializer
 from operation.models import Transfer, FuelLoadOperation, ModifyFunds
 from utils.email_service import email_service
-from utils.remito_pdf import build_fuel_load_remito_pdf
+from utils.remito_pdf import (
+    build_fuel_load_remito_pdf,
+    build_fuel_load_remito_empresa_pdf,
+)
 from .serializers import (
     DependentInvitationSerializer,
     CreateInvitationSerializer,
@@ -990,7 +993,7 @@ def get_account_movements(request):
         # 1. Fuel Load Operations
         fuel_loads = FuelLoadOperation.objects.filter(
             account=account, status=FuelLoadOperation.STATUS_COMPLETED
-        ).select_related("station", "plate")
+        ).select_related("station", "plate", "fuel_type")
 
         for fuel_load in fuel_loads:
             movements.append(
@@ -1010,6 +1013,13 @@ def get_account_movements(request):
                     else None,
                     "status": fuel_load.get_status_display(),
                     "remito_url": f"/actions/user/movements/fuel-load/{fuel_load.id}/remito/",
+                    "fuel_type_name": fuel_load.fuel_type.name
+                    if fuel_load.fuel_type
+                    else None,
+                    "quantity_liters": str(fuel_load.quantity_liters)
+                    if fuel_load.quantity_liters
+                    else None,
+                    "odometer_km": fuel_load.odometer_km,
                 }
             )
 
@@ -1149,7 +1159,23 @@ def get_fuel_load_remito(request, operation_id):
             status=status.HTTP_403_FORBIDDEN,
         )
 
-    pdf_bytes = build_fuel_load_remito_pdf(fuel_load)
+    # Detectar si el usuario pertenece a una empresa/organismo
+    account_user = fuel_load.account.user if fuel_load.account else None
+    company_assignment = None
+    if account_user:
+        company_assignment = (
+            CompanyAssignment.objects.select_related("company__organism")
+            .filter(user=account_user, end_date__isnull=True)
+            .first()
+        )
+
+    if company_assignment and company_assignment.company:
+        company = company_assignment.company
+        organism = company.organism
+        pdf_bytes = build_fuel_load_remito_empresa_pdf(fuel_load, company, organism)
+    else:
+        pdf_bytes = build_fuel_load_remito_pdf(fuel_load)
+
     filename = f"remito_carga_{fuel_load.id}.pdf"
 
     response = HttpResponse(pdf_bytes, content_type="application/pdf")

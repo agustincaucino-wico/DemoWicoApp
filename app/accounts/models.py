@@ -12,9 +12,21 @@ class Organism(models.Model):
         ("prepaid", "Prepago"),
     ]
 
+    TAX_CONDITIONS = [
+        ("responsable_inscripto", "Responsable Inscripto"),
+        ("exento", "Exento"),
+    ]
+
     name = models.CharField(max_length=255, unique=True)
     cuit = models.CharField(max_length=13, unique=True)
     billing_type = models.CharField(max_length=20, choices=BILLING_TYPES)
+    tax_condition = models.CharField(
+        max_length=30,
+        choices=TAX_CONDITIONS,
+        default="responsable_inscripto",
+        verbose_name="Condición ante IVA",
+        help_text="Condición fiscal del organismo frente al IVA",
+    )
 
     class Meta:
         ordering = ["name"]
@@ -27,10 +39,20 @@ class Organism(models.Model):
 
 class Account(models.Model):
     ACCOUNT_TYPES = [("holder", "Titular"), ("dependent", "Adherido")]
+    DISPLAY_TYPES = [
+        ("pesos", "Pesos"),
+        ("litros", "Litros"),
+    ]
 
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True)
     balance = models.DecimalField(max_digits=15, decimal_places=2)
     account_type = models.CharField(max_length=20, choices=ACCOUNT_TYPES)
+    display_type = models.CharField(
+        max_length=20,
+        choices=DISPLAY_TYPES,
+        default="pesos",
+        help_text="Determina cómo se muestra el saldo y los movimientos: en pesos o en litros",
+    )
     special = models.CharField(max_length=50, null=True, blank=True)
     unlimited_balance = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
@@ -336,6 +358,12 @@ class AuthorizedEmail(models.Model):
         blank=True,
         help_text="Si tiene valor, la cuenta adherente creada también será special",
     )
+    display_type = models.CharField(
+        max_length=20,
+        choices=Account.DISPLAY_TYPES,
+        default="pesos",
+        help_text="Tipo de visualización para la cuenta adherente creada (pesos o litros)",
+    )
     unlimited_balance = models.BooleanField(
         default=False,
         help_text="Si es True, la cuenta adherente creada tendrá saldo ilimitado",
@@ -375,12 +403,13 @@ class AuthorizedEmail(models.Model):
             raise ValidationError("Solo se pueden aceptar invitaciones pendientes")
 
         with transaction.atomic():
-            # Create dependent account with matching special and unlimited_balance fields
+            # Create dependent account with matching special, display_type and unlimited_balance fields
             dependent_account = Account.objects.create(
                 user=user,
                 balance=0,
                 account_type="dependent",
                 special=self.special,
+                display_type=self.display_type,
                 unlimited_balance=self.unlimited_balance,
             )
 

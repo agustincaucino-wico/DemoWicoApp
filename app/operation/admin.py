@@ -52,20 +52,39 @@ class FuelLoadOperationAdmin(admin.ModelAdmin):
         "initial_amount",
         "final_amount",
         "fill_full_tank",
+        "fuel_type",
+        "odometer_km",
+        "quantity_liters",
         "status",
         "payment_method",
         "timestamp_started",
         "timestamp_atended",
         "timestamp_finished",
+        "comments",
     )
-    list_filter = ("status", "fill_full_tank", "payment_method", "timestamp_started")
+    list_filter = (
+        "status",
+        "fill_full_tank",
+        "fuel_type",
+        "payment_method",
+        "timestamp_started",
+    )
     search_fields = (
         "account__user__email",
         "plate__plate_number",
         "station__name",
         "attendant__email",
+        "comments",
     )
-    autocomplete_fields = ("account", "plate", "attendant", "station", "payment_method")
+    autocomplete_fields = (
+        "account",
+        "plate",
+        "attendant",
+        "station",
+        "payment_method",
+        "fuel_type",
+    )
+    readonly_fields = ("timestamp_started",)
 
 
 @admin.register(Transfer, site=my_admin_site)

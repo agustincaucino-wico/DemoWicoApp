@@ -21,9 +21,20 @@ class FuelTypePriceAdmin(admin.ModelAdmin):
 
 @admin.register(Station, site=my_admin_site)
 class StationAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "province", "city", "street", "street_number")
-    list_filter = ("province", "city")
-    search_fields = ("name", "street", "city__name", "province__name")
+    list_display = (
+        "id",
+        "name",
+        "province",
+        "city",
+        "street",
+        "street_number",
+        "is_active",
+        "lat",
+        "lon",
+        "expendio",
+    )
+    list_filter = ("province", "city", "is_active")
+    search_fields = ("name", "street", "city__name", "province__name", "expendio")
 
 
 @admin.register(StationAttendantAssignment, site=my_admin_site)

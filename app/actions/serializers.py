@@ -274,3 +274,18 @@ class AccountMovementSerializer(serializers.Serializer):
         allow_null=True,
         help_text="Relative URL to download remito for fuel loads",
     )
+    fuel_type_name = serializers.CharField(
+        required=False,
+        allow_null=True,
+        help_text="Name of the fuel type (for Córdoba fuel loads)",
+    )
+    quantity_liters = serializers.CharField(
+        required=False,
+        allow_null=True,
+        help_text="Quantity in liters (for Córdoba fuel loads)",
+    )
+    odometer_km = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text="Odometer reading in km (for Córdoba fuel loads)",
+    )
