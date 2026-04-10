@@ -25,6 +25,8 @@ from .models import (
 from .serializers import (
     AccountSerializer,
     AccountBalanceUpdateSerializer,
+    AdminAccountCreateSerializer,
+    AdminAccountUpdateSerializer,
     DependentsSerializer,
     PlatesSerializer,
     PlatesUpdateSerializer,
@@ -69,11 +71,22 @@ class AccountViewSet(BaseLCViewSet):
     def get_queryset(self):
         """
         Filtrar cuentas según el usuario:
+        - Acciones admin (admin-update, reactivate, deactivate, list_all): incluir todas
         - Usuarios Flota (sin rol Gestor): solo sus propias cuentas
         - Usuarios con rol Gestor: acceso completo
         - Otros: según permisos del modelo
         """
-        queryset = super().get_queryset()
+        # Para acciones admin, incluir cuentas inactivas también
+        if self.action in (
+            "admin_update",
+            "reactivate",
+            "deactivate_account",
+            "list_all",
+        ):
+            queryset = Account.objects.all().order_by("id")
+        else:
+            queryset = Account.objects.filter(is_active=True).order_by("id")
+
         if should_apply_flota_restrictions(self.request.user):
             # Usuarios Flota solo ven sus propias cuentas
             return queryset.filter(user=self.request.user)
@@ -346,6 +359,144 @@ class AccountViewSet(BaseLCViewSet):
                 {"error": f"Error al desactivar la cuenta: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    # ── Admin-only endpoints ──────────────────────────────────────────────
+
+    def _is_admin_or_gestor(self, request):
+        return (
+            request.user.is_superuser
+            or request.user.groups.filter(name="Gestor").exists()
+        )
+
+    @extend_schema(
+        description="Lista TODAS las cuentas (activas e inactivas). Solo Gestor/superuser.",
+        responses={200: AccountSerializer(many=True)},
+    )
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="all",
+        permission_classes=[IsAuthenticated],
+    )
+    def list_all(self, request):
+        """Return all accounts including inactive ones. Gestor/superuser only."""
+        if not self._is_admin_or_gestor(request):
+            return Response(
+                {"error": "No tiene permisos para esta acción."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        qs = Account.objects.all().order_by("-created_at")
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
+    @extend_schema(
+        request=AdminAccountCreateSerializer,
+        responses={201: AccountSerializer},
+        description="Crea una cuenta para un usuario. Solo Gestor/superuser.",
+    )
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="admin-create",
+        permission_classes=[IsAuthenticated],
+    )
+    def admin_create(self, request):
+        """Create an account for a user. Gestor/superuser only."""
+        if not self._is_admin_or_gestor(request):
+            return Response(
+                {"error": "No tiene permisos para crear cuentas."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        serializer = AdminAccountCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        account = serializer.save()
+
+        # Asignar rol Flota al usuario si no lo tiene
+        try:
+            from django.contrib.auth.models import Group
+
+            fleet_group, _ = Group.objects.get_or_create(name="Flota")
+            account.user.groups.add(fleet_group)
+        except Exception:
+            pass
+
+        return Response(
+            AccountSerializer(account).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @extend_schema(
+        request=AdminAccountUpdateSerializer,
+        responses={200: AccountSerializer},
+        description="Modifica parámetros de una cuenta (display_type, special, unlimited_balance). Solo Gestor/superuser.",
+    )
+    @action(
+        detail=True,
+        methods=["patch"],
+        url_path="admin-update",
+        permission_classes=[IsAuthenticated],
+    )
+    def admin_update(self, request, pk=None):
+        """Update account params. Gestor/superuser only."""
+        if not self._is_admin_or_gestor(request):
+            return Response(
+                {"error": "No tiene permisos para modificar cuentas."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        account = self.get_object()
+        serializer = AdminAccountUpdateSerializer(
+            account, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(AccountSerializer(account).data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        request=None,
+        responses={200: AccountSerializer},
+        description="Reactiva una cuenta desactivada. Solo Gestor/superuser.",
+    )
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="reactivate",
+        permission_classes=[IsAuthenticated],
+    )
+    def reactivate(self, request, pk=None):
+        """Re-activate a deactivated account. Gestor/superuser only."""
+        if not self._is_admin_or_gestor(request):
+            return Response(
+                {"error": "No tiene permisos para reactivar cuentas."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        account = self.get_object()
+        if account.is_active:
+            return Response(
+                {"error": "La cuenta ya está activa."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        account.is_active = True
+        account.deactivated_at = None
+        account.deactivated_by = None
+        account.deactivation_reason = None
+        account.save()
+
+        # Re-asignar rol Flota si corresponde
+        try:
+            from django.contrib.auth.models import Group
+
+            fleet_group, _ = Group.objects.get_or_create(name="Flota")
+            account.user.groups.add(fleet_group)
+        except Exception:
+            pass
+
+        return Response(
+            {
+                "message": f"Cuenta #{account.id} reactivada correctamente.",
+                "account": AccountSerializer(account).data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @extend_schema(
         description="Consulta el saldo de una cuenta por DNI y patente. Retorna información de la cuenta asociada.",

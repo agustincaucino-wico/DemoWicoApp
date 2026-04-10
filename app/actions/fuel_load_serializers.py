@@ -99,6 +99,13 @@ class CheckOperationStatusSerializer(serializers.Serializer):
     balance = serializers.DecimalField(max_digits=12, decimal_places=2, allow_null=True)
     station_name = serializers.CharField(allow_null=True)
     plate = serializers.CharField(allow_null=True)
+    account_name = serializers.CharField(allow_null=True, required=False)
+    display_type = serializers.CharField(allow_null=True, required=False)
+    quantity_liters = serializers.DecimalField(
+        max_digits=10, decimal_places=2, allow_null=True, required=False
+    )
+    fuel_type_name = serializers.CharField(allow_null=True, required=False)
+    unlimited_balance = serializers.BooleanField(required=False, default=False)
 
 
 class FuelLoadStatusSerializer(serializers.Serializer):

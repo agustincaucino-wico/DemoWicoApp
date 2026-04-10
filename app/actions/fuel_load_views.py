@@ -589,13 +589,22 @@ def check_last_operation_status(request):
         # Get the most recent operation for the user
         operation = (
             FuelLoadOperation.objects.filter(account__user=request.user)
-            .select_related("account", "station", "plate")
+            .select_related("account", "account__user", "station", "plate", "fuel_type")
             .order_by("-timestamp_started")
             .first()
         )
 
         if not operation:
             return Response(status=status.HTTP_204_NO_CONTENT)
+
+        # Build account_name from the account's user
+        account_name = None
+        if operation.account and operation.account.user:
+            user = operation.account.user
+            if user.first_name and user.last_name:
+                account_name = f"{user.first_name} {user.last_name}"
+            else:
+                account_name = user.email
 
         serializer = CheckOperationStatusSerializer(
             {
@@ -606,6 +615,17 @@ def check_last_operation_status(request):
                 "balance": operation.account.balance if operation.account else None,
                 "station_name": operation.station.name if operation.station else None,
                 "plate": operation.plate.plate_number if operation.plate else None,
+                "account_name": account_name,
+                "display_type": operation.account.display_type
+                if operation.account
+                else None,
+                "quantity_liters": operation.quantity_liters,
+                "fuel_type_name": operation.fuel_type.name
+                if operation.fuel_type
+                else None,
+                "unlimited_balance": operation.account.unlimited_balance
+                if operation.account
+                else False,
             }
         )
         return Response(serializer.data)

@@ -205,6 +205,38 @@ class AccountBalanceUpdateSerializer(serializers.ModelSerializer):
         return value
 
 
+class AdminAccountCreateSerializer(serializers.ModelSerializer):
+    """Serializer para que un admin cree una cuenta para un usuario."""
+
+    class Meta:
+        model = Account
+        fields = [
+            "user",
+            "account_type",
+            "balance",
+            "display_type",
+            "special",
+            "unlimited_balance",
+        ]
+
+    def validate_balance(self, value):
+        if value < 0:
+            raise serializers.ValidationError("El balance no puede ser negativo")
+        return value
+
+
+class AdminAccountUpdateSerializer(serializers.ModelSerializer):
+    """Serializer para que un admin modifique parámetros de una cuenta."""
+
+    class Meta:
+        model = Account
+        fields = [
+            "display_type",
+            "special",
+            "unlimited_balance",
+        ]
+
+
 class AuthorizedEmailSerializer(serializers.ModelSerializer):
     dependent_of_email = serializers.EmailField(
         source="dependent_of.user.email", read_only=True

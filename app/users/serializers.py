@@ -62,6 +62,7 @@ class UserSerializer(serializers.ModelSerializer):
     email_verified = serializers.BooleanField(read_only=True)
     is_superuser = serializers.BooleanField(read_only=True)
     is_staff = serializers.BooleanField(read_only=True)
+    is_active = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = UserModel
@@ -83,6 +84,7 @@ class UserSerializer(serializers.ModelSerializer):
             "email_verified",
             "is_superuser",
             "is_staff",
+            "is_active",
         ]
 
     def __init__(self, *args, **kwargs):
