@@ -7,6 +7,14 @@ class FuelType(models.Model):
 
     name = models.CharField(max_length=100, unique=True)
     is_active = models.BooleanField(default=True)
+    biofuel_percentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Porcentaje de biocombustible",
+        help_text="Porcentaje de biocombustible contenido en este combustible (ej: 7.5 para 7.5%)",
+    )
 
     class Meta:
         ordering = ["name"]

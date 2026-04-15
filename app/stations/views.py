@@ -22,10 +22,10 @@ class FuelTypeViewSet(
     mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
-    """CRUD de tipos de combustible. Solo Gestores."""
+    """CRUD de tipos de combustible. Lectura para cualquier usuario autenticado, escritura solo Gestores."""
 
     authentication_classes = [JWTAuthentication]
-    permission_classes = [StrictDjangoModelPermissions]
+    permission_classes = [AuthenticatedReadDjangoModelPermissions]
     queryset = FuelType.objects.all().order_by("name")
     serializer_class = FuelTypeSerializer
 

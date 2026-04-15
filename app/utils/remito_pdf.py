@@ -18,6 +18,12 @@ def _format_currency(amount):
     return f"${formatted}"
 
 
+def _format_liters(amount):
+    if amount is None:
+        return "-"
+    return f"{amount:,.2f} L".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
 def _format_datetime(value):
     if value is None:
         return "-"
@@ -52,6 +58,8 @@ def build_fuel_load_remito_pdf(fuel_load):
     station = fuel_load.station
     account = fuel_load.account
     user = account.user if account else None
+    display_in_liters = (account.display_type == "litros") if account else False
+    fuel_type_name = fuel_load.fuel_type.name if fuel_load.fuel_type else "-"
 
     margin = 12 * mm
     content_left = margin
@@ -234,19 +242,27 @@ def build_fuel_load_remito_pdf(fuel_load):
     pdf.setFillColor(colors.white)
     pdf.setFont("Helvetica-Bold", 9)
 
-    left_col_w = 25 * mm
-    pdf.drawCentredString(content_left + left_col_w / 2, table_top - 5 * mm, "MONTO")
+    val_col_w = 25 * mm
+    fuel_col_w = 30 * mm
+    desc_col_x = content_left + val_col_w + fuel_col_w
+    desc_col_w = content_width - val_col_w - fuel_col_w
+    val_col_header = "CANTIDAD" if display_in_liters else "MONTO"
     pdf.drawCentredString(
-        content_left + left_col_w + (content_width - left_col_w) / 2,
-        table_top - 5 * mm,
-        "DESCRIPCION",
+        content_left + val_col_w / 2, table_top - 5 * mm, val_col_header
+    )
+    pdf.drawCentredString(
+        content_left + val_col_w + fuel_col_w / 2, table_top - 5 * mm, "COMBUSTIBLE"
+    )
+    pdf.drawCentredString(
+        desc_col_x + desc_col_w / 2, table_top - 5 * mm, "DESCRIPCION"
     )
 
     pdf.setFillColor(colors.black)
     pdf.setLineWidth(0.5)
     pdf.line(
-        content_left + left_col_w, table_bottom, content_left + left_col_w, table_top
+        content_left + val_col_w, table_bottom, content_left + val_col_w, table_top
     )
+    pdf.line(desc_col_x, table_bottom, desc_col_x, table_top)
 
     row_count = 8
     row_h = (table_h - header_row_h) / row_count
@@ -258,14 +274,18 @@ def build_fuel_load_remito_pdf(fuel_load):
     if station and station.name:
         description = f"{description} - {station.name}"
 
+    val_cell = (
+        _format_liters(fuel_load.quantity_liters)
+        if display_in_liters
+        else _format_currency(operation_amount)
+    )
     row0_bottom = table_top - header_row_h - row_h
     pdf.setFont("Helvetica", 9)
+    pdf.drawString(content_left + 3 * mm, row0_bottom + 2 * mm, val_cell)
     pdf.drawString(
-        content_left + 3 * mm, row0_bottom + 2 * mm, _format_currency(operation_amount)
+        content_left + val_col_w + 3 * mm, row0_bottom + 2 * mm, fuel_type_name
     )
-    pdf.drawString(
-        content_left + left_col_w + 3 * mm, row0_bottom + 2 * mm, description
-    )
+    pdf.drawString(desc_col_x + 3 * mm, row0_bottom + 2 * mm, description)
 
     observations_top = table_bottom
     observations_bottom = observations_top - observations_h
@@ -321,7 +341,7 @@ def build_fuel_load_remito_empresa_pdf(fuel_load, company, organism):
     """
     Genera un remito PDF para empresas/organismos.
     En lugar de nombre y DNI del usuario, muestra la empresa y el organismo.
-    El CUIT y la condición ante IVA se obtienen del organismo.
+    El CUIT y la condición ante IVA se obtienen de la empresa (company).
     """
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)
@@ -333,14 +353,23 @@ def build_fuel_load_remito_empresa_pdf(fuel_load, company, organism):
         else fuel_load.initial_amount
     )
     station = fuel_load.station
+    account = fuel_load.account
+    display_in_liters = (account.display_type == "litros") if account else False
+    fuel_type_name = fuel_load.fuel_type.name if fuel_load.fuel_type else "-"
 
-    organism_cuit = organism.cuit if organism else "-"
     organism_name = organism.name if organism else "-"
     company_name = company.name if company else "-"
+    organism_cuit = (company.cuit or "-") if company else "-"
     is_resp_inscripto = (
-        organism.tax_condition == "responsable_inscripto" if organism else False
+        company.tax_condition == "responsable_inscripto"
+        if company and company.tax_condition
+        else False
     )
-    is_exento = organism.tax_condition == "exento" if organism else False
+    is_exento = (
+        company.tax_condition == "exento"
+        if company and company.tax_condition
+        else False
+    )
 
     margin = 12 * mm
     content_left = margin
@@ -525,19 +554,27 @@ def build_fuel_load_remito_empresa_pdf(fuel_load, company, organism):
     pdf.setFillColor(colors.white)
     pdf.setFont("Helvetica-Bold", 9)
 
-    left_col_w = 25 * mm
-    pdf.drawCentredString(content_left + left_col_w / 2, table_top - 5 * mm, "MONTO")
+    val_col_w = 25 * mm
+    fuel_col_w = 30 * mm
+    desc_col_x = content_left + val_col_w + fuel_col_w
+    desc_col_w = content_width - val_col_w - fuel_col_w
+    val_col_header = "CANTIDAD" if display_in_liters else "MONTO"
     pdf.drawCentredString(
-        content_left + left_col_w + (content_width - left_col_w) / 2,
-        table_top - 5 * mm,
-        "DESCRIPCION",
+        content_left + val_col_w / 2, table_top - 5 * mm, val_col_header
+    )
+    pdf.drawCentredString(
+        content_left + val_col_w + fuel_col_w / 2, table_top - 5 * mm, "COMBUSTIBLE"
+    )
+    pdf.drawCentredString(
+        desc_col_x + desc_col_w / 2, table_top - 5 * mm, "DESCRIPCION"
     )
 
     pdf.setFillColor(colors.black)
     pdf.setLineWidth(0.5)
     pdf.line(
-        content_left + left_col_w, table_bottom, content_left + left_col_w, table_top
+        content_left + val_col_w, table_bottom, content_left + val_col_w, table_top
     )
+    pdf.line(desc_col_x, table_bottom, desc_col_x, table_top)
 
     row_count = 8
     row_h = (table_h - header_row_h) / row_count
@@ -549,14 +586,18 @@ def build_fuel_load_remito_empresa_pdf(fuel_load, company, organism):
     if station and station.name:
         description = f"{description} - {station.name}"
 
+    val_cell = (
+        _format_liters(fuel_load.quantity_liters)
+        if display_in_liters
+        else _format_currency(operation_amount)
+    )
     row0_bottom = table_top - header_row_h - row_h
     pdf.setFont("Helvetica", 9)
+    pdf.drawString(content_left + 3 * mm, row0_bottom + 2 * mm, val_cell)
     pdf.drawString(
-        content_left + 3 * mm, row0_bottom + 2 * mm, _format_currency(operation_amount)
+        content_left + val_col_w + 3 * mm, row0_bottom + 2 * mm, fuel_type_name
     )
-    pdf.drawString(
-        content_left + left_col_w + 3 * mm, row0_bottom + 2 * mm, description
-    )
+    pdf.drawString(desc_col_x + 3 * mm, row0_bottom + 2 * mm, description)
 
     # ---------- Observaciones ----------
     observations_top = table_bottom

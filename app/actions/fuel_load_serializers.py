@@ -133,3 +133,26 @@ class FuelLoadStatusSerializer(serializers.Serializer):
         if obj.plate:
             return obj.plate.plate_number
         return None
+
+
+class CarbonLoadSerializer(serializers.Serializer):
+    """Serializer for carbon footprint loads (used in the carbon market screen)."""
+
+    id = serializers.IntegerField()
+    date = serializers.DateTimeField(source="timestamp_finished")
+    fuel_type = serializers.SerializerMethodField()
+    liters = serializers.DecimalField(
+        source="quantity_liters", max_digits=10, decimal_places=2, allow_null=True
+    )
+    co2_saved_kg = serializers.DecimalField(
+        max_digits=10, decimal_places=4, allow_null=True
+    )
+    station_name = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_fuel_type(self, obj) -> str | None:
+        return obj.fuel_type.name if obj.fuel_type else None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_station_name(self, obj) -> str | None:
+        return obj.station.name if obj.station else None

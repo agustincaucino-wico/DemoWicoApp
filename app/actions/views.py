@@ -20,7 +20,6 @@ from accounts.models import (
     DependentInvitation,
     Dependents,
     Plates,
-    CompanyAssignment,
     AuthorizedPlate,
     AuthorizedEmail,
 )
@@ -91,18 +90,13 @@ class InvitationViewSet(viewsets.ViewSet):
 
                     # If user is not registered, create AuthorizedEmail and send invitation
                     if not user_registered:
-                        # Get holder's company assignment if any
-                        holder_company_assignment = CompanyAssignment.objects.filter(
-                            user=holder_account.user
-                        ).first()
-                        holder_company = getattr(
-                            holder_company_assignment, "company", None
-                        )
+                        holder_company = holder_account.company
 
                         authorized_email = AuthorizedEmail.objects.create(
                             email=validated_data["dependent_email"],
                             dependent_of=holder_account,
                             special=holder_account.special,
+                            display_type=holder_account.display_type,
                             unlimited_balance=holder_account.unlimited_balance,
                             company=holder_company,
                             organism=holder_company.organism
@@ -140,7 +134,9 @@ class InvitationViewSet(viewsets.ViewSet):
                         balance=0,
                         account_type="dependent",
                         special=holder_account.special,
+                        display_type=holder_account.display_type,
                         unlimited_balance=holder_account.unlimited_balance,
+                        company=holder_account.company,
                     )
 
                     # Create dependent relationship
@@ -156,22 +152,6 @@ class InvitationViewSet(viewsets.ViewSet):
                         dependent_user.groups.add(fleet_group)
                     except Group.DoesNotExist:
                         pass
-
-                    # Assign CompanyAssignment if holder has one and dependent doesn't
-                    holder_company = CompanyAssignment.objects.filter(
-                        user=holder_account.user
-                    ).first()
-                    if (
-                        holder_company
-                        and not CompanyAssignment.objects.filter(
-                            user=dependent_user
-                        ).exists()
-                    ):
-                        CompanyAssignment.objects.create(
-                            user=dependent_user,
-                            company=holder_company.company,
-                            start_date=timezone.now().date(),
-                        )
 
                     # Send notification email to the dependent
                     try:
@@ -556,14 +536,12 @@ class UserInfoView(APIView):
         )
         plates_data = PlatesSerializer(plates, many=True).data
 
-        # Get company assignment and company data
-        company_assignment = CompanyAssignment.objects.filter(user=user).first()
+        # Get company data from the holder account
+        holder_account_obj = accounts.filter(account_type="holder").first()
         company_data = None
-        if company_assignment:
+        if holder_account_obj and holder_account_obj.company:
             company_data = {
-                "company": CompanySerializer(company_assignment.company).data,
-                "start_date": company_assignment.start_date,
-                "end_date": company_assignment.end_date,
+                "company": CompanySerializer(holder_account_obj.company).data,
             }
 
         # Get invitation data
@@ -993,7 +971,7 @@ def get_account_movements(request):
         # 1. Fuel Load Operations
         fuel_loads = FuelLoadOperation.objects.filter(
             account=account, status=FuelLoadOperation.STATUS_COMPLETED
-        ).select_related("station", "plate", "fuel_type")
+        ).select_related("station", "station__city", "plate", "fuel_type")
 
         for fuel_load in fuel_loads:
             movements.append(
@@ -1020,6 +998,13 @@ def get_account_movements(request):
                     if fuel_load.quantity_liters
                     else None,
                     "odometer_km": fuel_load.odometer_km,
+                    "station_address": (
+                        f"{fuel_load.station.street} {fuel_load.station.street_number or ''}, {fuel_load.station.city.name}".strip(
+                            ", "
+                        )
+                        if fuel_load.station and fuel_load.station.street
+                        else None
+                    ),
                 }
             )
 
@@ -1132,6 +1117,7 @@ def get_fuel_load_remito(request, operation_id):
         fuel_load = (
             FuelLoadOperation.objects.select_related(
                 "account__user",
+                "account__company__organism",
                 "station__city",
                 "station__province",
                 "plate",
@@ -1159,18 +1145,9 @@ def get_fuel_load_remito(request, operation_id):
             status=status.HTTP_403_FORBIDDEN,
         )
 
-    # Detectar si el usuario pertenece a una empresa/organismo
-    account_user = fuel_load.account.user if fuel_load.account else None
-    company_assignment = None
-    if account_user:
-        company_assignment = (
-            CompanyAssignment.objects.select_related("company__organism")
-            .filter(user=account_user, end_date__isnull=True)
-            .first()
-        )
-
-    if company_assignment and company_assignment.company:
-        company = company_assignment.company
+    # Detectar si la cuenta tiene empresa asociada
+    company = fuel_load.account.company if fuel_load.account else None
+    if company:
         organism = company.organism
         pdf_bytes = build_fuel_load_remito_empresa_pdf(fuel_load, company, organism)
     else:

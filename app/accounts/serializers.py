@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import date
 from rest_framework import serializers
 from .models import Account, Dependents, Plates, AuthorizedPlate
 from .models import Company, CompanyAssignment, Organism, AuthorizedEmail
@@ -14,6 +15,29 @@ class AccountSerializer(serializers.ModelSerializer):
     deactivated_by_email = serializers.EmailField(
         source="deactivated_by.email", read_only=True
     )
+    company_name = serializers.CharField(
+        source="company.name", read_only=True, allow_null=True
+    )
+    holder_account_id = serializers.SerializerMethodField()
+    holder_account_name = serializers.SerializerMethodField()
+
+    def get_holder_account_id(self, obj):
+        dep = obj.dependents_as_dependent.filter(end_date__isnull=True).first()
+        return dep.holder_account_id if dep else None
+
+    def get_holder_account_name(self, obj):
+        dep = (
+            obj.dependents_as_dependent.filter(end_date__isnull=True)
+            .select_related("holder_account__user")
+            .first()
+        )
+        if not dep:
+            return None
+        user = dep.holder_account.user
+        if user:
+            full = f"{user.first_name} {user.last_name}".strip()
+            return full or user.email
+        return f"Cuenta #{dep.holder_account_id}"
 
     class Meta:
         model = Account
@@ -163,7 +187,16 @@ class CompanySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Company
-        fields = "__all__"
+        fields = [
+            "id",
+            "name",
+            "province",
+            "organism",
+            "organism_name",
+            "cuit",
+            "billing_type",
+            "tax_condition",
+        ]
 
 
 class CompanyAssignmentSerializer(serializers.ModelSerializer):
@@ -208,6 +241,13 @@ class AccountBalanceUpdateSerializer(serializers.ModelSerializer):
 class AdminAccountCreateSerializer(serializers.ModelSerializer):
     """Serializer para que un admin cree una cuenta para un usuario."""
 
+    holder_account = serializers.PrimaryKeyRelatedField(
+        queryset=Account.objects.filter(account_type="holder", is_active=True),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
+
     class Meta:
         model = Account
         fields = [
@@ -217,12 +257,25 @@ class AdminAccountCreateSerializer(serializers.ModelSerializer):
             "display_type",
             "special",
             "unlimited_balance",
+            "company",
+            "holder_account",
         ]
 
     def validate_balance(self, value):
         if value < 0:
             raise serializers.ValidationError("El balance no puede ser negativo")
         return value
+
+    def create(self, validated_data):
+        holder_account = validated_data.pop("holder_account", None)
+        account = super().create(validated_data)
+        if holder_account is not None:
+            Dependents.objects.create(
+                holder_account=holder_account,
+                dependent_account=account,
+                start_date=date.today(),
+            )
+        return account
 
 
 class AdminAccountUpdateSerializer(serializers.ModelSerializer):
@@ -234,6 +287,7 @@ class AdminAccountUpdateSerializer(serializers.ModelSerializer):
             "display_type",
             "special",
             "unlimited_balance",
+            "company",
         ]
 
 

@@ -95,6 +95,14 @@ class FuelLoadOperation(models.Model):
     quantity_liters = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True
     )
+    co2_saved_kg = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        verbose_name="CO₂ evitado (kgCO2e)",
+        help_text="Emisiones totales evitadas en kgCO2e. Calculado según el tipo de biocombustible.",
+    )
 
     class Meta:
         ordering = ("-timestamp_started",)

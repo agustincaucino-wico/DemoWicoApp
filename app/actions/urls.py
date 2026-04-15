@@ -89,4 +89,10 @@ urlpatterns = [
         fuel_load_views.get_station_operations,
         name="get-station-operations",
     ),
+    # Carbon footprint
+    path(
+        "carbon-loads/",
+        fuel_load_views.get_carbon_loads,
+        name="get-carbon-loads",
+    ),
 ]

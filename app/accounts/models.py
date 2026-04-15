@@ -55,6 +55,14 @@ class Account(models.Model):
     )
     special = models.CharField(max_length=50, null=True, blank=True)
     unlimited_balance = models.BooleanField(default=False)
+    company = models.ForeignKey(
+        "Company",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="accounts",
+        help_text="Empresa a la que pertenece esta cuenta",
+    )
     is_active = models.BooleanField(default=True)
     deactivated_at = models.DateTimeField(null=True, blank=True)
     deactivated_by = models.ForeignKey(
@@ -300,6 +308,16 @@ class AuthorizedPlate(models.Model):
 
 
 class Company(models.Model):
+    BILLING_TYPES = [
+        ("invoice", "Facturación"),
+        ("prepaid", "Prepago"),
+    ]
+
+    TAX_CONDITIONS = [
+        ("responsable_inscripto", "Responsable Inscripto"),
+        ("exento", "Exento"),
+    ]
+
     name = models.CharField(max_length=255, unique=True)
     province = models.ForeignKey(Province, on_delete=models.CASCADE)
     organism = models.ForeignKey(
@@ -308,6 +326,27 @@ class Company(models.Model):
         null=True,
         blank=True,
         related_name="companies",
+    )
+    cuit = models.CharField(
+        max_length=13,
+        null=True,
+        blank=True,
+        verbose_name="CUIT",
+    )
+    billing_type = models.CharField(
+        max_length=20,
+        choices=BILLING_TYPES,
+        null=True,
+        blank=True,
+        verbose_name="Tipo de facturación",
+    )
+    tax_condition = models.CharField(
+        max_length=30,
+        choices=TAX_CONDITIONS,
+        null=True,
+        blank=True,
+        verbose_name="Condición ante IVA",
+        help_text="Condición fiscal de la empresa frente al IVA",
     )
 
     class Meta:
@@ -403,7 +442,7 @@ class AuthorizedEmail(models.Model):
             raise ValidationError("Solo se pueden aceptar invitaciones pendientes")
 
         with transaction.atomic():
-            # Create dependent account with matching special, display_type and unlimited_balance fields
+            # Create dependent account with matching special, display_type, unlimited_balance and company fields
             dependent_account = Account.objects.create(
                 user=user,
                 balance=0,
@@ -411,6 +450,7 @@ class AuthorizedEmail(models.Model):
                 special=self.special,
                 display_type=self.display_type,
                 unlimited_balance=self.unlimited_balance,
+                company=self.company,
             )
 
             # Create the dependent relationship
@@ -426,16 +466,6 @@ class AuthorizedEmail(models.Model):
                 user.groups.add(fleet_group)
             except Group.DoesNotExist:
                 pass
-
-            # Create CompanyAssignment if company is specified
-            if self.company:
-                CompanyAssignment.objects.get_or_create(
-                    user=user,
-                    defaults={
-                        "company": self.company,
-                        "start_date": timezone.now().date(),
-                    },
-                )
 
             # Update status
             self.status = "accepted"

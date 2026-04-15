@@ -792,7 +792,7 @@ class AuthorizedPlateViewSet(BaseLCViewSet):
         )
 
 
-class CompanyViewSet(BaseLCViewSet):
+class CompanyViewSet(BaseLCUDViewSet):
     queryset = Company.objects.all().order_by("id")
     serializer_class = CompanySerializer
 

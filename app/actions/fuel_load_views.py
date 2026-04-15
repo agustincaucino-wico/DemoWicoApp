@@ -504,6 +504,16 @@ def complete_fuel_load(request):
                 if quantity_liters:
                     operation.quantity_liters = quantity_liters
 
+                # ── Carbon footprint calculation ─────────────────────────────
+                from utils.carbon_calculator import calculate_carbon_saving
+
+                fuel_name = operation.fuel_type.name if operation.fuel_type else ""
+                liters_for_calc = quantity_liters or operation.quantity_liters
+                if fuel_name and liters_for_calc:
+                    operation.co2_saved_kg = calculate_carbon_saving(
+                        fuel_name, liters_for_calc
+                    )
+
                 operation.save()
 
                 response_serializer = FuelLoadOperationSerializer(operation)
@@ -798,4 +808,37 @@ def get_station_operations(request, station_id):
 
     # Serialize and return
     serializer = FuelLoadOperationSerializer(operations, many=True)
+    return Response(serializer.data)
+
+
+@extend_schema(
+    responses={200: None},
+    tags=["actions - carbon"],
+    description=(
+        "Returns all completed fuel loads for the authenticated user that have a "
+        "positive co2_saved_kg value. Used to populate the carbon footprint screen."
+    ),
+    summary="Get Carbon Loads",
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_carbon_loads(request):
+    """
+    Returns the user's completed biofuel loads with their CO₂ savings.
+    Only loads with co2_saved_kg > 0 are included.
+    """
+    from actions.fuel_load_serializers import CarbonLoadSerializer
+
+    operations = (
+        FuelLoadOperation.objects.filter(
+            account__user=request.user,
+            status=FuelLoadOperation.STATUS_COMPLETED,
+            co2_saved_kg__isnull=False,
+            co2_saved_kg__gt=0,
+        )
+        .select_related("station", "fuel_type")
+        .order_by("-timestamp_finished")
+    )
+
+    serializer = CarbonLoadSerializer(operations, many=True)
     return Response(serializer.data)

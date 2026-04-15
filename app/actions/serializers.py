@@ -289,3 +289,8 @@ class AccountMovementSerializer(serializers.Serializer):
         allow_null=True,
         help_text="Odometer reading in km (for Córdoba fuel loads)",
     )
+    station_address = serializers.CharField(
+        required=False,
+        allow_null=True,
+        help_text="Street address of the station (for fuel loads)",
+    )
