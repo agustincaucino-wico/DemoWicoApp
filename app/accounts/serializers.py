@@ -56,9 +56,30 @@ class AccountSerializer(serializers.ModelSerializer):
 
 
 class DependentsSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(
+        source='dependent_account.user.email', read_only=True
+    )
+    dni = serializers.CharField(
+        source='dependent_account.user.dni', read_only=True
+    )
+    dependent_user = serializers.SerializerMethodField()
+
+    def get_dependent_user(self, obj):
+        user = getattr(getattr(obj.dependent_account, 'user', None), '__dict__', None)
+        u = obj.dependent_account.user if obj.dependent_account else None
+        if not u:
+            return None
+        return {
+            'email': u.email,
+            'dni': u.dni,
+            'first_name': u.first_name or '',
+            'last_name': u.last_name or '',
+        }
+
     class Meta:
         model = Dependents
-        fields = "__all__"
+        fields = ['id', 'holder_account', 'dependent_account', 'start_date', 'end_date',
+                  'email', 'dni', 'dependent_user']
 
 
 class PlatesSerializer(serializers.ModelSerializer):

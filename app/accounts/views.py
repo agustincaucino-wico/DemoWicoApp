@@ -614,20 +614,19 @@ class AccountViewSet(BaseLCViewSet):
 
 
 class DependentsViewSet(BaseLCViewSet):
-    queryset = Dependents.objects.all().order_by("id")
+    queryset = Dependents.objects.filter(end_date__isnull=True).order_by("id")
     serializer_class = DependentsSerializer
     permission_classes = [DjangoModelOrObjectOwner]
 
     def get_queryset(self):
         """
-        Filtrar adheridos según el usuario:
+        Filtrar adheridos según el usuario (solo activos, end_date nulo):
         - Usuarios Flota (sin rol Gestor): solo adheridos de sus cuentas titulares
         - Usuarios con rol Gestor: acceso completo
         - Otros: según permisos del modelo
         """
         queryset = super().get_queryset()
         if should_apply_flota_restrictions(self.request.user):
-            # Usuarios Flota solo ven adheridos de sus cuentas titulares
             user_accounts = self.request.user.account_set.filter(account_type="holder")
             return queryset.filter(holder_account__in=user_accounts)
         return queryset
