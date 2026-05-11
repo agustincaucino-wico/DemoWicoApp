@@ -205,6 +205,9 @@ class CompanySerializer(serializers.ModelSerializer):
     organism_name = serializers.CharField(
         source="organism.name", read_only=True, allow_null=True
     )
+    province_name = serializers.CharField(
+        source="province.name", read_only=True, allow_null=True
+    )
 
     class Meta:
         model = Company
@@ -212,6 +215,7 @@ class CompanySerializer(serializers.ModelSerializer):
             "id",
             "name",
             "province",
+            "province_name",
             "organism",
             "organism_name",
             "cuit",

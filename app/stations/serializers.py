@@ -23,6 +23,12 @@ class StationSerializer(serializers.ModelSerializer):
     city_name = serializers.CharField(source="city.name", read_only=True)
     lat = serializers.FloatField(required=False, allow_null=True)
     lon = serializers.FloatField(required=False, allow_null=True)
+    expendio = serializers.ChoiceField(
+        choices=[("", ""), *Station.EXPENDIO_CHOICES],
+        allow_null=True,
+        allow_blank=True,
+        required=False,
+    )
 
     class Meta:
         model = Station

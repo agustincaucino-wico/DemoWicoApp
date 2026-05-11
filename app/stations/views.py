@@ -85,6 +85,13 @@ class StationViewSet(
             )
             if not include_inactive:
                 queryset = queryset.filter(is_active=True)
+                # Ocultar estaciones de Córdoba a usuarios que no tienen una cuenta con special="cordoba"
+                user = self.request.user
+                has_cordoba_account = user.account_set.filter(
+                    special="cordoba", is_active=True
+                ).exists()
+                if not has_cordoba_account:
+                    queryset = queryset.exclude(expendio__iexact="cordoba")
 
         province_id = self.request.query_params.get("province")
         city_id = self.request.query_params.get("city")

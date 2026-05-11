@@ -50,6 +50,10 @@ class FuelTypePrice(models.Model):
 
 
 class Station(models.Model):
+    EXPENDIO_CHOICES = [
+        ("cordoba", "Exclusiva Biocombustibles Córdoba"),
+    ]
+
     name = models.CharField(max_length=255)
     province = models.ForeignKey("locations.Province", on_delete=models.CASCADE)
     city = models.ForeignKey("locations.City", on_delete=models.CASCADE)
@@ -58,7 +62,9 @@ class Station(models.Model):
     lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     lon = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     is_active = models.BooleanField(default=True)
-    expendio = models.CharField(max_length=100, null=True, blank=True)
+    expendio = models.CharField(
+        max_length=100, null=True, blank=True, choices=EXPENDIO_CHOICES
+    )
 
     class Meta:
         verbose_name = "Station"

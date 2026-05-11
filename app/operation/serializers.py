@@ -18,6 +18,7 @@ class FuelLoadOperationSerializer(serializers.ModelSerializer):
     fuel_type_name = serializers.CharField(
         source="fuel_type.name", read_only=True, allow_null=True
     )
+    account_special = serializers.SerializerMethodField()
 
     class Meta:
         model = FuelLoadOperation
@@ -55,6 +56,12 @@ class FuelLoadOperationSerializer(serializers.ModelSerializer):
     def get_plate_number(self, obj):
         if obj.plate:
             return obj.plate.plate_number
+        return None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_account_special(self, obj):
+        if obj.account:
+            return obj.account.special
         return None
 
 
