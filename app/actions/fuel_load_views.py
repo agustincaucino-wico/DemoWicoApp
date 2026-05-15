@@ -41,6 +41,7 @@ def initiate_fuel_load(request):
     Creates FuelLoadOperation with pending or no_balance status.
     """
     serializer = InitiateFuelLoadSerializer(data=request.data)
+    print(serializer.initial_data)  # Debug: print incoming data
     if serializer.is_valid():
         account_id = serializer.validated_data["account"]
         amount = serializer.validated_data["amount"]
@@ -124,7 +125,11 @@ def initiate_fuel_load(request):
             elif account.account_type == "dependent":
                 # If it's a dependent account, check if there's an active authorization
                 from accounts.models import AuthorizedPlate
-
+                print("Account is: ", account)  # Debug: print account info
+                print(AuthorizedPlate.objects.filter(
+                    # dependent_account=account,
+                    plate=plate,
+                ))  # Debug: print the queryset for authorization check
                 has_authorization = AuthorizedPlate.objects.filter(
                     dependent_account=account,
                     plate=plate,

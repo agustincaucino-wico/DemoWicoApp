@@ -421,6 +421,12 @@ class AuthorizedEmail(models.Model):
         blank=True,
         related_name="authorized_emails",
     )
+    pending_plates = models.ManyToManyField(
+        "Plates",
+        blank=True,
+        related_name="pending_authorized_emails",
+        help_text="Patentes a asignar automáticamente cuando el usuario se registre",
+    )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     invited_at = models.DateTimeField(auto_now_add=True)
     accepted_at = models.DateTimeField(null=True, blank=True)
@@ -466,6 +472,20 @@ class AuthorizedEmail(models.Model):
                 user.groups.add(fleet_group)
             except Group.DoesNotExist:
                 pass
+
+            # Assign pending plates pre-loaded from the Excel import
+            for plate in self.pending_plates.all():
+                # Only create if there's no active authorization already
+                if not AuthorizedPlate.objects.filter(
+                    dependent_account=dependent_account,
+                    plate=plate,
+                    end_date__isnull=True,
+                ).exists():
+                    AuthorizedPlate.objects.create(
+                        dependent_account=dependent_account,
+                        plate=plate,
+                        start_date=timezone.now().date(),
+                    )
 
             # Update status
             self.status = "accepted"

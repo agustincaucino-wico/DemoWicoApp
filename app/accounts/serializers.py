@@ -23,6 +23,8 @@ class AccountSerializer(serializers.ModelSerializer):
 
     def get_holder_account_id(self, obj):
         dep = obj.dependents_as_dependent.filter(end_date__isnull=True).first()
+        if dep is None:
+            dep = obj.dependents_as_dependent.order_by('-end_date').first()
         return dep.holder_account_id if dep else None
 
     def get_holder_account_name(self, obj):
@@ -31,6 +33,12 @@ class AccountSerializer(serializers.ModelSerializer):
             .select_related("holder_account__user")
             .first()
         )
+        if dep is None:
+            dep = (
+                obj.dependents_as_dependent.order_by('-end_date')
+                .select_related("holder_account__user")
+                .first()
+            )
         if not dep:
             return None
         user = dep.holder_account.user
@@ -63,6 +71,9 @@ class DependentsSerializer(serializers.ModelSerializer):
         source='dependent_account.user.dni', read_only=True
     )
     dependent_user = serializers.SerializerMethodField()
+    holder_email = serializers.EmailField(
+        source='holder_account.user.email', read_only=True
+    )
 
     def get_dependent_user(self, obj):
         user = getattr(getattr(obj.dependent_account, 'user', None), '__dict__', None)
@@ -79,7 +90,7 @@ class DependentsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Dependents
         fields = ['id', 'holder_account', 'dependent_account', 'start_date', 'end_date',
-                  'email', 'dni', 'dependent_user']
+                  'email', 'dni', 'dependent_user', 'holder_email']
 
 
 class PlatesSerializer(serializers.ModelSerializer):
@@ -291,6 +302,32 @@ class AdminAccountCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("El balance no puede ser negativo")
         return value
 
+    def validate(self, attrs):
+        account_type = attrs.get("account_type")
+        holder_account = attrs.get("holder_account")
+        user = attrs.get("user")
+
+        if account_type == "holder" and user:
+            if Account.objects.filter(user=user, account_type="holder").exists():
+                raise serializers.ValidationError(
+                    {"user": "Este usuario ya tiene una cuenta titular."}
+                )
+
+        if account_type == "dependent" and holder_account and user:
+            already_exists = Dependents.objects.filter(
+                holder_account=holder_account,
+                dependent_account__user=user,
+                end_date__isnull=True,
+            ).exists()
+            if already_exists:
+                raise serializers.ValidationError(
+                    {
+                        "holder_account": "Este usuario ya tiene una cuenta adherente activa para esa cuenta titular."
+                    }
+                )
+
+        return attrs
+
     def create(self, validated_data):
         holder_account = validated_data.pop("holder_account", None)
         account = super().create(validated_data)
@@ -326,6 +363,13 @@ class AuthorizedEmailSerializer(serializers.ModelSerializer):
     organism_name = serializers.CharField(
         source="organism.name", read_only=True, allow_null=True
     )
+    pending_plate_ids = serializers.PrimaryKeyRelatedField(
+        source="pending_plates", many=True, read_only=True
+    )
+    pending_plate_numbers = serializers.SerializerMethodField()
+
+    def get_pending_plate_numbers(self, obj):
+        return list(obj.pending_plates.values_list("plate_number", flat=True))
 
     class Meta:
         model = AuthorizedEmail
@@ -344,5 +388,7 @@ class AuthorizedEmailSerializer(serializers.ModelSerializer):
             "status",
             "invited_at",
             "accepted_at",
+            "pending_plate_ids",
+            "pending_plate_numbers",
         ]
         read_only_fields = ["status", "invited_at", "accepted_at"]

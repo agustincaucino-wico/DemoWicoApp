@@ -4,6 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema, OpenApiExample
+from django.db import transaction
 from django.utils import timezone
 
 from myapp.permissions import StrictDjangoModelPermissions
@@ -67,7 +68,6 @@ class BaseLCUDViewSet(
 class AccountViewSet(BaseLCViewSet):
     queryset = Account.objects.filter(is_active=True).order_by("id")
     serializer_class = AccountSerializer
-
     def get_queryset(self):
         """
         Filtrar cuentas según el usuario:
@@ -86,12 +86,10 @@ class AccountViewSet(BaseLCViewSet):
             queryset = Account.objects.all().order_by("id")
         else:
             queryset = Account.objects.filter(is_active=True).order_by("id")
-
         if should_apply_flota_restrictions(self.request.user):
             # Usuarios Flota solo ven sus propias cuentas
             return queryset.filter(user=self.request.user)
         return queryset
-
     @extend_schema(
         request=AccountBalanceUpdateSerializer,
         responses={200: AccountBalanceUpdateSerializer},
@@ -620,16 +618,45 @@ class DependentsViewSet(BaseLCViewSet):
 
     def get_queryset(self):
         """
-        Filtrar adheridos según el usuario (solo activos, end_date nulo):
-        - Usuarios Flota (sin rol Gestor): solo adheridos de sus cuentas titulares
-        - Usuarios con rol Gestor: acceso completo
+        Filtrar adheridos según el usuario:
+        - Usuarios Flota (sin rol Gestor): solo adheridos activos de sus cuentas titulares
+        - Usuarios con rol Gestor / admin: activos por defecto; todos (incluyendo finalizados)
+          si se pasa ?include_ended=true
         - Otros: según permisos del modelo
         """
-        queryset = super().get_queryset()
         if should_apply_flota_restrictions(self.request.user):
+            queryset = Dependents.objects.filter(end_date__isnull=True).order_by("id")
             user_accounts = self.request.user.account_set.filter(account_type="holder")
             return queryset.filter(holder_account__in=user_accounts)
-        return queryset
+
+        include_ended = self.request.query_params.get("include_ended", "false").lower() == "true"
+        if include_ended:
+            return Dependents.objects.all().order_by("id")
+        return Dependents.objects.filter(end_date__isnull=True).order_by("id")
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        Soft-delete: en lugar de eliminar el registro, establece end_date = hoy,
+        desactiva la cuenta adherente y cierra todas las AuthorizedPlate activas
+        del par titular/adherente.
+        """
+        instance = self.get_object()
+        now = timezone.now()
+        today = now.date()
+        with transaction.atomic():
+            instance.end_date = today
+            instance.save(update_fields=["end_date"])
+            dep_account = instance.dependent_account
+            dep_account.is_active = False
+            dep_account.deactivated_at = now
+            dep_account.deactivated_by = request.user
+            dep_account.save(update_fields=["is_active", "deactivated_at", "deactivated_by"])
+            AuthorizedPlate.objects.filter(
+                dependent_account=dep_account,
+                plate__holder_account=instance.holder_account,
+                end_date__isnull=True,
+            ).update(end_date=today)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class PlatesViewSet(BaseLCUDViewSet):
@@ -843,3 +870,27 @@ class AuthorizedEmailViewSet(BaseLCViewSet):
             {"message": "Invitación cancelada exitosamente", "data": serializer.data},
             status=status.HTTP_200_OK,
         )
+
+    @action(detail=True, methods=["post"], url_path="add-plates")
+    def add_plates_to_invitation(self, request, pk=None):
+        """Add plates to a pending invitation without re-sending the email."""
+        authorized_email = self.get_object()
+        if authorized_email.status != "pending":
+            return Response(
+                {"error": "Solo se pueden modificar invitaciones pendientes"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        plate_ids = request.data.get("plate_ids", [])
+        if not plate_ids:
+            return Response(
+                {"error": "Se requiere al menos un plate_id"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        valid_plates = Plates.objects.filter(
+            id__in=plate_ids,
+            holder_account=authorized_email.dependent_of,
+            end_date__isnull=True,
+        )
+        authorized_email.pending_plates.add(*valid_plates)
+        serializer = self.get_serializer(authorized_email)
+        return Response(serializer.data, status=status.HTTP_200_OK)

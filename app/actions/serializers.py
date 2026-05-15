@@ -102,6 +102,12 @@ class AddDependentDirectlySerializer(serializers.Serializer):
     dependent_email = serializers.EmailField(
         help_text="Email of the user to add as dependent"
     )
+    plate_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        default=list,
+        help_text="IDs de las patentes a pre-asignar (solo aplica a usuarios no registrados)",
+    )
 
     def validate(self, attrs):
         holder_account_id = attrs.get("holder_account_id")

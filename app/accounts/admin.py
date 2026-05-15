@@ -23,6 +23,7 @@ class AccountAdmin(admin.ModelAdmin):
         "special",
         "unlimited_balance",
         "is_active",
+        "deactivated_at",
         "created_at",
         "updated_at",
     )
@@ -35,7 +36,7 @@ class AccountAdmin(admin.ModelAdmin):
         "is_active",
         "created_at",
     )
-    readonly_fields = ("created_at", "updated_at")
+    readonly_fields = ("created_at", "updated_at", "deactivated_at", "deactivated_by")
     autocomplete_fields = ("user",)
 
 

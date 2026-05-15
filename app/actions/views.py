@@ -104,6 +104,17 @@ class InvitationViewSet(viewsets.ViewSet):
                             else None,
                         )
 
+                        # Store any pre-assigned plates so they are assigned when the user registers
+                        plate_ids = validated_data.get("plate_ids") or []
+                        if plate_ids:
+                            from accounts.models import Plates as PlatesModel
+                            valid_plates = PlatesModel.objects.filter(
+                                id__in=plate_ids,
+                                holder_account=holder_account,
+                                end_date__isnull=True,
+                            )
+                            authorized_email.pending_plates.set(valid_plates)
+
                         # Send invitation email to download the app
                         try:
                             holder_user = holder_account.user
@@ -124,6 +135,7 @@ class InvitationViewSet(viewsets.ViewSet):
                                 "message": "El usuario no está registrado en la app. Se envió una invitación por email.",
                                 "authorized_email_id": authorized_email.id,
                                 "user_registered": False,
+                                "pending_plate_ids": list(authorized_email.pending_plates.values_list("id", flat=True)),
                             },
                             status=status.HTTP_201_CREATED,
                         )
