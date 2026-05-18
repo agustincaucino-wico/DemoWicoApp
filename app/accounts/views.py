@@ -513,24 +513,6 @@ class PlatesViewSet(BaseLCUDViewSet):
         return PlatesSerializer
 
     def create(self, request, *args, **kwargs):
-        """
-        Crear una nueva patente, pero primero verificar que no exista
-        una patente activa (end_date nulo) con el mismo número.
-        """
-        plate_number = request.data.get("plate_number", "").upper().strip()
-
-        if plate_number:
-            # Verificar si existe una patente activa con este número
-            existing_active_plate = Plates.objects.filter(
-                plate_number=plate_number, end_date__isnull=True
-            ).first()
-
-            if existing_active_plate:
-                return Response(
-                    {"error": "Esta patente ya esta registrada."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
         return super().create(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):

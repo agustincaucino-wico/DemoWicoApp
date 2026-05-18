@@ -29,7 +29,6 @@ def create_holder_account_on_registration(sender, instance, created, **kwargs):
     except Group.DoesNotExist:
         pass
 
-
 @receiver(post_save, sender=Dependents)
 def post_save_dependent(sender, instance, created, **kwargs):
     """
