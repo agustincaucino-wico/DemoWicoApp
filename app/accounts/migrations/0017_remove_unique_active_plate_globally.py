@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('accounts', '0014_alter_account_balance'),
+        ('accounts', '0016_account_special_account_unlimited_balance'),
     ]
 
     operations = [
