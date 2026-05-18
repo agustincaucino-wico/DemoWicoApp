@@ -59,19 +59,6 @@ class PlatesSerializer(serializers.ModelSerializer):
                     "El formato de patente no es válido. Usa el formato ABC123, AB123CD o A123BCD"
                 )
 
-            existing_plates = Plates.objects.filter(
-                plate_number=normalized_plate, end_date__isnull=True
-            )
-
-            # Si estamos editando una patente existente, excluirla de la validación
-            if self.instance:
-                existing_plates = existing_plates.exclude(pk=self.instance.pk)
-
-            if existing_plates.exists():
-                raise serializers.ValidationError(
-                    f"La patente '{normalized_plate}' ya está registrada en el sistema"
-                )
-
             return normalized_plate
 
         return value
