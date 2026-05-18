@@ -38,6 +38,17 @@ class IsVendedor(BasePermission):
         return request.user.groups.filter(name="Vendedor").exists()
 
 
+class IsTransporte(BasePermission):
+    """El usuario debe pertenecer al grupo Transporte (o ser staff/superuser)."""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.user.is_staff or request.user.is_superuser:
+            return True
+        return request.user.groups.filter(name="Transporte").exists()
+
+
 def _es_propio_dni(request, dni: str) -> bool:
     """Verifica que el DNI solicitado corresponde al usuario autenticado."""
     if request.user.is_staff or request.user.is_superuser:
@@ -46,6 +57,7 @@ def _es_propio_dni(request, dni: str) -> bool:
 
 
 PERMISOS_VENDEDOR = [IsAuthenticated, IsVendedor]
+PERMISOS_TRANSPORTE = [IsAuthenticated, IsTransporte]
 
 VENTAS_BASE = os.getenv("SISTEMA_VENTAS_API", "").rstrip("/")
 VENTAS_USER = os.getenv("VENTAS_USER", "")
@@ -198,8 +210,28 @@ def localidades_por_provincia(request, id_provincia: str):
 
 @api_view(["GET"])
 @permission_classes(PERMISOS_VENDEDOR)
+def precio_flete_x_litro(request):
+    # Intentar camelCase primero (consistente con otras rutas del upstream)
+    resp = _proxy_request("GET", "/precioFleteXLitro/", request)
+    if resp.status_code == 404:
+        resp = _proxy_request("GET", "/precio_flete_x_litro/", request)
+    return resp
+
+
+@api_view(["GET"])
+@permission_classes(PERMISOS_VENDEDOR)
+def distancia_desde_planta(request, destino: str):
+    return _proxy_request("GET", f"/mapas/distancia_desde_planta/{destino}", request)
+
+
+@api_view(["GET"])
+@permission_classes(PERMISOS_VENDEDOR)
 def puntos_entrega_por_cliente(request, id_cliente: str):
-    return _proxy_request("GET", f"/puntosEntrega/cliente/{id_cliente}/", request)
+    # El upstream puede o no aceptar trailing slash; intentar sin barra primero.
+    resp = _proxy_request("GET", f"/puntosEntrega/cliente/{id_cliente}", request)
+    if resp.status_code == 404:
+        resp = _proxy_request("GET", f"/puntosEntrega/cliente/{id_cliente}/", request)
+    return resp
 
 
 @api_view(["GET"])
@@ -216,34 +248,78 @@ def notas_venta_por_dni(request, dni: str):
 @api_view(["POST"])
 @permission_classes(PERMISOS_VENDEDOR)
 def submit_nota_venta(request):
-    # Verificar que el DNI en el payload corresponde al usuario autenticado
-    dni_payload = str(request.data.get("dni") or request.data.get("dni_vendedor") or "").strip()
-    if dni_payload and not _es_propio_dni(request, dni_payload):
-        return Response(
-            {"error": "No podés crear notas de venta en nombre de otro vendedor."},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-    return _proxy_request("POST", "/NotasVentasApp/", request)
-
-
-@api_view(["POST"])
-@permission_classes(PERMISOS_VENDEDOR)
-def upload_imagenes_nota_venta(request):
-    """Para uploads multipart, reenvía el contenido raw en lugar de JSON."""
     if not VENTAS_BASE:
         return Response(
             {"error": "SISTEMA_VENTAS_API no está configurado."},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
 
-    url = f"{VENTAS_BASE}/NotasVentasApp/upload"
+    url = f"{VENTAS_BASE}/NotasVentasApp/"
+
+    def do_submit(token: str):
+        headers = {"Authorization": f"Bearer {token}"}
+        # Reenviar como multipart/form-data igual que la web
+        data_str = request.data.get("data", "")
+        files_list = []
+        for key, file in request.FILES.items():
+            files_list.append((key, (file.name, file, file.content_type)))
+        return requests.post(
+            url,
+            headers=headers,
+            data={"data": data_str},
+            files=files_list if files_list else None,
+            timeout=30,
+        )
+
+    try:
+        token = _get_token()
+        resp = do_submit(token)
+        if resp.status_code == 401:
+            _invalidar_token()
+            token = _get_token()
+            resp = do_submit(token)
+
+        try:
+            data = resp.json()
+        except Exception:
+            data = resp.text
+
+        return Response(data, status=resp.status_code)
+
+    except requests.exceptions.ConnectionError:
+        logger.error("[ventas proxy] No se pudo conectar a %s", VENTAS_BASE)
+        return Response(
+            {"error": "No se pudo conectar al sistema de ventas."},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    except requests.exceptions.Timeout:
+        return Response(
+            {"error": "Timeout al conectar con el sistema de ventas."},
+            status=status.HTTP_504_GATEWAY_TIMEOUT,
+        )
+    except Exception as exc:
+        logger.exception("[ventas proxy] Error inesperado")
+        return Response({"error": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+@api_view(["POST"])
+@permission_classes(PERMISOS_VENDEDOR)
+def upload_imagenes_nota_venta(request):
+    if not VENTAS_BASE:
+        return Response(
+            {"error": "SISTEMA_VENTAS_API no está configurado."},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    url = f"{VENTAS_BASE}/NotasVentasApp/upload/"
 
     def do_upload(token: str):
         headers = {"Authorization": f"Bearer {token}"}
-        files = {
-            key: (file.name, file, file.content_type)
-            for key, file in request.FILES.items()
-        }
+        files = [
+            (key, (file.name, file, file.content_type))
+            for key in request.FILES
+            for file in request.FILES.getlist(key)
+        ]
         return requests.post(url, headers=headers, files=files, timeout=30)
 
     try:
@@ -269,3 +345,37 @@ def upload_imagenes_nota_venta(request):
     except Exception as exc:
         logger.exception("[ventas proxy] Error en upload")
         return Response({"error": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+
+# ---------------------------------------------------------------------------
+# Vistas - Transporte (autorizaciones de precio de combustible)
+# ---------------------------------------------------------------------------
+
+@api_view(["GET"])
+@permission_classes(PERMISOS_TRANSPORTE)
+def aut_precio_comb_pendientes(request):
+    return _proxy_request("GET", "/autPrecioComb/pendientes/", request)
+
+
+@api_view(["PUT"])
+@permission_classes(PERMISOS_TRANSPORTE)
+def aut_precio_comb_actualizar(request, id_aut: str):
+    return _proxy_request("PUT", f"/autPrecioComb/{id_aut}/", request)
+
+
+@api_view(["GET"])
+@permission_classes(PERMISOS_VENDEDOR)
+def aut_precio_comb_proximo_id(request):
+    return _proxy_request("GET", "/autPrecioComb/proximo_id/", request)
+
+
+@api_view(["POST"])
+@permission_classes(PERMISOS_VENDEDOR)
+def aut_precio_comb_crear(request):
+    return _proxy_request("POST", "/autPrecioComb/", request)
+
+
+@api_view(["GET"])
+@permission_classes(PERMISOS_VENDEDOR)
+def aut_precio_comb_estado(request, codigo: str):
+    return _proxy_request("GET", f"/autPrecioComb/estado/{codigo}/", request)
