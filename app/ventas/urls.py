@@ -13,6 +13,7 @@ urlpatterns = [
     path("precio_flete_x_litro/", views.precio_flete_x_litro),
     path("mapas/distancia_desde_planta/<str:destino>", views.distancia_desde_planta),
     path("NotasVentasApp/dni/<str:dni>/", views.notas_venta_por_dni),
+    path("NotasVentasApp/imagenes/<str:nro_nota_vta>/", views.imagenes_nota_venta),
     path("NotasVentasApp/upload/", views.upload_imagenes_nota_venta),
     path("NotasVentasApp/", views.submit_nota_venta),
     # Autorizaciones de precio de combustible

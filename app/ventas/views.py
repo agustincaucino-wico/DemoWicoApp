@@ -245,6 +245,12 @@ def notas_venta_por_dni(request, dni: str):
     return _proxy_request("GET", f"/NotasVentasApp/dni/{dni}", request)
 
 
+@api_view(["GET"])
+@permission_classes(PERMISOS_VENDEDOR)
+def imagenes_nota_venta(request, nro_nota_vta: str):
+    return _proxy_request("GET", f"/NotasVentasApp/imagenes/{nro_nota_vta}", request)
+
+
 @api_view(["POST"])
 @permission_classes(PERMISOS_VENDEDOR)
 def submit_nota_venta(request):
@@ -260,9 +266,11 @@ def submit_nota_venta(request):
         headers = {"Authorization": f"Bearer {token}"}
         # Reenviar como multipart/form-data igual que la web
         data_str = request.data.get("data", "")
-        files_list = []
-        for key, file in request.FILES.items():
-            files_list.append((key, (file.name, file, file.content_type)))
+        files_list = [
+            (key, (file.name, file, file.content_type))
+            for key in request.FILES
+            for file in request.FILES.getlist(key)
+        ]
         return requests.post(
             url,
             headers=headers,
