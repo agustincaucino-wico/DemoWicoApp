@@ -5,6 +5,9 @@ nginx.conf
 # API testing
 *.API-requests.http
 
+# Script para iniciar base de datos
+db_setup.py
+
 # Virtual enviroment
 .venv
 .venv/*

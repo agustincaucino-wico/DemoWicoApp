@@ -24,6 +24,7 @@ urlpatterns = [
     path("notifications/", include("notifications.urls")),
     path("promotions/", include("promotions.urls")),
     path("appconfig/", include("appconfig.urls")),
+    path("ventas/", include("ventas.urls")),
     # JWT authentication
     path("api/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),

@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "support",
     "notifications",
     "promotions",
+    "ventas",
 ]
 
 REST_FRAMEWORK = {

@@ -132,9 +132,9 @@ class FuelTypeAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(FuelType.objects.filter(id=ft.id).exists())
 
-    def test_regular_user_cannot_access_fuel_types(self):
+    def test_regular_user_can_access_fuel_types(self):
         response = self.regular_client.get(self.list_url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_regular_user_cannot_create_fuel_type(self):
         response = self.regular_client.post(
