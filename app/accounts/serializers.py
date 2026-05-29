@@ -122,19 +122,6 @@ class PlatesSerializer(serializers.ModelSerializer):
                     "El formato de patente no es válido. Usa el formato ABC123, AB123CD o A123BCD"
                 )
 
-            existing_plates = Plates.objects.filter(
-                plate_number=normalized_plate, end_date__isnull=True
-            )
-
-            # Si estamos editando una patente existente, excluirla de la validación
-            if self.instance:
-                existing_plates = existing_plates.exclude(pk=self.instance.pk)
-
-            if existing_plates.exists():
-                raise serializers.ValidationError(
-                    f"La patente '{normalized_plate}' ya está registrada en el sistema"
-                )
-
             return normalized_plate
 
         return value
@@ -308,9 +295,9 @@ class AdminAccountCreateSerializer(serializers.ModelSerializer):
         user = attrs.get("user")
 
         if account_type == "holder" and user:
-            if Account.objects.filter(user=user, account_type="holder").exists():
+            if Account.objects.filter(user=user, account_type="holder", is_active=True).exists():
                 raise serializers.ValidationError(
-                    {"user": "Este usuario ya tiene una cuenta titular."}
+                    {"user": "Este usuario ya tiene una cuenta titular activa."}
                 )
 
         if account_type == "dependent" and holder_account and user:

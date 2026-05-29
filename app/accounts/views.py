@@ -89,6 +89,10 @@ class AccountViewSet(BaseLCViewSet):
         if should_apply_flota_restrictions(self.request.user):
             # Usuarios Flota solo ven sus propias cuentas
             return queryset.filter(user=self.request.user)
+        # Gestores/admins: filtro opcional por usuario
+        user_id = self.request.query_params.get('user')
+        if user_id:
+            queryset = queryset.filter(user_id=user_id)
         return queryset
     @extend_schema(
         request=AccountBalanceUpdateSerializer,
@@ -630,9 +634,12 @@ class DependentsViewSet(BaseLCViewSet):
             return queryset.filter(holder_account__in=user_accounts)
 
         include_ended = self.request.query_params.get("include_ended", "false").lower() == "true"
-        if include_ended:
-            return Dependents.objects.all().order_by("id")
-        return Dependents.objects.filter(end_date__isnull=True).order_by("id")
+        queryset = Dependents.objects.all().order_by("id") if include_ended else Dependents.objects.filter(end_date__isnull=True).order_by("id")
+        # Gestores/admins: filtro opcional por cuenta titular
+        holder_account_id = self.request.query_params.get('holder_account')
+        if holder_account_id:
+            queryset = queryset.filter(holder_account_id=holder_account_id)
+        return queryset
 
     def destroy(self, request, *args, **kwargs):
         """
@@ -678,6 +685,11 @@ class PlatesViewSet(BaseLCUDViewSet):
         if should_apply_flota_restrictions(self.request.user):
             user_accounts = self.request.user.account_set.filter(account_type="holder")
             queryset = queryset.filter(holder_account__in=user_accounts)
+        else:
+            # Gestores/admins: filtro opcional por cuenta titular
+            holder_account_id = self.request.query_params.get('holder_account')
+            if holder_account_id:
+                queryset = queryset.filter(holder_account_id=holder_account_id)
 
         # Filtrar solo activas para listados
         if self.action == "list":
@@ -692,24 +704,6 @@ class PlatesViewSet(BaseLCUDViewSet):
         return PlatesSerializer
 
     def create(self, request, *args, **kwargs):
-        """
-        Crear una nueva patente, pero primero verificar que no exista
-        una patente activa (end_date nulo) con el mismo número.
-        """
-        plate_number = request.data.get("plate_number", "").upper().strip()
-
-        if plate_number:
-            # Verificar si existe una patente activa con este número
-            existing_active_plate = Plates.objects.filter(
-                plate_number=plate_number, end_date__isnull=True
-            ).first()
-
-            if existing_active_plate:
-                return Response(
-                    {"error": "Esta patente ya esta registrada."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
         return super().create(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
@@ -756,6 +750,11 @@ class AuthorizedPlateViewSet(BaseLCViewSet):
         if self.request.user.groups.filter(name="Flota").exists():
             user_accounts = self.request.user.account_set.filter(account_type="holder")
             queryset = queryset.filter(plate__holder_account__in=user_accounts)
+        else:
+            # Gestores/admins: filtro opcional por cuenta titular
+            holder_account_id = self.request.query_params.get('holder_account')
+            if holder_account_id:
+                queryset = queryset.filter(plate__holder_account_id=holder_account_id)
 
         # Filtrar solo activas para listados
         if self.action == "list":
@@ -853,6 +852,10 @@ class AuthorizedEmailViewSet(BaseLCViewSet):
                 account_type="holder", is_active=True
             )
             return queryset.filter(dependent_of__in=user_accounts)
+        # Gestores/admins: filtro opcional por cuenta titular
+        dependent_of_id = self.request.query_params.get('dependent_of')
+        if dependent_of_id:
+            queryset = queryset.filter(dependent_of_id=dependent_of_id)
         return queryset
 
     @action(detail=True, methods=["post"], url_path="cancel")

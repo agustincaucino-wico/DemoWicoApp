@@ -8,7 +8,7 @@ from django.contrib.auth.models import Group
 
 class Organism(models.Model):
     BILLING_TYPES = [
-        ("invoice", "Facturación"),
+        ("invoice", "Postpago"),
         ("prepaid", "Prepago"),
     ]
 
@@ -249,12 +249,6 @@ class Plates(models.Model):
                 name="unique_active_plate_per_holder",
                 violation_error_message="Ya existe una patente activa con este número para esta cuenta titular",
             ),
-            models.UniqueConstraint(
-                fields=["plate_number"],
-                condition=models.Q(end_date__isnull=True),
-                name="unique_active_plate_globally",
-                violation_error_message="Ya existe una patente activa con este número en el sistema",
-            ),
         ]
 
     def clean(self):
@@ -265,21 +259,6 @@ class Plates(models.Model):
             raise ValidationError(
                 "Solo las cuentas titulares pueden tener patentes asignadas"
             )
-
-        # Validar que la patente sea única globalmente para patentes activas
-        if self.plate_number:
-            existing_plates = Plates.objects.filter(
-                plate_number=self.plate_number, end_date__isnull=True
-            )
-
-            # Si estamos editando una patente existente, excluirla de la validación
-            if self.pk:
-                existing_plates = existing_plates.exclude(pk=self.pk)
-
-            if existing_plates.exists():
-                raise ValidationError(
-                    f"La patente '{self.plate_number}' ya está registrada en el sistema"
-                )
 
     def __str__(self):
         return f"{self.plate_number}"
@@ -309,7 +288,7 @@ class AuthorizedPlate(models.Model):
 
 class Company(models.Model):
     BILLING_TYPES = [
-        ("invoice", "Facturación"),
+        ("invoice", "Postpago"),
         ("prepaid", "Prepago"),
     ]
 
