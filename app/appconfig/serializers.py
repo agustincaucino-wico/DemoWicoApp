@@ -1,5 +1,12 @@
+import math
+
 from rest_framework import serializers
 from .models import AppConfig, BonificationTier
+
+
+def round_down_to_thousand(value):
+    """Redondea hacia abajo al millar más cercano."""
+    return math.floor(value / 1000) * 1000
 
 
 class BonificationTierSerializer(serializers.ModelSerializer):
@@ -19,7 +26,8 @@ class BonificationTierSerializer(serializers.ModelSerializer):
     def get_min_amount(self, obj):
         fuel_price = self.context.get("fuel_price")
         if fuel_price is not None:
-            return float(obj.min_liters) * float(fuel_price)
+            raw = float(obj.min_liters) * float(fuel_price)
+            return round_down_to_thousand(raw)
         return None
 
 

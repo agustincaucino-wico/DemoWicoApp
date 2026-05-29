@@ -2,6 +2,32 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from .models import Dependents, Account
 from django.contrib.auth.models import Group
+from django.contrib.auth import get_user_model
+
+
+@receiver(post_save, sender=get_user_model())
+def create_holder_account_on_registration(sender, instance, created, **kwargs):
+    """
+    Automatically create a holder Account when a new user registers.
+    """
+    print(f"post_save signal triggered for user: {instance.email}, created: {created}")
+    if not created:
+        return
+
+    try:    
+        Account.objects.get_or_create(
+            user=instance,
+            account_type="holder",
+            is_active=True,
+            defaults={"balance": 0},
+        )
+    except Exception as e:
+        print(f"Error creating holder account for user {instance.email}: {e}")
+    try:
+        fleet_group = Group.objects.get(name="Flota")
+        instance.groups.add(fleet_group)
+    except Group.DoesNotExist:
+        pass
 
 @receiver(post_save, sender=Dependents)
 def post_save_dependent(sender, instance, created, **kwargs):

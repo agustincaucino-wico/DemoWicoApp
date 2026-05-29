@@ -1,5 +1,8 @@
+import math
+import mimetypes
 from decimal import Decimal
 
+from django.http import FileResponse
 from rest_framework import mixins, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -171,7 +174,9 @@ class BalanceRechargeRequestViewSet(viewsets.ModelViewSet):
             for (
                 tier
             ) in BonificationTier.objects.all():  # ordered by order, min_liters asc
-                min_amount = tier.min_liters * fuel_price
+                raw_amount = tier.min_liters * fuel_price
+                # Redondeo hacia abajo al millar, igual que en la UI
+                min_amount = Decimal(str(math.floor(float(raw_amount) / 1000) * 1000))
                 if recharge_request.amount >= min_amount:
                     applicable_tier = tier
             if applicable_tier:
@@ -298,4 +303,32 @@ class BalanceRechargeRequestViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": f"Error al rechazar la solicitud: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=True, methods=["get"], permission_classes=[IsAdminRole], url_path="proof")
+    def proof(self, request, pk=None):
+        """Serve the transfer proof file. Requires Gestor/Admin authentication."""
+        recharge_request = self.get_object()
+
+        if not recharge_request.transfer_proof:
+            return Response(
+                {"error": "No hay comprobante disponible"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            file_path = recharge_request.transfer_proof.path
+            content_type, _ = mimetypes.guess_type(file_path)
+            content_type = content_type or "application/octet-stream"
+            file_name = recharge_request.transfer_proof.name.split("/")[-1]
+            response = FileResponse(
+                open(file_path, "rb"),
+                content_type=content_type,
+            )
+            response["Content-Disposition"] = f'inline; filename="{file_name}"'
+            return response
+        except (FileNotFoundError, OSError):
+            return Response(
+                {"error": "Archivo no encontrado"},
+                status=status.HTTP_404_NOT_FOUND,
             )
