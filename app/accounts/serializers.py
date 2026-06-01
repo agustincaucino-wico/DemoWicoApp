@@ -130,8 +130,9 @@ class PlatesSerializer(serializers.ModelSerializer):
         holder_account = attrs.get("holder_account")
 
         # Validar que el usuario solo pueda crear patentes para sus propias cuentas titulares
+        # Los usuarios staff/superuser pueden crear patentes para cualquier cuenta
         request = self.context.get("request")
-        if request and holder_account:
+        if request and holder_account and not (request.user.is_staff or request.user.is_superuser):
             user_accounts = request.user.account_set.filter(account_type="holder")
             if holder_account not in user_accounts:
                 raise serializers.ValidationError(
@@ -160,8 +161,9 @@ class AuthorizedPlateSerializer(serializers.ModelSerializer):
         dependent_account = attrs.get("dependent_account")
 
         # Validar que el usuario solo pueda autorizar patentes de sus propias cuentas titulares
+        # Los usuarios staff/superuser pueden autorizar patentes de cualquier cuenta
         request = self.context.get("request")
-        if request and holder_account:
+        if request and holder_account and not (request.user.is_staff or request.user.is_superuser):
             user_accounts = request.user.account_set.filter(account_type="holder")
             if holder_account not in user_accounts:
                 raise serializers.ValidationError(
