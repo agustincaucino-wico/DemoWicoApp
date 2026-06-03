@@ -123,11 +123,16 @@ class InvitationViewSet(viewsets.ViewSet):
                                 f"{holder_user.first_name} {holder_user.last_name}".strip()
                                 or holder_user.email
                             )
-                            email_service.send_app_download_invitation(
+                            email_kwargs = dict(
                                 to_email=validated_data["dependent_email"],
                                 holder_name=holder_name,
                                 holder_email=holder_user.email,
+                                company_name=holder_company.name if holder_company else None,
                             )
+                            if holder_account.special == "cordoba":
+                                email_service.send_cordoba_app_download_invitation(**email_kwargs)
+                            else:
+                                email_service.send_app_download_invitation(**email_kwargs)
                         except Exception:
                             print("Error sending app download invitation email")
 

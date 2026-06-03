@@ -188,7 +188,7 @@ class EmailService:
             "dependent_added", subject, dependent_user.email, context
         )
 
-    def send_app_download_invitation(self, to_email, holder_name, holder_email):
+    def send_app_download_invitation(self, to_email, holder_name, holder_email, company_name=None):
         """
         Send an invitation email to an unregistered user to download the app.
         This is used when a holder tries to add a dependent whose email is not registered.
@@ -197,18 +197,49 @@ class EmailService:
             to_email: Email address of the invited user
             holder_name: Full name of the holder who sent the invitation
             holder_email: Email address of the holder
+            company_name: Name of the company the holder belongs to (optional)
 
         Returns:
             bool: True if email was sent successfully, False otherwise
         """
-        subject = "Invitación a WICO - Descargá la app"
+        subject = "¡Te invitaron a WICO App!"
+
+        company_html = (
+            f'<p style="margin-top:6px;color:#555;font-size:14px;">Empresa: <strong style="color:#1B2F5B;">{company_name}</strong></p>'
+            if company_name else ""
+        )
+        company_txt = f"Empresa: {company_name}\n" if company_name else ""
 
         context = {
             "holder_name": holder_name,
             "holder_email": holder_email,
+            "company_html": company_html,
+            "company_txt": company_txt,
         }
 
         return self.send_email("app_download_invitation", subject, to_email, context)
+
+    def send_cordoba_app_download_invitation(self, to_email, holder_name, holder_email, company_name=None):
+        """
+        Send an invitation email for Córdoba biofuel accounts.
+        Same as send_app_download_invitation but uses the Córdoba-specific template.
+        """
+        subject = "¡Te invitaron a WICO App! · Biocombustibles Córdoba"
+
+        company_html = (
+            f'<p style="margin-top:6px;color:#555;font-size:14px;">Empresa: <strong style="color:#1B5B2F;">{company_name}</strong></p>'
+            if company_name else ""
+        )
+        company_txt = f"Empresa: {company_name}\n" if company_name else ""
+
+        context = {
+            "holder_name": holder_name,
+            "holder_email": holder_email,
+            "company_html": company_html,
+            "company_txt": company_txt,
+        }
+
+        return self.send_email("app_download_invitation_cordoba", subject, to_email, context)
 
     def send_password_reset_email(self, to_email, user_name, reset_code):
         """

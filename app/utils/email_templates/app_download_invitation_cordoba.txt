@@ -1,8 +1,9 @@
-¡Te invitaron a WICO App!
+¡Te invitaron a WICO App! · Biocombustibles Córdoba
 
 Hola,
 
-Te invitaron a unirte como adherente en la app WICO.
+Te invitaron a unirte como adherente en la app WICO para cargar
+biocombustible en las estaciones habilitadas de Córdoba.
 
 Invitación enviada por: {holder_name} ({holder_email})
 {company_txt}
@@ -15,7 +16,9 @@ Invitación enviada por: {holder_name} ({holder_email})
   2. Registrate usando este mismo email al que recibiste esta invitación.
 
   3. Tu cuenta adherente se activará automáticamente al registrarte.
-  4. ¡Listo! Ya podés empezar a cargar combustible en estaciones WICO.
+
+  4. ¡Listo! Ya podés empezar a cargar biocombustible en las estaciones
+     habilitadas de Córdoba.
 
 Si ya tenés la app instalada, simplemente iniciá sesión o registrate
 con este email y la vinculación se hará de forma automática.
