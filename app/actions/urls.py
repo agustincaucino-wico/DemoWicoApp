@@ -7,6 +7,7 @@ from .views import (
     get_user_plates,
     get_account_movements,
     TransferBalanceView,
+    WithdrawFromDependentView,
     get_fuel_load_remito,
 )
 from . import fuel_load_views
@@ -20,6 +21,7 @@ urlpatterns = [
     path("info/", UserInfoView.as_view(), name="user-info"),
     path("remove-dependent/", RemoveDependentView.as_view(), name="remove-dependent"),
     path("transfer-balance/", TransferBalanceView.as_view(), name="transfer-balance"),
+    path("withdraw-from-dependent/", WithdrawFromDependentView.as_view(), name="withdraw-from-dependent"),
     # User Actions
     path(
         "user/plates/",

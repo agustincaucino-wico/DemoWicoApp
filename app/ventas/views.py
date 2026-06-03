@@ -226,6 +226,18 @@ def distancia_desde_planta(request, destino: str):
 
 @api_view(["GET"])
 @permission_classes(PERMISOS_VENDEDOR)
+def localidades_provincia_lista(request):
+    return _proxy_request("GET", "/localidadesView/localidadProvincia", request)
+
+
+@api_view(["GET"])
+@permission_classes(PERMISOS_VENDEDOR)
+def costo_flete_desde_planta(request, destino: str):
+    return _proxy_request("GET", f"/costo_flete_x_km/distancia_desde_planta/{destino}", request)
+
+
+@api_view(["GET"])
+@permission_classes(PERMISOS_VENDEDOR)
 def puntos_entrega_por_cliente(request, id_cliente: str):
     # El upstream puede o no aceptar trailing slash; intentar sin barra primero.
     resp = _proxy_request("GET", f"/puntosEntrega/cliente/{id_cliente}", request)

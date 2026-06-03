@@ -249,6 +249,22 @@ class TransferBalanceSerializer(serializers.Serializer):
     )
 
 
+class WithdrawFromDependentSerializer(serializers.Serializer):
+    holder_account_id = serializers.IntegerField(
+        help_text="ID of the holder account (must belong to user)"
+    )
+    dependent_account_id = serializers.IntegerField(
+        help_text="ID of the dependent account to withdraw from"
+    )
+    amount = serializers.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        min_value=0.01,
+        max_value=9999999999.99,
+        help_text="Amount to withdraw (max: 9,999,999,999.99)",
+    )
+
+
 class AccountMovementSerializer(serializers.Serializer):
     """Serializer for account movements (transactions)"""
 

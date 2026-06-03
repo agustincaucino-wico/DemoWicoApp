@@ -12,6 +12,8 @@ urlpatterns = [
     path("puntosEntrega/cliente/<str:id_cliente>/", views.puntos_entrega_por_cliente),
     path("precio_flete_x_litro/", views.precio_flete_x_litro),
     path("mapas/distancia_desde_planta/<str:destino>", views.distancia_desde_planta),
+    path("localidadesView/localidadProvincia/", views.localidades_provincia_lista),
+    path("costo_flete_x_km/distancia_desde_planta/<str:destino>", views.costo_flete_desde_planta),
     path("NotasVentasApp/dni/<str:dni>/", views.notas_venta_por_dni),
     path("NotasVentasApp/imagenes/<str:nro_nota_vta>/", views.imagenes_nota_venta),
     path("NotasVentasApp/upload/", views.upload_imagenes_nota_venta),

@@ -49,6 +49,7 @@ from .serializers import (
     AddDependentDirectlySerializer,
     UserPlateSerializer,
     TransferBalanceSerializer,
+    WithdrawFromDependentSerializer,
     AccountMovementSerializer,
 )
 
@@ -832,6 +833,109 @@ class TransferBalanceView(APIView):
         except Exception as e:
             return Response(
                 {"error": f"An error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class WithdrawFromDependentView(APIView):
+    """
+    API view for withdrawing balance from a dependent account back to the holder account.
+    Only the holder can initiate this operation.
+    """
+
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request=WithdrawFromDependentSerializer,
+        responses={200: None, 400: None, 403: None, 404: None},
+        description="Withdraw balance from a dependent account to the holder account. The holder account must belong to the authenticated user and the dependent must be related to that holder.",
+        summary="Withdraw Balance from Dependent",
+    )
+    def post(self, request):
+        serializer = WithdrawFromDependentSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        holder_account_id = serializer.validated_data["holder_account_id"]
+        dependent_account_id = serializer.validated_data["dependent_account_id"]
+        amount = serializer.validated_data["amount"]
+
+        try:
+            with transaction.atomic():
+                # Verify the holder account belongs to the authenticated user
+                try:
+                    holder_account = Account.objects.select_for_update().get(
+                        id=holder_account_id,
+                        user=request.user,
+                        account_type="holder",
+                        is_active=True,
+                    )
+                except Account.DoesNotExist:
+                    return Response(
+                        {"error": "La cuenta titular no fue encontrada o no te pertenece"},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+
+                # Verify the dependent account exists and is active
+                try:
+                    dependent_account = Account.objects.select_for_update().get(
+                        id=dependent_account_id,
+                        account_type="dependent",
+                        is_active=True,
+                    )
+                except Account.DoesNotExist:
+                    return Response(
+                        {"error": "La cuenta adherida no fue encontrada"},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+
+                # Verify the dependent is actually related to this holder
+                is_related = Dependents.objects.filter(
+                    holder_account=holder_account,
+                    dependent_account=dependent_account,
+                    end_date__isnull=True,
+                ).exists()
+
+                if not is_related:
+                    return Response(
+                        {"error": "Las cuentas no están relacionadas o no tenés permiso para realizar esta operación"},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+
+                # Check the dependent has sufficient balance
+                if dependent_account.balance < amount:
+                    return Response(
+                        {"error": "Saldo insuficiente en la cuenta adherida"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Perform the transfer: dependent → holder
+                dependent_account.balance -= amount
+                holder_account.balance += amount
+
+                dependent_account.save()
+                holder_account.save()
+
+                # Record the transfer
+                Transfer.objects.create(
+                    source_account=dependent_account,
+                    destination_account=holder_account,
+                    amount=amount,
+                )
+
+                return Response(
+                    {
+                        "message": "Saldo retirado correctamente",
+                        "dependent_balance": dependent_account.balance,
+                        "holder_balance": holder_account.balance,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Ocurrió un error: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
