@@ -550,39 +550,42 @@ class AccountViewSet(BaseLCViewSet):
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-            # Buscar la patente activa
-            plate = Plates.objects.filter(
+            # Buscar todas las patentes activas con ese número
+            active_plates = Plates.objects.filter(
                 plate_number=plate_number, end_date__isnull=True
-            ).first()
+            ).select_related("holder_account__user")
 
-            if not plate:
+            if not active_plates.exists():
                 return Response(
                     {"error": "No se encontró ninguna patente activa con ese número"},
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-            # Verificar que la patente esté asociada a una cuenta del usuario
-            # Puede ser titular o dependiente autorizado
-            holder_account = plate.holder_account
-
-            # Verificar si el usuario es el titular
-            if holder_account.user.id == user.id:
-                account = holder_account
-            else:
-                # Verificar si el usuario es un dependiente autorizado para esa patente
+            # Buscar la patente que esté asociada a la cuenta del usuario
+            # (puede ser titular o dependiente autorizado)
+            plate = None
+            account = None
+            for candidate_plate in active_plates:
+                holder_account = candidate_plate.holder_account
+                if holder_account.user_id == user.id:
+                    plate = candidate_plate
+                    account = holder_account
+                    break
                 authorized_plate = AuthorizedPlate.objects.filter(
-                    plate=plate, dependent_account__user=user, end_date__isnull=True
+                    plate=candidate_plate,
+                    dependent_account__user=user,
+                    end_date__isnull=True,
                 ).first()
-
                 if authorized_plate:
+                    plate = candidate_plate
                     account = authorized_plate.dependent_account
-                else:
-                    return Response(
-                        {
-                            "error": "El DNI proporcionado no está asociado a esta patente"
-                        },
-                        status=status.HTTP_404_NOT_FOUND,
-                    )
+                    break
+
+            if plate is None:
+                return Response(
+                    {"error": "El DNI proporcionado no está asociado a esta patente"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
 
             # Verificar que la cuenta esté activa
             if not account.is_active:
@@ -597,6 +600,8 @@ class AccountViewSet(BaseLCViewSet):
                     "account_id": account.id,
                     "account_type": account.get_account_type_display(),
                     "balance": float(account.balance),
+                    "special": account.special,
+                    "unlimited_balance": account.unlimited_balance,
                     "user_name": f"{user.first_name} {user.last_name}".strip()
                     or user.email,
                     "user_email": user.email,
