@@ -80,6 +80,10 @@ class Account(models.Model):
         ordering = [
             "-created_at"
         ]  # Ordenar por fecha de creación, más recientes primero
+        indexes = [
+            models.Index(fields=["is_active", "id"]),
+            models.Index(fields=["user", "is_active"]),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["user"],
@@ -110,6 +114,9 @@ class Dependents(models.Model):
     end_date = models.DateField(null=True, blank=True)
 
     class Meta:
+        indexes = [
+            models.Index(fields=["holder_account", "end_date"]),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["holder_account", "dependent_account"],
@@ -242,6 +249,9 @@ class Plates(models.Model):
     end_date = models.DateField(null=True, blank=True)
 
     class Meta:
+        indexes = [
+            models.Index(fields=["holder_account", "end_date"]),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["plate_number", "holder_account"],

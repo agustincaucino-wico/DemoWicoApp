@@ -106,6 +106,12 @@ class FuelLoadOperation(models.Model):
 
     class Meta:
         ordering = ("-timestamp_started",)
+        indexes = [
+            models.Index(fields=["status", "-timestamp_started"]),
+            models.Index(fields=["station", "-timestamp_started"]),
+            models.Index(fields=["account", "-timestamp_started"]),
+            models.Index(fields=["attendant", "-timestamp_started"]),
+        ]
 
     def __str__(self):
         return f"{self.final_amount} at {self.station} [{self.get_status_display()}]"
@@ -140,6 +146,9 @@ class ModifyFunds(models.Model):
 
     class Meta:
         ordering = ("-timestamp",)
+        indexes = [
+            models.Index(fields=["account", "-timestamp"]),
+        ]
 
     def __str__(self):
         means = (
