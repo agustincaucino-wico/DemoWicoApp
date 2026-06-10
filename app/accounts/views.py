@@ -852,16 +852,14 @@ class AuthorizedEmailViewSet(BaseLCViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        if should_apply_flota_restrictions(self.request.user):
-            user_accounts = self.request.user.account_set.filter(
-                account_type="holder", is_active=True
-            )
-            return queryset.filter(dependent_of__in=user_accounts)
-        # Gestores/admins: filtro opcional por cuenta titular
-        dependent_of_id = self.request.query_params.get('dependent_of')
+        dependent_of_id = self.request.query_params.get("dependent_of")
         if dependent_of_id:
-            queryset = queryset.filter(dependent_of_id=dependent_of_id)
-        return queryset
+            return queryset.filter(dependent_of_id=dependent_of_id)
+        # Sin filtro explícito: mostrar solo las invitaciones propias del usuario
+        user_accounts = self.request.user.account_set.filter(
+            account_type="holder", is_active=True
+        )
+        return queryset.filter(dependent_of__in=user_accounts)
 
     @action(detail=True, methods=["post"], url_path="cancel")
     def cancel_authorized_email(self, request, pk=None):

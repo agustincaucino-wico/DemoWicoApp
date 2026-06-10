@@ -20,7 +20,7 @@ class AssignRoleSerializer(serializers.Serializer):
     """Serializer for assigning role to user"""
 
     role_name = serializers.ChoiceField(
-        choices=["Playero", "Encargado", "Marketing"], required=True
+        choices=["Playero", "Encargado", "Marketing", "Vendedor"], required=True
     )
 
 
@@ -28,7 +28,7 @@ class RemoveRoleSerializer(serializers.Serializer):
     """Serializer for removing role from user"""
 
     role_name = serializers.ChoiceField(
-        choices=["Playero", "Encargado", "Marketing"], required=True
+        choices=["Playero", "Encargado", "Marketing", "Vendedor"], required=True
     )
 
 
