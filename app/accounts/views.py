@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema, OpenApiExample
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.utils import timezone
 
 from myapp.permissions import StrictDjangoModelPermissions
@@ -709,7 +709,13 @@ class PlatesViewSet(BaseLCUDViewSet):
         return PlatesSerializer
 
     def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
+        try:
+            return super().create(request, *args, **kwargs)
+        except IntegrityError:
+            return Response(
+                {"error": "Esta patente ya se encuentra activa para esta cuenta."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     def destroy(self, request, *args, **kwargs):
         """

@@ -30,23 +30,35 @@ VENTAS_PASSWORD = os.getenv("VENTAS_PASSWORD", "")
 class IsVendedor(BasePermission):
     """El usuario debe pertenecer al grupo Vendedor (o ser staff/superuser)."""
 
+    message = "No tenés permisos para acceder al sistema de ventas. Por favor, contactate con el encargado de sistemas."
+
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
         if request.user.is_staff or request.user.is_superuser:
             return True
-        return request.user.groups.filter(name="Vendedor").exists()
+        try:
+            return request.user.groups.filter(name="Vendedor").exists()
+        except Exception:
+            logger.exception("[ventas] Error al verificar permisos de Vendedor para usuario %s", request.user)
+            return False
 
 
 class IsTransporte(BasePermission):
     """El usuario debe pertenecer al grupo Transporte (o ser staff/superuser)."""
 
+    message = "No tenés permisos para acceder al sistema de transporte. Por favor, contactate con el encargado de sistemas."
+
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
         if request.user.is_staff or request.user.is_superuser:
             return True
-        return request.user.groups.filter(name="Transporte").exists()
+        try:
+            return request.user.groups.filter(name="Transporte").exists()
+        except Exception:
+            logger.exception("[ventas] Error al verificar permisos de Transporte para usuario %s", request.user)
+            return False
 
 
 def _es_propio_dni(request, dni: str) -> bool:
