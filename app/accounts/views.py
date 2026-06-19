@@ -387,7 +387,45 @@ class AccountViewSet(BaseLCViewSet):
                 {"error": "No tiene permisos para esta acción."},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        qs = Account.objects.all().order_by("-created_at")
+        qs = Account.objects.select_related("user").all().order_by("-created_at")
+
+        # Filter by status
+        status_param = request.query_params.get("status")
+        if status_param == "active":
+            qs = qs.filter(is_active=True)
+        elif status_param == "inactive":
+            qs = qs.filter(is_active=False)
+
+        # Filter by account type
+        account_type = request.query_params.get("account_type")
+        if account_type:
+            qs = qs.filter(account_type=account_type)
+
+        # Search by user name, email or DNI
+        search = request.query_params.get("search", "").strip()
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(user__email__icontains=search)
+                | Q(user__first_name__icontains=search)
+                | Q(user__last_name__icontains=search)
+                | Q(user__dni__icontains=search)
+            )
+
+        # Filter by specific user IDs (batch fetch for pagination)
+        user_ids_param = request.query_params.get("user_ids", "").strip()
+        if user_ids_param:
+            try:
+                user_ids = [int(uid) for uid in user_ids_param.split(",") if uid.strip()]
+                if user_ids:
+                    qs = qs.filter(user__id__in=user_ids)
+            except ValueError:
+                pass
+
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
 
@@ -691,10 +729,19 @@ class PlatesViewSet(BaseLCUDViewSet):
             user_accounts = self.request.user.account_set.filter(account_type="holder")
             queryset = queryset.filter(holder_account__in=user_accounts)
         else:
-            # Gestores/admins: filtro opcional por cuenta titular
+            # Gestores/admins: filtro opcional por cuenta titular o por usuarios
             holder_account_id = self.request.query_params.get('holder_account')
             if holder_account_id:
                 queryset = queryset.filter(holder_account_id=holder_account_id)
+
+            user_ids_param = self.request.query_params.get('user_ids', '').strip()
+            if user_ids_param:
+                try:
+                    user_ids = [int(uid) for uid in user_ids_param.split(',') if uid.strip()]
+                    if user_ids:
+                        queryset = queryset.filter(holder_account__user__id__in=user_ids)
+                except ValueError:
+                    pass
 
         # Filtrar solo activas para listados
         if self.action == "list":

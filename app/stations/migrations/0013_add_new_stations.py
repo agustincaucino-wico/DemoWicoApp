@@ -31,8 +31,13 @@ def add_stations(apps, schema_editor):
     Province = apps.get_model("locations", "Province")
     City = apps.get_model("locations", "City")
 
-    province = Province.objects.get(name="Córdoba")
-    city = City.objects.get(name="Córdoba", province=province)
+    try:
+        province = Province.objects.get(name="Córdoba")
+        city = City.objects.get(name="Córdoba", province=province)
+    except (Province.DoesNotExist, City.DoesNotExist):
+        # En entornos de test la provincia/ciudad de referencia no existe aún;
+        # se omite la carga de datos sin error.
+        return
 
     for data in STATIONS:
         Station.objects.get_or_create(

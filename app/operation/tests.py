@@ -51,9 +51,9 @@ class FuelLoadOperationAPITests(TestCase):
             email="other-attendant@example.com", password="pass1234"
         )
 
-        self.account = Account.objects.create(
-            user=self.user, account_type="holder", balance=Decimal("0.00")
-        )
+        # El signal post_save de accounts crea automáticamente la cuenta holder
+        # al crear el usuario; la obtenemos en lugar de intentar crear otra.
+        self.account = Account.objects.get(user=self.user, account_type="holder")
         self.plate = Plates.objects.create(
             plate_number="AAA111",
             holder_account=self.account,
@@ -212,3 +212,120 @@ class FuelLoadOperationAPITests(TestCase):
         with self.assertRaises(ValidationError) as context:
             serializer.validate_amount(over_max)
         self.assertIn("exceder", str(context.exception).lower())
+
+
+class PaginationBehaviorTests(TestCase):
+    """
+    Verifica el comportamiento retrocompatible de ConditionalPageNumberPagination.
+
+    Regla clave:
+      - Sin ?page ni ?page_size → response.data es una lista directa (array).
+      - Con ?page=N → response.data tiene la forma { count, next, previous, results }.
+    """
+
+    def setUp(self):
+        self.country = Country.objects.create(name="PagTestland")
+        self.province = Province.objects.create(
+            name="PagProvince", country=self.country
+        )
+        self.city = City.objects.create(name="PagCity", province=self.province)
+        self.station = Station.objects.create(
+            name="PagStation",
+            province=self.province,
+            city=self.city,
+            street="Pag St",
+            street_number="1",
+        )
+        self.user = CustomUser.objects.create_user(
+            email="pagtest@example.com", password="pass1234"
+        )
+        self._assign_role(self.user, "Gestor")
+        # El signal post_save de accounts crea automáticamente la cuenta holder
+        # al crear el usuario; la obtenemos en lugar de intentar crear otra.
+        self.account = Account.objects.get(user=self.user, account_type="holder")
+        self.plate = Plates.objects.create(
+            plate_number="PAG001",
+            holder_account=self.account,
+            start_date=timezone.now().date(),
+        )
+        self.payment_method = PaymentMethod.objects.create(name="TestCash")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        self.list_url = reverse("fuel-load-operations-list")
+
+        # Crear 30 operaciones para que haya más de una página (page_size=25)
+        for i in range(30):
+            FuelLoadOperation.objects.create(
+                account=self.account,
+                plate=self.plate,
+                station=self.station,
+                initial_amount=Decimal(f"{i + 1}.00"),
+                status=FuelLoadOperation.STATUS_PENDING,
+            )
+
+    def _assign_role(self, user, role_name):
+        group, _ = Group.objects.get_or_create(name=role_name)
+        permissions = Permission.objects.filter(codename__in=ROLES.get(role_name, []))
+        group.permissions.set(permissions)
+        user.groups.add(group)
+
+    def test_sin_page_param_devuelve_lista_directa(self):
+        """Sin ?page el response debe ser un array directo (retrocompatibilidad)."""
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(
+            response.data,
+            list,
+            "Sin ?page el response debe ser una lista directa, no un objeto paginado.",
+        )
+        # Todos los registros deben estar presentes
+        self.assertEqual(len(response.data), 30)
+
+    def test_con_page_param_devuelve_formato_paginado(self):
+        """Con ?page=1 el response debe tener count, next, previous, results."""
+        response = self.client.get(self.list_url, {"page": 1})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("count", response.data)
+        self.assertIn("next", response.data)
+        self.assertIn("previous", response.data)
+        self.assertIn("results", response.data)
+        self.assertEqual(response.data["count"], 30)
+        # Primera página tiene 25 resultados (page_size=25)
+        self.assertEqual(len(response.data["results"]), 25)
+        self.assertIsNone(response.data["previous"])
+        self.assertIsNotNone(response.data["next"])
+
+    def test_segunda_pagina_tiene_resultados_restantes(self):
+        """La segunda página debe tener los 5 registros restantes."""
+        response = self.client.get(self.list_url, {"page": 2})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 5)
+        self.assertIsNotNone(response.data["previous"])
+        self.assertIsNone(response.data["next"])
+
+    def test_page_size_custom(self):
+        """?page_size=10 debe devolver exactamente 10 resultados por página."""
+        response = self.client.get(self.list_url, {"page": 1, "page_size": 10})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 10)
+        self.assertEqual(response.data["count"], 30)
+
+    def test_solo_page_size_activa_paginacion(self):
+        """Enviar solo ?page_size (sin ?page) también debe activar la paginación."""
+        response = self.client.get(self.list_url, {"page_size": 10})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("results", response.data)
+        self.assertEqual(len(response.data["results"]), 10)
+
+    def test_page_size_max_no_superable(self):
+        """?page_size mayor que el máximo (200) debe limitarse a 200."""
+        response = self.client.get(self.list_url, {"page": 1, "page_size": 9999})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Hay 30 registros, todos caben dentro del máximo de 200
+        self.assertEqual(len(response.data["results"]), 30)

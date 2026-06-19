@@ -57,6 +57,10 @@ REST_FRAMEWORK = {
         "anon": "40/min",
         "user": "1000/min",
     },
+    # Paginación condicional: solo activa si el cliente envía ?page o ?page_size.
+    # Sin esos parámetros el response es un array directo (retrocompatible).
+    "DEFAULT_PAGINATION_CLASS": "utils.pagination.ConditionalPageNumberPagination",
+    "PAGE_SIZE": 25,
 }
 
 SIMPLE_JWT = {

@@ -30,10 +30,32 @@ class UserViewSet(viewsets.ModelViewSet):
     API endpoint that allows users to be created, viewed or edited.
     """
 
-    queryset = User.objects.all().order_by("-date_joined")
     serializer_class = UserSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [DjangoModelOrTargetUser]
+
+    def get_queryset(self):
+        from django.db.models import Q
+        queryset = User.objects.all().order_by("-date_joined")
+        date_joined_from = self.request.query_params.get("date_joined_from")
+        date_joined_to = self.request.query_params.get("date_joined_to")
+        if date_joined_from:
+            queryset = queryset.filter(date_joined__date__gte=date_joined_from)
+        if date_joined_to:
+            queryset = queryset.filter(date_joined__date__lte=date_joined_to)
+        search = self.request.query_params.get("search", "").strip()
+        if search:
+            for word in search.split():
+                queryset = queryset.filter(
+                    Q(email__icontains=word)
+                    | Q(first_name__icontains=word)
+                    | Q(last_name__icontains=word)
+                    | Q(dni__icontains=word)
+                )
+        group = self.request.query_params.get("group", "").strip()
+        if group:
+            queryset = queryset.filter(groups__name=group)
+        return queryset
 
     def get_permissions(self):
         if self.action in ["create", "verify_email", "resend_verification"]:

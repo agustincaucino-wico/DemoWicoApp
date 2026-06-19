@@ -76,6 +76,8 @@ class FuelLoadOperationViewSet(BaseLCDViewSet):
         station_id = self.request.query_params.get("station")
         status = self.request.query_params.get("status")
         attendant_id = self.request.query_params.get("attendant")
+        date_from = self.request.query_params.get("date_from")
+        date_to = self.request.query_params.get("date_to")
 
         if station_id:
             queryset = queryset.filter(station_id=station_id)
@@ -83,6 +85,10 @@ class FuelLoadOperationViewSet(BaseLCDViewSet):
             queryset = queryset.filter(status=status)
         if attendant_id:
             queryset = queryset.filter(attendant_id=attendant_id)
+        if date_from:
+            queryset = queryset.filter(timestamp_started__date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(timestamp_started__date__lte=date_to)
 
         return queryset
 
