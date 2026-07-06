@@ -1203,6 +1203,17 @@ def get_account_movements(request):
     # Sort by timestamp descending (most recent first)
     movements.sort(key=lambda x: x["timestamp"], reverse=True)
 
+    # Apply conditional pagination (only when ?page or ?page_size are present).
+    # DEFAULT_PAGINATION_CLASS only activates automatically on ViewSets/GenericAPIViews,
+    # so we invoke the paginator manually here.
+    from utils.pagination import ConditionalPageNumberPagination
+
+    paginator = ConditionalPageNumberPagination()
+    page = paginator.paginate_queryset(movements, request)
+    if page is not None:
+        serializer = AccountMovementSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
     serializer = AccountMovementSerializer(movements, many=True)
     return Response(serializer.data)
 

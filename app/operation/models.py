@@ -206,6 +206,11 @@ class BalanceRechargeRequest(models.Model):
         help_text="Proof of bank transfer (PDF, JPG, PNG - Max 5MB)",
     )
     comments = models.TextField(blank=True, help_text="Optional comments from the user")
+    transfer_origin_name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Name of the bank account holder when the transfer comes from a third party",
+    )
 
     # Status tracking
     status = models.CharField(

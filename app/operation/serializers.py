@@ -118,6 +118,7 @@ class BalanceRechargeRequestCreateSerializer(serializers.ModelSerializer):
             "amount",
             "transfer_proof",
             "comments",
+            "transfer_origin_name",
         )
 
     def validate_amount(self, value):
@@ -181,6 +182,7 @@ class BalanceRechargeRequestListSerializer(serializers.ModelSerializer):
             "transfer_proof",
             "transfer_proof_url",
             "comments",
+            "transfer_origin_name",
             "status",
             "status_display",
             "reviewed_by_email",

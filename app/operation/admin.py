@@ -112,6 +112,7 @@ class BalanceRechargeRequestAdmin(admin.ModelAdmin):
         "account",
         "requested_by",
         "amount",
+        "transfer_origin_name",
         "status",
         "created_at",
         "reviewed_by",
@@ -126,6 +127,7 @@ class BalanceRechargeRequestAdmin(admin.ModelAdmin):
         "account__user__email",
         "requested_by__email",
         "reviewed_by__email",
+        "transfer_origin_name",
     )
     autocomplete_fields = ("account", "requested_by", "reviewed_by")
     readonly_fields = (
@@ -143,6 +145,7 @@ class BalanceRechargeRequestAdmin(admin.ModelAdmin):
                     "amount",
                     "transfer_proof",
                     "comments",
+                    "transfer_origin_name",
                 )
             },
         ),
