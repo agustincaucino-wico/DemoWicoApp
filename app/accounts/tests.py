@@ -8,6 +8,8 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 from rest_framework import status
 
+from model_bakery import baker
+
 from users.models import CustomUser
 from users.roles import ROLES
 from users.test_helpers import RoleAssignmentMixin
@@ -36,11 +38,13 @@ class AccountsTestCase(RoleAssignmentMixin, TestCase):
         self.assign_role(self.user_dependent, "Gestor")
 
         # Get the auto-created holder account (created by post_save signal)
-        self.holder_account = Account.objects.get(user=self.user_holder, account_type="holder")
+        self.holder_account = Account.objects.get(
+            user=self.user_holder, account_type="holder"
+        )
 
         # Create a dependent account for the dependent user (not auto-created)
-        self.dependent_account = Account.objects.create(
-            user=self.user_dependent, balance=0, account_type="dependent"
+        self.dependent_account = baker.make(
+            Account, user=self.user_dependent, account_type="dependent"
         )
 
         # Create clients for API requests
@@ -130,10 +134,10 @@ class AccountsTestCase(RoleAssignmentMixin, TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Create a dependents relation
-        Dependents.objects.create(
+        baker.make(
+            Dependents,
             holder_account=self.holder_account,
             dependent_account=self.dependent_account,
-            start_date=timezone.now().date(),
         )
 
         # Now authorizing should succeed
@@ -186,10 +190,10 @@ class AccountsTestCase(RoleAssignmentMixin, TestCase):
 
     def test_remove_dependent_via_api(self):
         # Create a dependent relation first
-        Dependents.objects.create(
+        baker.make(
+            Dependents,
             holder_account=self.holder_account,
             dependent_account=self.dependent_account,
-            start_date=timezone.now().date(),
         )
 
         # Set initial balances
@@ -228,10 +232,10 @@ class AccountsTestCase(RoleAssignmentMixin, TestCase):
 
         # Dependent user cannot remove themselves because they don't own the holder account
         # The API returns 404 since the holder_account doesn't belong to the dependent user
-        Dependents.objects.create(
+        baker.make(
+            Dependents,
             holder_account=self.holder_account,
             dependent_account=self.dependent_account,
-            start_date=timezone.now().date(),
         )
         response = self.dependent_client.post(
             "/actions/remove-dependent/", payload, format="json"
@@ -313,7 +317,9 @@ class AccountsTestCase(RoleAssignmentMixin, TestCase):
         other_holder_user = CustomUser.objects.create_user(
             email="other-holder@example.com", password="pass1234"
         )
-        other_holder_account = Account.objects.get(user=other_holder_user, account_type="holder")
+        other_holder_account = Account.objects.get(
+            user=other_holder_user, account_type="holder"
+        )
 
         # Try to use other user's holder account
         new_dependent_user = CustomUser.objects.create_user(
@@ -347,10 +353,10 @@ class AccountsTestCase(RoleAssignmentMixin, TestCase):
     def test_remove_dependent_with_zero_balance(self):
         """Test removing dependent with zero balance"""
         # Create dependent relationship
-        Dependents.objects.create(
+        baker.make(
+            Dependents,
             holder_account=self.holder_account,
             dependent_account=self.dependent_account,
-            start_date=timezone.now().date(),
         )
 
         # Set balances
@@ -384,10 +390,10 @@ class AccountsTestCase(RoleAssignmentMixin, TestCase):
         )
 
         # Create dependent relationship
-        Dependents.objects.create(
+        baker.make(
+            Dependents,
             holder_account=self.holder_account,
             dependent_account=self.dependent_account,
-            start_date=timezone.now().date(),
         )
 
         # Try to remove using unauthorized client
@@ -499,10 +505,10 @@ class AccountsTestCase(RoleAssignmentMixin, TestCase):
     def test_remove_dependent_with_large_balance(self):
         """Test removing dependent with a large balance to verify transfer"""
         # Create dependent relationship
-        Dependents.objects.create(
+        baker.make(
+            Dependents,
             holder_account=self.holder_account,
             dependent_account=self.dependent_account,
-            start_date=timezone.now().date(),
         )
 
         # Set large balances
@@ -539,7 +545,9 @@ class PlatesSoftDeleteTestCase(TestCase):
         )
         self._assign_gestor_role(self.user_holder)
 
-        self.holder_account = Account.objects.get(user=self.user_holder, account_type="holder")
+        self.holder_account = Account.objects.get(
+            user=self.user_holder, account_type="holder"
+        )
 
         # Create API client
         self.client = APIClient()
@@ -654,43 +662,43 @@ class RoleBasedAccessControlTestCase(RoleAssignmentMixin, TestCase):
         self.assign_role(self.gestor_user, "Gestor")
 
         # Get auto-created holder accounts and set balances
-        self.flota1_account = Account.objects.get(user=self.flota_user1, account_type="holder")
+        self.flota1_account = Account.objects.get(
+            user=self.flota_user1, account_type="holder"
+        )
         self.flota1_account.balance = 1000
         self.flota1_account.save(update_fields=["balance"])
-        self.flota2_account = Account.objects.get(user=self.flota_user2, account_type="holder")
+        self.flota2_account = Account.objects.get(
+            user=self.flota_user2, account_type="holder"
+        )
         self.flota2_account.balance = 2000
         self.flota2_account.save(update_fields=["balance"])
 
         # Create plates for both flota users
-        self.flota1_plate = Plates.objects.create(
-            plate_number="FLO001",
-            holder_account=self.flota1_account,
-            start_date=timezone.now().date(),
+        self.flota1_plate = baker.make(
+            Plates, plate_number="FLO001", holder_account=self.flota1_account
         )
-        self.flota2_plate = Plates.objects.create(
-            plate_number="FLO002",
-            holder_account=self.flota2_account,
-            start_date=timezone.now().date(),
+        self.flota2_plate = baker.make(
+            Plates, plate_number="FLO002", holder_account=self.flota2_account
         )
 
         # Create dependent accounts
-        self.flota1_dependent = Account.objects.create(
-            user=self.flota_user1, balance=100, account_type="dependent"
+        self.flota1_dependent = baker.make(
+            Account, user=self.flota_user1, account_type="dependent"
         )
-        self.flota2_dependent = Account.objects.create(
-            user=self.flota_user2, balance=200, account_type="dependent"
+        self.flota2_dependent = baker.make(
+            Account, user=self.flota_user2, account_type="dependent"
         )
 
         # Create dependent relationships
-        self.flota1_dep_relation = Dependents.objects.create(
+        self.flota1_dep_relation = baker.make(
+            Dependents,
             holder_account=self.flota1_account,
             dependent_account=self.flota1_dependent,
-            start_date=timezone.now().date(),
         )
-        self.flota2_dep_relation = Dependents.objects.create(
+        self.flota2_dep_relation = baker.make(
+            Dependents,
             holder_account=self.flota2_account,
             dependent_account=self.flota2_dependent,
-            start_date=timezone.now().date(),
         )
 
         # Create API clients
@@ -918,25 +926,25 @@ class GestorAndFlotaRoleTestCase(RoleAssignmentMixin, TestCase):
         self.assign_role(self.other_user, "Gestor")
 
         # Get auto-created holder accounts (created by post_save signal)
-        self.gestor_flota_account = Account.objects.get(user=self.gestor_flota_user, account_type="holder")
-        self.flota_only_account = Account.objects.get(user=self.flota_only_user, account_type="holder")
-        self.other_account = Account.objects.get(user=self.other_user, account_type="holder")
+        self.gestor_flota_account = Account.objects.get(
+            user=self.gestor_flota_user, account_type="holder"
+        )
+        self.flota_only_account = Account.objects.get(
+            user=self.flota_only_user, account_type="holder"
+        )
+        self.other_account = Account.objects.get(
+            user=self.other_user, account_type="holder"
+        )
 
         # Create plates
-        self.gestor_flota_plate = Plates.objects.create(
-            plate_number="GF001",
-            holder_account=self.gestor_flota_account,
-            start_date=timezone.now().date(),
+        self.gestor_flota_plate = baker.make(
+            Plates, plate_number="GF001", holder_account=self.gestor_flota_account
         )
-        self.flota_only_plate = Plates.objects.create(
-            plate_number="FO001",
-            holder_account=self.flota_only_account,
-            start_date=timezone.now().date(),
+        self.flota_only_plate = baker.make(
+            Plates, plate_number="FO001", holder_account=self.flota_only_account
         )
-        self.other_plate = Plates.objects.create(
-            plate_number="OT001",
-            holder_account=self.other_account,
-            start_date=timezone.now().date(),
+        self.other_plate = baker.make(
+            Plates, plate_number="OT001", holder_account=self.other_account
         )
 
         # Create API clients
@@ -1103,9 +1111,7 @@ class OrganismAPITests(RoleAssignmentMixin, TestCase):
         self.list_url = reverse("organism-list")
 
     def test_gestor_can_list_organisms(self):
-        Organism.objects.create(
-            name="Org A", cuit="30-11111111-1", billing_type="invoice"
-        )
+        baker.make(Organism)
         response = self.gestor_client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), Organism.objects.count())
@@ -1124,9 +1130,7 @@ class OrganismAPITests(RoleAssignmentMixin, TestCase):
         self.assertTrue(Organism.objects.filter(name="Organismo de Prueba").exists())
 
     def test_gestor_can_update_organism(self):
-        org = Organism.objects.create(
-            name="Original", cuit="30-11111111-1", billing_type="invoice"
-        )
+        org = baker.make(Organism)
         url = reverse("organism-detail", args=[org.id])
         response = self.gestor_client.patch(
             url, {"billing_type": "prepaid"}, format="json"
@@ -1136,9 +1140,7 @@ class OrganismAPITests(RoleAssignmentMixin, TestCase):
         self.assertEqual(org.billing_type, "prepaid")
 
     def test_gestor_can_delete_organism(self):
-        org = Organism.objects.create(
-            name="To Delete", cuit="30-11111111-1", billing_type="invoice"
-        )
+        org = baker.make(Organism)
         url = reverse("organism-detail", args=[org.id])
         response = self.gestor_client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
