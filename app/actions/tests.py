@@ -43,9 +43,9 @@ class FuelLoadFlowTests(TestCase):
         self.holder_user = CustomUser.objects.create_user(
             email="holder@example.com", password="pass1234"
         )
-        self.holder_account = Account.objects.create(
-            user=self.holder_user, account_type="holder", balance=Decimal("100.00")
-        )
+        self.holder_account = Account.objects.get(user=self.holder_user, account_type="holder")
+        self.holder_account.balance = Decimal("100.00")
+        self.holder_account.save()
 
         self.plate = Plates.objects.create(
             plate_number="ABC123",
@@ -57,11 +57,9 @@ class FuelLoadFlowTests(TestCase):
         self.other_holder_user = CustomUser.objects.create_user(
             email="other-holder@example.com", password="pass1234"
         )
-        self.other_holder_account = Account.objects.create(
-            user=self.other_holder_user,
-            account_type="holder",
-            balance=Decimal("100.00"),
-        )
+        self.other_holder_account = Account.objects.get(user=self.other_holder_user, account_type="holder")
+        self.other_holder_account.balance = Decimal("100.00")
+        self.other_holder_account.save()
 
         self.other_plate = Plates.objects.create(
             plate_number="XYZ789",
@@ -272,9 +270,9 @@ class RemoveDependentTests(TestCase):
         self.holder_user = CustomUser.objects.create_user(
             email="holder@example.com", password="pass1234"
         )
-        self.holder_account = Account.objects.create(
-            user=self.holder_user, account_type="holder", balance=Decimal("100.00")
-        )
+        self.holder_account = Account.objects.get(user=self.holder_user, account_type="holder")
+        self.holder_account.balance = Decimal("100.00")
+        self.holder_account.save()
 
         # Dependent user + account
         self.dependent_user = CustomUser.objects.create_user(

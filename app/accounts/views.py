@@ -907,8 +907,7 @@ class AuthorizedEmailViewSet(BaseLCViewSet):
         queryset = super().get_queryset()
         dependent_of_id = self.request.query_params.get("dependent_of")
         if dependent_of_id:
-            return queryset.filter(dependent_of_id=dependent_of_id)
-        # Sin filtro explícito: mostrar solo las invitaciones propias del usuario
+            return queryset.filter(dependent_of_id=dependent_of_id)        # Sin filtro explícito: mostrar solo las invitaciones propias del usuario
         user_accounts = self.request.user.account_set.filter(
             account_type="holder", is_active=True
         )

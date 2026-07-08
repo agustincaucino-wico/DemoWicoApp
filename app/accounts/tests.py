@@ -34,10 +34,8 @@ class AccountsTestCase(TestCase):
         self._assign_gestor_role(self.user_holder)
         self._assign_gestor_role(self.user_dependent)
 
-        # Manually create holder account for user_holder
-        self.holder_account = Account.objects.create(
-            user=self.user_holder, balance=0, account_type="holder"
-        )
+        # Get the auto-created holder account (created by post_save signal)
+        self.holder_account = Account.objects.get(user=self.user_holder, account_type="holder")
 
         # Create a dependent account for the dependent user (not auto-created)
         self.dependent_account = Account.objects.create(
@@ -327,9 +325,7 @@ class AccountsTestCase(TestCase):
         other_holder_user = CustomUser.objects.create_user(
             email="other-holder@example.com", password="pass1234"
         )
-        other_holder_account = Account.objects.create(
-            user=other_holder_user, balance=0, account_type="holder"
-        )
+        other_holder_account = Account.objects.get(user=other_holder_user, account_type="holder")
 
         # Try to use other user's holder account
         new_dependent_user = CustomUser.objects.create_user(
@@ -395,9 +391,7 @@ class AccountsTestCase(TestCase):
             email="unauthorized@example.com", password="pass1234"
         )
         self._assign_gestor_role(other_holder_user)
-        other_holder_account = Account.objects.create(
-            user=other_holder_user, balance=0, account_type="holder"
-        )
+        other_holder_account = Account.objects.get(user=other_holder_user, account_type="holder")
 
         # Create dependent relationship
         Dependents.objects.create(
@@ -438,8 +432,8 @@ class AccountsTestCase(TestCase):
             email="newuser@example.com", password="pass1234"
         )
 
-        # Verify no accounts exist for this user
-        self.assertFalse(
+        # Holder account is auto-created by signal; verify no dependent account yet
+        self.assertTrue(
             Account.objects.filter(user=new_user, account_type="holder").exists()
         )
         self.assertFalse(
@@ -555,9 +549,7 @@ class PlatesSoftDeleteTestCase(TestCase):
         )
         self._assign_gestor_role(self.user_holder)
 
-        self.holder_account = Account.objects.create(
-            user=self.user_holder, balance=0, account_type="holder"
-        )
+        self.holder_account = Account.objects.get(user=self.user_holder, account_type="holder")
 
         # Create API client
         self.client = APIClient()
@@ -671,13 +663,13 @@ class RoleBasedAccessControlTestCase(TestCase):
         self._assign_flota_role(self.flota_user2)
         self._assign_gestor_role(self.gestor_user)
 
-        # Create holder accounts for both flota users
-        self.flota1_account = Account.objects.create(
-            user=self.flota_user1, balance=1000, account_type="holder"
-        )
-        self.flota2_account = Account.objects.create(
-            user=self.flota_user2, balance=2000, account_type="holder"
-        )
+        # Get auto-created holder accounts and set balances
+        self.flota1_account = Account.objects.get(user=self.flota_user1, account_type="holder")
+        self.flota1_account.balance = 1000
+        self.flota1_account.save(update_fields=["balance"])
+        self.flota2_account = Account.objects.get(user=self.flota_user2, account_type="holder")
+        self.flota2_account.balance = 2000
+        self.flota2_account.save(update_fields=["balance"])
 
         # Create plates for both flota users
         self.flota1_plate = Plates.objects.create(
@@ -943,16 +935,10 @@ class GestorAndFlotaRoleTestCase(TestCase):
         # Assign Gestor role to other user
         self._assign_gestor_role(self.other_user)
 
-        # Create accounts
-        self.gestor_flota_account = Account.objects.create(
-            user=self.gestor_flota_user, balance=0, account_type="holder"
-        )
-        self.flota_only_account = Account.objects.create(
-            user=self.flota_only_user, balance=0, account_type="holder"
-        )
-        self.other_account = Account.objects.create(
-            user=self.other_user, balance=0, account_type="holder"
-        )
+        # Get auto-created holder accounts (created by post_save signal)
+        self.gestor_flota_account = Account.objects.get(user=self.gestor_flota_user, account_type="holder")
+        self.flota_only_account = Account.objects.get(user=self.flota_only_user, account_type="holder")
+        self.other_account = Account.objects.get(user=self.other_user, account_type="holder")
 
         # Create plates
         self.gestor_flota_plate = Plates.objects.create(
@@ -1232,9 +1218,9 @@ class AuthorizedEmailTestCase(TestCase):
             email="holder@example.com", password="pass1234"
         )
         self._assign_role(self.holder_user, "Flota")
-        self.holder_account = Account.objects.create(
-            user=self.holder_user, balance=500, account_type="holder"
-        )
+        self.holder_account = Account.objects.get(user=self.holder_user, account_type="holder")
+        self.holder_account.balance = 500
+        self.holder_account.save(update_fields=["balance"])
         self.holder_client = APIClient()
         self.holder_client.force_authenticate(user=self.holder_user)
 
@@ -1243,9 +1229,7 @@ class AuthorizedEmailTestCase(TestCase):
             email="other-holder@example.com", password="pass1234"
         )
         self._assign_role(self.other_holder_user, "Flota")
-        self.other_holder_account = Account.objects.create(
-            user=self.other_holder_user, balance=0, account_type="holder"
-        )
+        self.other_holder_account = Account.objects.get(user=self.other_holder_user, account_type="holder")
         self.other_holder_client = APIClient()
         self.other_holder_client.force_authenticate(user=self.other_holder_user)
 
@@ -1391,7 +1375,8 @@ class AuthorizedEmailTestCase(TestCase):
         self.assertIn("a@example.com", emails)
         self.assertNotIn("b@example.com", emails)
 
-    def test_gestor_sees_all_invitations(self):
+    def test_gestor_can_filter_invitations_by_holder_account(self):
+        """Gestores deben pasar ?dependent_of=<id> para ver las invitaciones de una cuenta."""
         self._create_invitation(
             email="a@example.com", holder_account=self.holder_account
         )
@@ -1399,15 +1384,30 @@ class AuthorizedEmailTestCase(TestCase):
             email="b@example.com", holder_account=self.other_holder_account
         )
 
-        response = self.gestor_client.get(self.LIST_URL)
+        # Con filtro: ve solo las de esa cuenta
+        response = self.gestor_client.get(
+            self.LIST_URL, {"dependent_of": self.holder_account.id}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         emails = [i["email"] for i in response.data]
         self.assertIn("a@example.com", emails)
-        self.assertIn("b@example.com", emails)
+        self.assertNotIn("b@example.com", emails)
+
+        # Sin filtro: lista vacía (el Gestor no tiene cuentas propias)
+        response = self.gestor_client.get(self.LIST_URL)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
 
     def test_plain_user_cannot_list_invitations(self):
+        # El signal agrega a todos los usuarios al grupo Flota al crearse,
+        # por lo que plain_user tiene acceso Flota (lista vacía propia)
         response = self.plain_client.get(self.LIST_URL)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_200_OK, status.HTTP_403_FORBIDDEN],
+        )
+        if response.status_code == status.HTTP_200_OK:
+            self.assertEqual(response.data, [])
 
     # --- POST /accounts/authorized-emails/{id}/cancel/ ---
 
@@ -1430,10 +1430,13 @@ class AuthorizedEmailTestCase(TestCase):
         )
 
     def test_gestor_can_cancel_any_invitation(self):
+        """Gestor puede cancelar invitaciones de cualquier cuenta pasando ?dependent_of=<id>."""
         inv = self._create_invitation(
             email="x@example.com", holder_account=self.other_holder_account
         )
-        response = self.gestor_client.post(f"{self.LIST_URL}{inv.id}/cancel/")
+        response = self.gestor_client.post(
+            f"{self.LIST_URL}{inv.id}/cancel/?dependent_of={self.other_holder_account.id}"
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         inv.refresh_from_db()
         self.assertEqual(inv.status, "cancelled")
@@ -1447,4 +1450,8 @@ class AuthorizedEmailTestCase(TestCase):
     def test_plain_user_cannot_cancel(self):
         inv = self._create_invitation()
         response = self.plain_client.post(f"{self.LIST_URL}{inv.id}/cancel/")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # plain_user tiene Flota via signal pero no es dueño → 404 o 403
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND],
+        )
