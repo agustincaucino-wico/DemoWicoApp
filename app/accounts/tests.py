@@ -10,6 +10,7 @@ from rest_framework import status
 
 from users.models import CustomUser
 from users.roles import ROLES
+from users.test_helpers import RoleAssignmentMixin
 from .models import (
     Account,
     Dependents,
@@ -20,7 +21,7 @@ from .models import (
 )
 
 
-class AccountsTestCase(TestCase):
+class AccountsTestCase(RoleAssignmentMixin, TestCase):
     def setUp(self):
         # Create two users, a holder and a dependent user
         self.user_holder = CustomUser.objects.create_user(
@@ -31,8 +32,8 @@ class AccountsTestCase(TestCase):
         )
 
         # Assign Gestor role (group + permissions) to users
-        self._assign_gestor_role(self.user_holder)
-        self._assign_gestor_role(self.user_dependent)
+        self.assign_role(self.user_holder, "Gestor")
+        self.assign_role(self.user_dependent, "Gestor")
 
         # Get the auto-created holder account (created by post_save signal)
         self.holder_account = Account.objects.get(user=self.user_holder, account_type="holder")
@@ -48,19 +49,6 @@ class AccountsTestCase(TestCase):
 
         self.dependent_client = APIClient()
         self.dependent_client.force_authenticate(user=self.user_dependent)
-
-    def _assign_gestor_role(self, user):
-        """Assign Gestor group and permissions to the user."""
-        # Create or get the Gestor group
-        gestor_group, _ = Group.objects.get_or_create(name="Gestor")
-
-        # Assign permissions to the group
-        gestor_permissions = ROLES.get("Gestor", [])
-        permissions = Permission.objects.filter(codename__in=gestor_permissions)
-        gestor_group.permissions.set(permissions)
-
-        # Add user to the Gestor group
-        user.groups.add(gestor_group)
 
     def test_update_balance_action(self):
         # Update balance via action endpoint
@@ -390,8 +378,10 @@ class AccountsTestCase(TestCase):
         other_holder_user = CustomUser.objects.create_user(
             email="unauthorized@example.com", password="pass1234"
         )
-        self._assign_gestor_role(other_holder_user)
-        other_holder_account = Account.objects.get(user=other_holder_user, account_type="holder")
+        self.assign_role(other_holder_user, "Gestor")
+        other_holder_account = Account.objects.get(
+            user=other_holder_user, account_type="holder"
+        )
 
         # Create dependent relationship
         Dependents.objects.create(
@@ -641,7 +631,7 @@ class PlatesSoftDeleteTestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
 
-class RoleBasedAccessControlTestCase(TestCase):
+class RoleBasedAccessControlTestCase(RoleAssignmentMixin, TestCase):
     """Test that Gestor can access all resources while Flota users can only access their own"""
 
     def setUp(self):
@@ -661,7 +651,7 @@ class RoleBasedAccessControlTestCase(TestCase):
         # Assign roles
         self._assign_flota_role(self.flota_user1)
         self._assign_flota_role(self.flota_user2)
-        self._assign_gestor_role(self.gestor_user)
+        self.assign_role(self.gestor_user, "Gestor")
 
         # Get auto-created holder accounts and set balances
         self.flota1_account = Account.objects.get(user=self.flota_user1, account_type="holder")
@@ -735,14 +725,6 @@ class RoleBasedAccessControlTestCase(TestCase):
             flota_group.permissions.set(permissions)
 
         user.groups.add(flota_group)
-
-    def _assign_gestor_role(self, user):
-        """Assign Gestor group and permissions to the user."""
-        gestor_group, _ = Group.objects.get_or_create(name="Gestor")
-        gestor_permissions = ROLES.get("Gestor", [])
-        permissions = Permission.objects.filter(codename__in=gestor_permissions)
-        gestor_group.permissions.set(permissions)
-        user.groups.add(gestor_group)
 
     def test_flota_user_can_only_see_own_accounts(self):
         """Flota users should only see their own accounts"""
@@ -910,7 +892,7 @@ class RoleBasedAccessControlTestCase(TestCase):
         self.assertIsNotNone(self.flota1_plate.end_date)
 
 
-class GestorAndFlotaRoleTestCase(TestCase):
+class GestorAndFlotaRoleTestCase(RoleAssignmentMixin, TestCase):
     """Test that users with both Gestor and Flota roles get Gestor permissions"""
 
     def setUp(self):
@@ -926,14 +908,14 @@ class GestorAndFlotaRoleTestCase(TestCase):
         )
 
         # Assign both Gestor and Flota roles to first user
-        self._assign_gestor_role(self.gestor_flota_user)
+        self.assign_role(self.gestor_flota_user, "Gestor")
         self._assign_flota_role(self.gestor_flota_user)
 
         # Assign only Flota role to second user
         self._assign_flota_role(self.flota_only_user)
 
         # Assign Gestor role to other user
-        self._assign_gestor_role(self.other_user)
+        self.assign_role(self.other_user, "Gestor")
 
         # Get auto-created holder accounts (created by post_save signal)
         self.gestor_flota_account = Account.objects.get(user=self.gestor_flota_user, account_type="holder")
@@ -963,14 +945,6 @@ class GestorAndFlotaRoleTestCase(TestCase):
 
         self.flota_only_client = APIClient()
         self.flota_only_client.force_authenticate(user=self.flota_only_user)
-
-    def _assign_gestor_role(self, user):
-        """Assign Gestor group and permissions to the user."""
-        gestor_group, _ = Group.objects.get_or_create(name="Gestor")
-        gestor_permissions = ROLES.get("Gestor", [])
-        permissions = Permission.objects.filter(codename__in=gestor_permissions)
-        gestor_group.permissions.set(permissions)
-        user.groups.add(gestor_group)
 
     def _assign_flota_role(self, user):
         """Assign Flota group and permissions to the user."""
@@ -1104,12 +1078,12 @@ class OrganismModelTests(TestCase):
         self.assertEqual(org_prepaid.billing_type, "prepaid")
 
 
-class OrganismAPITests(TestCase):
+class OrganismAPITests(RoleAssignmentMixin, TestCase):
     def setUp(self):
         self.gestor_user = CustomUser.objects.create_user(
             email="gestor@example.com", password="pass1234"
         )
-        self._assign_role(self.gestor_user, "Gestor")
+        self.assign_role(self.gestor_user, "Gestor")
         self.gestor_client = APIClient()
         self.gestor_client.force_authenticate(user=self.gestor_user)
 
@@ -1122,17 +1096,11 @@ class OrganismAPITests(TestCase):
         self.flota_user = CustomUser.objects.create_user(
             email="flota@example.com", password="pass1234"
         )
-        self._assign_role(self.flota_user, "Flota")
+        self.assign_role(self.flota_user, "Flota")
         self.flota_client = APIClient()
         self.flota_client.force_authenticate(user=self.flota_user)
 
         self.list_url = reverse("organism-list")
-
-    def _assign_role(self, user, role_name):
-        group, _ = Group.objects.get_or_create(name=role_name)
-        permissions = Permission.objects.filter(codename__in=ROLES.get(role_name, []))
-        group.permissions.set(permissions)
-        user.groups.add(group)
 
     def test_gestor_can_list_organisms(self):
         Organism.objects.create(
@@ -1207,7 +1175,7 @@ class OrganismAPITests(TestCase):
 # ---------------------------------------------------------------------------
 
 
-class AuthorizedEmailTestCase(TestCase):
+class AuthorizedEmailTestCase(RoleAssignmentMixin, TestCase):
     """Tests for the AuthorizedEmail invitation flow and permissions."""
 
     LIST_URL = "/accounts/authorized-emails/"
@@ -1217,8 +1185,10 @@ class AuthorizedEmailTestCase(TestCase):
         self.holder_user = CustomUser.objects.create_user(
             email="holder@example.com", password="pass1234"
         )
-        self._assign_role(self.holder_user, "Flota")
-        self.holder_account = Account.objects.get(user=self.holder_user, account_type="holder")
+        self.assign_role(self.holder_user, "Flota")
+        self.holder_account = Account.objects.get(
+            user=self.holder_user, account_type="holder"
+        )
         self.holder_account.balance = 500
         self.holder_account.save(update_fields=["balance"])
         self.holder_client = APIClient()
@@ -1228,8 +1198,10 @@ class AuthorizedEmailTestCase(TestCase):
         self.other_holder_user = CustomUser.objects.create_user(
             email="other-holder@example.com", password="pass1234"
         )
-        self._assign_role(self.other_holder_user, "Flota")
-        self.other_holder_account = Account.objects.get(user=self.other_holder_user, account_type="holder")
+        self.assign_role(self.other_holder_user, "Flota")
+        self.other_holder_account = Account.objects.get(
+            user=self.other_holder_user, account_type="holder"
+        )
         self.other_holder_client = APIClient()
         self.other_holder_client.force_authenticate(user=self.other_holder_user)
 
@@ -1237,7 +1209,7 @@ class AuthorizedEmailTestCase(TestCase):
         self.gestor_user = CustomUser.objects.create_user(
             email="gestor@example.com", password="pass1234"
         )
-        self._assign_role(self.gestor_user, "Gestor")
+        self.assign_role(self.gestor_user, "Gestor")
         self.gestor_client = APIClient()
         self.gestor_client.force_authenticate(user=self.gestor_user)
 
@@ -1247,12 +1219,6 @@ class AuthorizedEmailTestCase(TestCase):
         )
         self.plain_client = APIClient()
         self.plain_client.force_authenticate(user=self.plain_user)
-
-    def _assign_role(self, user, role_name):
-        group, _ = Group.objects.get_or_create(name=role_name)
-        permissions = Permission.objects.filter(codename__in=ROLES.get(role_name, []))
-        group.permissions.set(permissions)
-        user.groups.add(group)
 
     def _create_invitation(self, email="unregistered@example.com", holder_account=None):
         holder_account = holder_account or self.holder_account

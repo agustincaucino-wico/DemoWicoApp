@@ -1,6 +1,5 @@
 from decimal import Decimal
 
-from django.contrib.auth.models import Group, Permission
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework import status
@@ -11,10 +10,10 @@ from locations.models import Country, Province, City
 from operation.models import FuelLoadOperation
 from stations.models import Station, StationAttendantAssignment
 from users.models import CustomUser
-from users.roles import ROLES
+from users.test_helpers import RoleAssignmentMixin
 
 
-class FuelLoadFlowTests(TestCase):
+class FuelLoadFlowTests(RoleAssignmentMixin, TestCase):
     def setUp(self):
         # Location setup
         self.country = Country.objects.create(name="Testland")
@@ -71,7 +70,7 @@ class FuelLoadFlowTests(TestCase):
         self.attendant_user = CustomUser.objects.create_user(
             email="playero@example.com", password="pass1234"
         )
-        self._assign_role(self.attendant_user, "Playero")
+        self.assign_role(self.attendant_user, "Playero")
         StationAttendantAssignment.objects.create(
             attendant=self.attendant_user,
             station=self.station,
@@ -82,7 +81,7 @@ class FuelLoadFlowTests(TestCase):
         self.unassigned_attendant = CustomUser.objects.create_user(
             email="no-station@example.com", password="pass1234"
         )
-        self._assign_role(self.unassigned_attendant, "Playero")
+        self.assign_role(self.unassigned_attendant, "Playero")
 
         # API clients
         self.holder_client = APIClient()
@@ -98,12 +97,6 @@ class FuelLoadFlowTests(TestCase):
         self.unassigned_attendant_client.force_authenticate(
             user=self.unassigned_attendant
         )
-
-    def _assign_role(self, user, role_name):
-        group, _ = Group.objects.get_or_create(name=role_name)
-        permissions = Permission.objects.filter(codename__in=ROLES.get(role_name, []))
-        group.permissions.set(permissions)
-        user.groups.add(group)
 
     def _initiate_operation(self, client=None, account=None, station=None, amount="30"):
         client = client or self.holder_client

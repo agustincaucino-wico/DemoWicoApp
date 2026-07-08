@@ -1,7 +1,6 @@
 from decimal import Decimal
 from datetime import timedelta
 
-from django.contrib.auth.models import Group, Permission
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -13,10 +12,10 @@ from locations.models import Country, Province, City
 from operation.models import FuelLoadOperation, PaymentMethod
 from stations.models import Station
 from users.models import CustomUser
-from users.roles import ROLES
+from users.test_helpers import RoleAssignmentMixin
 
 
-class FuelLoadOperationAPITests(TestCase):
+class FuelLoadOperationAPITests(RoleAssignmentMixin, TestCase):
     def setUp(self):
         self.country = Country.objects.create(name="Testland")
         self.province = Province.objects.create(
@@ -42,7 +41,7 @@ class FuelLoadOperationAPITests(TestCase):
         self.user = CustomUser.objects.create_user(
             email="manager@example.com", password="pass1234"
         )
-        self._assign_role(self.user, "Gestor")
+        self.assign_role(self.user, "Gestor")
 
         self.attendant = CustomUser.objects.create_user(
             email="attendant@example.com", password="pass1234"
@@ -65,12 +64,6 @@ class FuelLoadOperationAPITests(TestCase):
         self.client.force_authenticate(user=self.user)
 
         self.list_url = reverse("fuel-load-operations-list")
-
-    def _assign_role(self, user, role_name):
-        group, _ = Group.objects.get_or_create(name=role_name)
-        permissions = Permission.objects.filter(codename__in=ROLES.get(role_name, []))
-        group.permissions.set(permissions)
-        user.groups.add(group)
 
     def _create_operation(self, **kwargs):
         defaults = {
@@ -214,7 +207,7 @@ class FuelLoadOperationAPITests(TestCase):
         self.assertIn("exceder", str(context.exception).lower())
 
 
-class PaginationBehaviorTests(TestCase):
+class PaginationBehaviorTests(RoleAssignmentMixin, TestCase):
     """
     Verifica el comportamiento retrocompatible de ConditionalPageNumberPagination.
 
@@ -239,7 +232,7 @@ class PaginationBehaviorTests(TestCase):
         self.user = CustomUser.objects.create_user(
             email="pagtest@example.com", password="pass1234"
         )
-        self._assign_role(self.user, "Gestor")
+        self.assign_role(self.user, "Gestor")
         # El signal post_save de accounts crea automáticamente la cuenta holder
         # al crear el usuario; la obtenemos en lugar de intentar crear otra.
         self.account = Account.objects.get(user=self.user, account_type="holder")
@@ -262,12 +255,6 @@ class PaginationBehaviorTests(TestCase):
                 initial_amount=Decimal(f"{i + 1}.00"),
                 status=FuelLoadOperation.STATUS_PENDING,
             )
-
-    def _assign_role(self, user, role_name):
-        group, _ = Group.objects.get_or_create(name=role_name)
-        permissions = Permission.objects.filter(codename__in=ROLES.get(role_name, []))
-        group.permissions.set(permissions)
-        user.groups.add(group)
 
     def test_sin_page_param_devuelve_lista_directa(self):
         """Sin ?page el response debe ser un array directo (retrocompatibilidad)."""

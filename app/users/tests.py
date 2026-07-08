@@ -1,13 +1,12 @@
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group, Permission
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
-from users.roles import ROLES
+from users.test_helpers import RoleAssignmentMixin
 
 User = get_user_model()
 
 
-class UserViewSetPermissionTests(APITestCase):
+class UserViewSetPermissionTests(RoleAssignmentMixin, APITestCase):
     """Test permission handling in UserViewSet."""
 
     def setUp(self):
@@ -23,7 +22,7 @@ class UserViewSetPermissionTests(APITestCase):
         )
 
         # Assign Gestor permissions to user_with_perms
-        self._assign_gestor_role(self.user_with_perms)
+        self.assign_role(self.user_with_perms, "Gestor")
 
         # Setup clients
         self.anon_client = APIClient()
@@ -31,17 +30,6 @@ class UserViewSetPermissionTests(APITestCase):
         self.no_perm_client.force_authenticate(user=self.user_without_perms)
         self.perm_client = APIClient()
         self.perm_client.force_authenticate(user=self.user_with_perms)
-
-    def _assign_gestor_role(self, user):
-        """Assign Gestor role permissions to a user."""
-        group, _ = Group.objects.get_or_create(name="Gestor")
-        for perm_codename in ROLES["Gestor"]:
-            try:
-                perm = Permission.objects.get(codename=perm_codename)
-                group.permissions.add(perm)
-            except Permission.DoesNotExist:
-                pass
-        user.groups.add(group)
 
     def test_unauthenticated_cannot_list_users(self):
         """Unauthenticated requests should be denied."""
