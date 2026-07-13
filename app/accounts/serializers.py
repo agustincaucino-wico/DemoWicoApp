@@ -74,6 +74,8 @@ class DependentsSerializer(serializers.ModelSerializer):
     holder_email = serializers.EmailField(
         source='holder_account.user.email', read_only=True
     )
+    dependent_account_balance = serializers.SerializerMethodField()
+    authorized_plates = serializers.SerializerMethodField()
 
     def get_dependent_user(self, obj):
         user = getattr(getattr(obj.dependent_account, 'user', None), '__dict__', None)
@@ -87,10 +89,34 @@ class DependentsSerializer(serializers.ModelSerializer):
             'last_name': u.last_name or '',
         }
 
+    def get_dependent_account_balance(self, obj):
+        if obj.dependent_account:
+            return str(obj.dependent_account.balance)
+        return None
+
+    def get_authorized_plates(self, obj):
+        if not obj.dependent_account:
+            return []
+        auth_plates = AuthorizedPlate.objects.filter(
+            dependent_account=obj.dependent_account,
+            end_date__isnull=True,
+            plate__end_date__isnull=True,
+        ).select_related('plate')
+        return [
+            {
+                'id': ap.plate.id,
+                'plate_number': ap.plate.plate_number,
+                'brand': ap.plate.brand,
+                'model': ap.plate.model,
+            }
+            for ap in auth_plates
+        ]
+
     class Meta:
         model = Dependents
         fields = ['id', 'holder_account', 'dependent_account', 'start_date', 'end_date',
-                  'email', 'dni', 'dependent_user', 'holder_email']
+                  'email', 'dni', 'dependent_user', 'holder_email',
+                  'dependent_account_balance', 'authorized_plates']
 
 
 class PlatesSerializer(serializers.ModelSerializer):
