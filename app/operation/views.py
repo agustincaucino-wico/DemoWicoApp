@@ -102,13 +102,19 @@ class ModifyFundsViewSet(
     serializer_class = ModifyFundsSerializer
 
     def get_queryset(self):
-        return (
+        qs = (
             ModifyFunds.objects.select_related(
                 "account__user", "gestor", "payment_method"
             )
-            .all()
             .order_by("-timestamp")
         )
+        date_from = self.request.query_params.get("date_from")
+        date_to = self.request.query_params.get("date_to")
+        if date_from:
+            qs = qs.filter(timestamp__date__gte=date_from)
+        if date_to:
+            qs = qs.filter(timestamp__date__lte=date_to)
+        return qs
 
 
 class BalanceRechargeRequestViewSet(viewsets.ModelViewSet):
