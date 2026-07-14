@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 from users.test_helpers import RoleAssignmentMixin
@@ -253,3 +254,68 @@ class LoginFlowTests(APITestCase):
         authenticated_client.credentials(HTTP_AUTHORIZATION=access_token)
         response = authenticated_client.get("/users/me/")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class DevUserLoginViewTests(APITestCase):
+    """
+    DevUserLoginView (/users/dev/login/) mints a JWT via RefreshToken.for_user()
+    with no password, is_active, or email_verified check at all - its only
+    protection is the settings.DEBUG gate. These tests pin down both sides of
+    that behavior: the endpoint must be a dead 404 under the settings the test
+    suite (and presumably production) actually run with, and must genuinely
+    work as designed when DEBUG=True, since that's the whole point of it
+    existing.
+    """
+
+    DEV_LOGIN_URL = "/users/dev/login/"
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="dev-login-target@example.com", password="whatever-not-checked"
+        )
+        self.client = APIClient()
+
+    def test_dev_login_returns_404_when_debug_false_regardless_of_payload(self):
+        """
+        The test suite runs under myapp.settings.dev, which sets DEBUG=False.
+        No payload - valid or not - should ever reach the token-minting code.
+        """
+        for payload in (
+            {},
+            {"email": self.user.email},
+            {"user_id": self.user.id},
+            {"email": "nobody-here@example.com"},
+        ):
+            with self.subTest(payload=payload):
+                response = self.client.post(
+                    self.DEV_LOGIN_URL, payload, format="json"
+                )
+                self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+                self.assertNotIn("access", response.data)
+                self.assertNotIn("refresh", response.data)
+
+    @override_settings(DEBUG=True)
+    def test_dev_login_issues_valid_token_when_debug_true(self):
+        """
+        With DEBUG=True (e.g. a developer's local settings), the endpoint
+        works exactly as designed: no password required, mints a real token
+        for the requested user by email.
+        """
+        response = self.client.post(
+            self.DEV_LOGIN_URL, {"email": self.user.email}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
+        self.assertTrue(response.data["access"])
+        self.assertTrue(response.data["refresh"])
+        self.assertEqual(response.data["user"]["email"], self.user.email)
+
+        # Confirm it's not a token-shaped placeholder - it actually authenticates.
+        authenticated_client = APIClient()
+        authenticated_client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {response.data['access']}"
+        )
+        me_response = authenticated_client.get("/users/me/")
+        self.assertEqual(me_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(me_response.data["email"], self.user.email)
