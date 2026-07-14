@@ -135,3 +135,121 @@ class UserViewSetPermissionTests(RoleAssignmentMixin, APITestCase):
         # Verify user is still NOT a superuser or staff
         self.assertFalse(self.user_without_perms.is_superuser)
         self.assertFalse(self.user_without_perms.is_staff)
+
+
+class LoginFlowTests(APITestCase):
+    """
+    Real login flow tests hitting the actual /api/token/ endpoint (no
+    force_authenticate). Covers credential validation plus the two extra
+    preconditions enforced by CustomTokenObtainPairSerializer/ModelBackend:
+    email_verified and is_active.
+    """
+
+    TOKEN_URL = "/api/token/"
+
+    def setUp(self):
+        self.password = "correct-horse-battery-staple"
+        self.user = User.objects.create_user(
+            email="login-test@example.com", password=self.password
+        )
+        # create_user() does not verify the email or activate anything beyond
+        # the model default; login requires email_verified explicitly.
+        self.user.email_verified = True
+        self.user.save()
+        self.client = APIClient()
+
+    def test_login_with_valid_credentials_returns_tokens(self):
+        response = self.client.post(
+            self.TOKEN_URL,
+            {"email": self.user.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
+        self.assertTrue(response.data["access"])
+        self.assertTrue(response.data["refresh"])
+
+    def test_login_with_wrong_password_fails(self):
+        response = self.client.post(
+            self.TOKEN_URL,
+            {"email": self.user.email, "password": "not-the-password"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertNotIn("access", response.data)
+
+    def test_login_with_nonexistent_email_fails(self):
+        response = self.client.post(
+            self.TOKEN_URL,
+            {"email": "nobody-here@example.com", "password": "whatever"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertNotIn("access", response.data)
+
+    def test_login_fails_for_unverified_email(self):
+        """CustomTokenObtainPairSerializer rejects login until email_verified=True."""
+        self.user.email_verified = False
+        self.user.save()
+
+        response = self.client.post(
+            self.TOKEN_URL,
+            {"email": self.user.email, "password": self.password},
+            format="json",
+        )
+        # The serializer raises this as a ValidationError (not
+        # AuthenticationFailed), so it surfaces as 400, not 401.
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn("access", response.data)
+        # DRF wraps each dict value of a raised ValidationError in a list of
+        # ErrorDetail; unwrap before comparing.
+        self.assertEqual(response.data["status"][0], "unverified")
+
+    def test_login_fails_for_inactive_user(self):
+        """
+        is_active=False is enforced by Django's ModelBackend before our
+        serializer even reaches the email_verified check, so it looks
+        identical to a wrong-password failure (401, generic message) rather
+        than surfacing as a distinct error.
+        """
+        self.user.is_active = False
+        self.user.save()
+
+        response = self.client.post(
+            self.TOKEN_URL,
+            {"email": self.user.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertNotIn("access", response.data)
+
+    def test_access_token_from_login_authenticates_subsequent_request(self):
+        """The access token returned by /api/token/ must work as real bearer auth."""
+        login_response = self.client.post(
+            self.TOKEN_URL,
+            {"email": self.user.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(login_response.status_code, status.HTTP_200_OK)
+        access_token = login_response.data["access"]
+
+        authenticated_client = APIClient()
+        authenticated_client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
+        response = authenticated_client.get("/users/me/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["email"], self.user.email)
+
+    def test_access_token_missing_bearer_prefix_is_rejected(self):
+        """A raw token without the 'Bearer ' scheme must not authenticate."""
+        login_response = self.client.post(
+            self.TOKEN_URL,
+            {"email": self.user.email, "password": self.password},
+            format="json",
+        )
+        access_token = login_response.data["access"]
+
+        authenticated_client = APIClient()
+        authenticated_client.credentials(HTTP_AUTHORIZATION=access_token)
+        response = authenticated_client.get("/users/me/")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
