@@ -1,8 +1,17 @@
+import re
+from datetime import timedelta
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
+
+from users.models import PasswordResetToken
 from users.test_helpers import RoleAssignmentMixin
+from utils.email_service import EmailService
 
 User = get_user_model()
 
@@ -319,3 +328,261 @@ class DevUserLoginViewTests(APITestCase):
         me_response = authenticated_client.get("/users/me/")
         self.assertEqual(me_response.status_code, status.HTTP_200_OK)
         self.assertEqual(me_response.data["email"], self.user.email)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class PasswordResetFlowTests(APITestCase):
+    """
+    End-to-end tests for the unauthenticated password reset flow, hitting the
+    real /users/password-reset-{request,verify,confirm}/ endpoints.
+
+    The locmem email backend is forced so send_password_reset_email actually
+    succeeds (the test settings otherwise point at a real SMTP host, which
+    would make send_email return False and turn every request into a 500).
+
+    Behavior confirmed by reading the real code:
+      - The request endpoint returns an identical 200 message whether or not
+        the email exists (enumeration defense), rate-limits at
+        PasswordResetToken.MAX_REQUESTS_PER_HOUR, and 500s if the email fails.
+      - get_valid_token filters used=False AND checks expiry, so a used or
+        expired code is rejected as invalid.
+      - confirm marks the token used=True, which is what blocks replay.
+      - confirm's serializer validates the new password BEFORE the token is
+        looked up, so a rejected password does not consume the token.
+    """
+
+    REQUEST_URL = "/users/password-reset-request/"
+    VERIFY_URL = "/users/password-reset-verify/"
+    CONFIRM_URL = "/users/password-reset-confirm/"
+    TOKEN_URL = "/api/token/"
+
+    def setUp(self):
+        self.email = "reset-user@example.com"
+        self.old_password = "ClaveVieja2025!"
+        self.user = User.objects.create_user(
+            email=self.email, password=self.old_password
+        )
+        # Login enforces email_verified; set it so the post-reset login
+        # assertion actually exercises the credential change.
+        self.user.email_verified = True
+        self.user.save()
+        self.client = APIClient()
+
+    def _request_code(self, email=None):
+        return self.client.post(
+            self.REQUEST_URL, {"email": email or self.email}, format="json"
+        )
+
+    def _latest_code(self):
+        return (
+            PasswordResetToken.objects.filter(user=self.user, used=False)
+            .latest("created_at")
+            .token
+        )
+
+    # --- request endpoint ---------------------------------------------------
+
+    def test_request_for_nonexistent_email_is_indistinguishable_from_real(self):
+        """Enumeration defense: same 200 message, and no token/email produced."""
+        ghost = self.client.post(
+            self.REQUEST_URL, {"email": "ghost@example.com"}, format="json"
+        )
+        real = self._request_code()
+
+        self.assertEqual(ghost.status_code, status.HTTP_200_OK)
+        self.assertEqual(real.status_code, status.HTTP_200_OK)
+        self.assertEqual(ghost.data["message"], real.data["message"])
+
+        # Only the real user ever got a token, and only one email went out.
+        self.assertFalse(
+            PasswordResetToken.objects.filter(user__isnull=True).exists()
+        )
+        self.assertEqual(PasswordResetToken.objects.count(), 1)
+        self.assertEqual(PasswordResetToken.objects.first().user, self.user)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_request_is_rate_limited_after_max_requests(self):
+        max_requests = PasswordResetToken.MAX_REQUESTS_PER_HOUR
+        for _ in range(max_requests):
+            self.assertEqual(self._request_code().status_code, status.HTTP_200_OK)
+
+        limited = self._request_code()
+        self.assertEqual(limited.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        # The rejected request must not have created another token.
+        self.assertEqual(
+            PasswordResetToken.objects.filter(user=self.user).count(), max_requests
+        )
+
+    def test_request_returns_500_when_email_send_fails(self):
+        with patch.object(
+            EmailService, "send_password_reset_email", return_value=False
+        ):
+            response = self._request_code()
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # The token is created before the send is attempted; it simply won't be
+        # delivered. Documenting that a failed send still leaves a token behind.
+        self.assertEqual(PasswordResetToken.objects.filter(user=self.user).count(), 1)
+
+    # --- verify endpoint ----------------------------------------------------
+
+    def test_verify_rejects_invalid_code(self):
+        self._request_code()
+        real_code = self._latest_code()
+        wrong_code = "999999" if real_code != "999999" else "000000"
+
+        response = self.client.post(
+            self.VERIFY_URL,
+            {"email": self.email, "code": wrong_code},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data["valid"])
+
+    def test_verify_rejects_expired_code(self):
+        self._request_code()
+        token = PasswordResetToken.objects.get(user=self.user)
+        expired_at = timezone.now() - timedelta(
+            minutes=PasswordResetToken.TOKEN_EXPIRY_MINUTES + 1
+        )
+        # created_at is auto_now_add, so bypass it with a direct UPDATE.
+        PasswordResetToken.objects.filter(id=token.id).update(created_at=expired_at)
+
+        response = self.client.post(
+            self.VERIFY_URL,
+            {"email": self.email, "code": token.token},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data["valid"])
+
+    # --- full flow + confirm ------------------------------------------------
+
+    def test_full_reset_flow_then_login_with_new_password(self):
+        request_response = self._request_code()
+        self.assertEqual(request_response.status_code, status.HTTP_200_OK)
+
+        # Pull the code out of the actual email the user would receive.
+        self.assertEqual(len(mail.outbox), 1)
+        match = re.search(r"\b(\d{6})\b", mail.outbox[0].body)
+        self.assertIsNotNone(match, "No 6-digit code found in the reset email body")
+        code = match.group(1)
+
+        verify_response = self.client.post(
+            self.VERIFY_URL, {"email": self.email, "code": code}, format="json"
+        )
+        self.assertEqual(verify_response.status_code, status.HTTP_200_OK)
+        self.assertTrue(verify_response.data["valid"])
+
+        new_password = "NuevaClave2026!"
+        confirm_response = self.client.post(
+            self.CONFIRM_URL,
+            {"email": self.email, "code": code, "new_password": new_password},
+            format="json",
+        )
+        self.assertEqual(confirm_response.status_code, status.HTTP_200_OK)
+
+        # New password works at the real token endpoint...
+        login_new = self.client.post(
+            self.TOKEN_URL,
+            {"email": self.email, "password": new_password},
+            format="json",
+        )
+        self.assertEqual(login_new.status_code, status.HTTP_200_OK)
+        self.assertIn("access", login_new.data)
+
+        # ...and the old one no longer does.
+        login_old = self.client.post(
+            self.TOKEN_URL,
+            {"email": self.email, "password": self.old_password},
+            format="json",
+        )
+        self.assertEqual(login_old.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_confirm_marks_token_used_and_blocks_replay(self):
+        self._request_code()
+        code = self._latest_code()
+        new_password = "NuevaClave2026!"
+
+        first = self.client.post(
+            self.CONFIRM_URL,
+            {"email": self.email, "code": code, "new_password": new_password},
+            format="json",
+        )
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+
+        token = PasswordResetToken.objects.get(user=self.user)
+        self.assertTrue(token.used)
+
+        # Replaying the same code must fail and must NOT apply the new password.
+        replay = self.client.post(
+            self.CONFIRM_URL,
+            {"email": self.email, "code": code, "new_password": "OtraClave2026!"},
+            format="json",
+        )
+        self.assertEqual(replay.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(new_password))
+        self.assertFalse(self.user.check_password("OtraClave2026!"))
+
+    def test_confirm_rejects_invalid_code_and_leaves_password_unchanged(self):
+        self._request_code()
+        real_code = self._latest_code()
+        wrong_code = "999999" if real_code != "999999" else "000000"
+
+        response = self.client.post(
+            self.CONFIRM_URL,
+            {
+                "email": self.email,
+                "code": wrong_code,
+                "new_password": "NuevaClave2026!",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(self.old_password))
+
+    def test_confirm_rejects_weak_password_without_consuming_token(self):
+        """
+        The serializer validates new_password before the token is looked up, so
+        a policy-rejected password 400s without burning the code - the user can
+        retry with the same code.
+        """
+        self._request_code()
+        code = self._latest_code()
+
+        response = self.client.post(
+            self.CONFIRM_URL,
+            {"email": self.email, "code": code, "new_password": "12345678"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        token = PasswordResetToken.objects.get(user=self.user)
+        self.assertFalse(token.used)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(self.old_password))
+
+    def test_requesting_new_code_invalidates_the_previous_token(self):
+        """create_for_user marks prior unused tokens used, so only the latest works."""
+        self._request_code()
+        first_token = PasswordResetToken.objects.get(user=self.user)
+        self.assertFalse(first_token.used)
+
+        self._request_code()
+        first_token.refresh_from_db()
+        self.assertTrue(first_token.used)
+        self.assertEqual(
+            PasswordResetToken.objects.filter(user=self.user).count(), 2
+        )
+
+        # The newest code still verifies.
+        latest_code = self._latest_code()
+        verify_response = self.client.post(
+            self.VERIFY_URL,
+            {"email": self.email, "code": latest_code},
+            format="json",
+        )
+        self.assertEqual(verify_response.status_code, status.HTTP_200_OK)
