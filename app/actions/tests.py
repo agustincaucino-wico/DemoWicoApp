@@ -2,12 +2,13 @@ from decimal import Decimal
 
 from django.test import TestCase
 from django.utils import timezone
+from model_bakery import baker
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from accounts.models import Account, Plates, Dependents
 from locations.models import Country, Province, City
-from operation.models import FuelLoadOperation
+from operation.models import FuelLoadOperation, Transfer
 from stations.models import Station, StationAttendantAssignment
 from users.models import CustomUser
 from users.test_helpers import RoleAssignmentMixin
@@ -350,3 +351,394 @@ class RemoveDependentTests(TestCase):
 
         dependents = response.data["dependents"]
         self.assertEqual(len(dependents), 0)
+
+
+class TransferBalanceTests(TestCase):
+    """
+    End-to-end tests for POST /actions/transfer-balance/ (holder -> dependent).
+
+    Non-obvious behavior confirmed by reading the view:
+      - The relationship check only runs when the SOURCE account is a holder
+        (`if source_account.account_type == "holder"`). If the source is a
+        dependent account, `is_related` stays False and the request is always
+        rejected with 403 - so this endpoint is effectively holder -> dependent
+        only, even though the source `.get` itself does not filter by type.
+      - The relationship lookup is directional and active-only:
+        Dependents(holder_account=source, dependent_account=destination,
+        end_date__isnull=True). An ended relationship (end_date set) no longer
+        qualifies.
+      - There is no idempotency/dedup: the sole protection against replaying a
+        transfer is the balance check. select_for_update guards concurrent
+        drains but only matters under real DB concurrency, which is not
+        exercised deterministically here.
+    """
+
+    URL = "/actions/transfer-balance/"
+
+    def setUp(self):
+        # Holder (source) - fetch the account auto-created by the post_save
+        # signal, then fund it. A second holder cannot be baker.make'd for the
+        # same user due to the one_holder_account_per_user constraint.
+        self.holder_user = CustomUser.objects.create_user(
+            email="transfer-holder@example.com", password="pass1234"
+        )
+        self.holder_account = Account.objects.get(
+            user=self.holder_user, account_type="holder"
+        )
+        self.holder_account.balance = Decimal("1000.00")
+        self.holder_account.save()
+
+        # Dependent (destination) related to the holder, starts empty.
+        self.dependent_user = CustomUser.objects.create_user(
+            email="transfer-dependent@example.com", password="pass1234"
+        )
+        self.dependent_account = baker.make(
+            Account,
+            user=self.dependent_user,
+            account_type="dependent",
+            balance=Decimal("0.00"),
+            is_active=True,
+        )
+        self.relation = baker.make(
+            Dependents,
+            holder_account=self.holder_account,
+            dependent_account=self.dependent_account,
+        )
+
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.holder_user)
+
+    def _payload(self, amount, source=None, destination=None):
+        return {
+            "source_account_id": source if source is not None else self.holder_account.id,
+            "destination_account_id": (
+                destination if destination is not None else self.dependent_account.id
+            ),
+            "amount": str(amount),
+        }
+
+    def test_valid_transfer_updates_both_balances_and_writes_audit_record(self):
+        response = self.client.post(
+            self.URL, self._payload(Decimal("300.00")), format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["message"], "Transfer successful")
+
+        self.holder_account.refresh_from_db()
+        self.dependent_account.refresh_from_db()
+        self.assertEqual(self.holder_account.balance, Decimal("700.00"))
+        self.assertEqual(self.dependent_account.balance, Decimal("300.00"))
+
+        transfers = Transfer.objects.filter(
+            source_account=self.holder_account,
+            destination_account=self.dependent_account,
+        )
+        self.assertEqual(transfers.count(), 1)
+        self.assertEqual(transfers.first().amount, Decimal("300.00"))
+
+    def test_insufficient_balance_is_rejected_with_no_state_change(self):
+        response = self.client.post(
+            self.URL, self._payload(Decimal("1500.00")), format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Saldo insuficiente", str(response.data))
+
+        self.holder_account.refresh_from_db()
+        self.dependent_account.refresh_from_db()
+        self.assertEqual(self.holder_account.balance, Decimal("1000.00"))
+        self.assertEqual(self.dependent_account.balance, Decimal("0.00"))
+        self.assertFalse(Transfer.objects.exists())
+
+    def test_source_account_not_owned_by_requester_returns_404(self):
+        """A user cannot transfer FROM an account that isn't theirs."""
+        attacker = CustomUser.objects.create_user(
+            email="transfer-attacker@example.com", password="pass1234"
+        )
+        attacker_client = APIClient()
+        attacker_client.force_authenticate(user=attacker)
+
+        response = attacker_client.post(
+            self.URL, self._payload(Decimal("100.00")), format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        self.holder_account.refresh_from_db()
+        self.assertEqual(self.holder_account.balance, Decimal("1000.00"))
+        self.assertFalse(Transfer.objects.exists())
+
+    def test_inactive_destination_account_returns_404(self):
+        self.dependent_account.is_active = False
+        self.dependent_account.save()
+
+        response = self.client.post(
+            self.URL, self._payload(Decimal("100.00")), format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        self.holder_account.refresh_from_db()
+        self.assertEqual(self.holder_account.balance, Decimal("1000.00"))
+        self.assertFalse(Transfer.objects.exists())
+
+    def test_transfer_to_unrelated_dependent_is_rejected_403(self):
+        """Destination is active but has no Dependents relationship with the source."""
+        stranger_user = CustomUser.objects.create_user(
+            email="transfer-stranger@example.com", password="pass1234"
+        )
+        unrelated_dependent = baker.make(
+            Account,
+            user=stranger_user,
+            account_type="dependent",
+            balance=Decimal("0.00"),
+            is_active=True,
+        )
+
+        response = self.client.post(
+            self.URL,
+            self._payload(Decimal("100.00"), destination=unrelated_dependent.id),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("no están relacionadas", str(response.data))
+
+        self.holder_account.refresh_from_db()
+        unrelated_dependent.refresh_from_db()
+        self.assertEqual(self.holder_account.balance, Decimal("1000.00"))
+        self.assertEqual(unrelated_dependent.balance, Decimal("0.00"))
+        self.assertFalse(Transfer.objects.exists())
+
+    def test_transfer_over_ended_relationship_is_rejected_403(self):
+        """An ended relationship (end_date set) no longer qualifies as related."""
+        self.relation.end_date = timezone.now().date()
+        self.relation.save()
+
+        response = self.client.post(
+            self.URL, self._payload(Decimal("100.00")), format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.holder_account.refresh_from_db()
+        self.dependent_account.refresh_from_db()
+        self.assertEqual(self.holder_account.balance, Decimal("1000.00"))
+        self.assertEqual(self.dependent_account.balance, Decimal("0.00"))
+        self.assertFalse(Transfer.objects.exists())
+
+    def test_dependent_account_as_source_is_always_rejected_403(self):
+        """
+        The is_related check is gated on the source being a holder. A user who
+        owns a dependent account and passes it as the source can never satisfy
+        it, so the transfer is refused even toward a legitimately related
+        account. Documents that this endpoint is holder-source only.
+        """
+        # The dependent_user owns their dependent_account; authenticate as them
+        # and try to use it as the source.
+        dependent_client = APIClient()
+        dependent_client.force_authenticate(user=self.dependent_user)
+        self.dependent_account.balance = Decimal("500.00")
+        self.dependent_account.save()
+
+        response = dependent_client.post(
+            self.URL,
+            self._payload(
+                Decimal("100.00"),
+                source=self.dependent_account.id,
+                destination=self.holder_account.id,
+            ),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.dependent_account.refresh_from_db()
+        self.holder_account.refresh_from_db()
+        self.assertEqual(self.dependent_account.balance, Decimal("500.00"))
+        self.assertEqual(self.holder_account.balance, Decimal("1000.00"))
+        self.assertFalse(Transfer.objects.exists())
+
+    def test_invalid_amount_is_rejected_by_serializer(self):
+        """amount below the serializer min_value (0.01) is a 400 with no effect."""
+        response = self.client.post(
+            self.URL, self._payload(Decimal("0.00")), format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("amount", response.data)
+        self.assertFalse(Transfer.objects.exists())
+
+    def test_no_dedup_guard_replayed_transfer_only_stopped_by_balance(self):
+        """
+        There is no idempotency key: a second identical transfer succeeds if
+        the balance still allows it, and is only blocked once the balance runs
+        out. This documents that the balance check is the sole double-spend
+        guard (select_for_update additionally protects concurrent drains, which
+        isn't exercised here).
+        """
+        first = self.client.post(
+            self.URL, self._payload(Decimal("600.00")), format="json"
+        )
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+
+        # Replay the same transfer: 600 > remaining 400 -> rejected, no change.
+        second = self.client.post(
+            self.URL, self._payload(Decimal("600.00")), format="json"
+        )
+        self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Saldo insuficiente", str(second.data))
+
+        self.holder_account.refresh_from_db()
+        self.dependent_account.refresh_from_db()
+        self.assertEqual(self.holder_account.balance, Decimal("400.00"))
+        self.assertEqual(self.dependent_account.balance, Decimal("600.00"))
+        self.assertEqual(Transfer.objects.count(), 1)
+
+
+class WithdrawFromDependentTests(TestCase):
+    """
+    End-to-end tests for POST /actions/withdraw-from-dependent/
+    (dependent -> holder, the mirror of TransferBalance).
+
+    Non-obvious behavior confirmed by reading the view: unlike
+    TransferBalanceView, both `.get` lookups here filter by account_type
+    (holder must be account_type="holder", dependent must be
+    account_type="dependent"), so a type mismatch surfaces as a 404 from the
+    lookup rather than reaching the relationship check.
+    """
+
+    URL = "/actions/withdraw-from-dependent/"
+
+    def setUp(self):
+        self.holder_user = CustomUser.objects.create_user(
+            email="withdraw-holder@example.com", password="pass1234"
+        )
+        self.holder_account = Account.objects.get(
+            user=self.holder_user, account_type="holder"
+        )
+        self.holder_account.balance = Decimal("100.00")
+        self.holder_account.save()
+
+        self.dependent_user = CustomUser.objects.create_user(
+            email="withdraw-dependent@example.com", password="pass1234"
+        )
+        self.dependent_account = baker.make(
+            Account,
+            user=self.dependent_user,
+            account_type="dependent",
+            balance=Decimal("500.00"),
+            is_active=True,
+        )
+        self.relation = baker.make(
+            Dependents,
+            holder_account=self.holder_account,
+            dependent_account=self.dependent_account,
+        )
+
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.holder_user)
+
+    def _payload(self, amount, holder=None, dependent=None):
+        return {
+            "holder_account_id": holder if holder is not None else self.holder_account.id,
+            "dependent_account_id": (
+                dependent if dependent is not None else self.dependent_account.id
+            ),
+            "amount": str(amount),
+        }
+
+    def test_valid_withdrawal_updates_both_balances_and_writes_audit_record(self):
+        response = self.client.post(
+            self.URL, self._payload(Decimal("200.00")), format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.holder_account.refresh_from_db()
+        self.dependent_account.refresh_from_db()
+        self.assertEqual(self.dependent_account.balance, Decimal("300.00"))
+        self.assertEqual(self.holder_account.balance, Decimal("300.00"))
+
+        transfers = Transfer.objects.filter(
+            source_account=self.dependent_account,
+            destination_account=self.holder_account,
+        )
+        self.assertEqual(transfers.count(), 1)
+        self.assertEqual(transfers.first().amount, Decimal("200.00"))
+
+    def test_insufficient_dependent_balance_is_rejected_with_no_state_change(self):
+        response = self.client.post(
+            self.URL, self._payload(Decimal("999.00")), format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Saldo insuficiente", str(response.data))
+
+        self.holder_account.refresh_from_db()
+        self.dependent_account.refresh_from_db()
+        self.assertEqual(self.holder_account.balance, Decimal("100.00"))
+        self.assertEqual(self.dependent_account.balance, Decimal("500.00"))
+        self.assertFalse(Transfer.objects.exists())
+
+    def test_holder_account_not_owned_by_requester_returns_404(self):
+        attacker = CustomUser.objects.create_user(
+            email="withdraw-attacker@example.com", password="pass1234"
+        )
+        attacker_client = APIClient()
+        attacker_client.force_authenticate(user=attacker)
+
+        response = attacker_client.post(
+            self.URL, self._payload(Decimal("100.00")), format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        self.dependent_account.refresh_from_db()
+        self.assertEqual(self.dependent_account.balance, Decimal("500.00"))
+        self.assertFalse(Transfer.objects.exists())
+
+    def test_holder_account_id_pointing_to_dependent_type_returns_404(self):
+        """
+        The holder lookup filters account_type="holder"; passing a
+        dependent-type account id as holder_account_id fails that lookup (404)
+        rather than moving money the wrong direction.
+        """
+        response = self.client.post(
+            self.URL,
+            self._payload(Decimal("100.00"), holder=self.dependent_account.id),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertFalse(Transfer.objects.exists())
+
+    def test_withdraw_from_unrelated_dependent_is_rejected_403(self):
+        stranger_user = CustomUser.objects.create_user(
+            email="withdraw-stranger@example.com", password="pass1234"
+        )
+        unrelated_dependent = baker.make(
+            Account,
+            user=stranger_user,
+            account_type="dependent",
+            balance=Decimal("500.00"),
+            is_active=True,
+        )
+
+        response = self.client.post(
+            self.URL,
+            self._payload(Decimal("100.00"), dependent=unrelated_dependent.id),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("no están relacionadas", str(response.data))
+
+        self.holder_account.refresh_from_db()
+        unrelated_dependent.refresh_from_db()
+        self.assertEqual(self.holder_account.balance, Decimal("100.00"))
+        self.assertEqual(unrelated_dependent.balance, Decimal("500.00"))
+        self.assertFalse(Transfer.objects.exists())
+
+    def test_withdraw_over_ended_relationship_is_rejected_403(self):
+        self.relation.end_date = timezone.now().date()
+        self.relation.save()
+
+        response = self.client.post(
+            self.URL, self._payload(Decimal("100.00")), format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.holder_account.refresh_from_db()
+        self.dependent_account.refresh_from_db()
+        self.assertEqual(self.holder_account.balance, Decimal("100.00"))
+        self.assertEqual(self.dependent_account.balance, Decimal("500.00"))
+        self.assertFalse(Transfer.objects.exists())
