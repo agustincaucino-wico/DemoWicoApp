@@ -1,22 +1,30 @@
+import shutil
+import tempfile
 from decimal import Decimal
 from datetime import timedelta
 
-from django.contrib.auth.models import Group, Permission
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from accounts.models import Account, Plates
+from appconfig.models import AppConfig, BonificationTier
 from locations.models import Country, Province, City
-from operation.models import FuelLoadOperation, PaymentMethod
+from operation.models import (
+    BalanceRechargeRequest,
+    FuelLoadOperation,
+    ModifyFunds,
+    PaymentMethod,
+)
 from stations.models import Station
 from users.models import CustomUser
-from users.roles import ROLES
+from users.test_helpers import RoleAssignmentMixin
 
 
-class FuelLoadOperationAPITests(TestCase):
+class FuelLoadOperationAPITests(RoleAssignmentMixin, TestCase):
     def setUp(self):
         self.country = Country.objects.create(name="Testland")
         self.province = Province.objects.create(
@@ -42,7 +50,7 @@ class FuelLoadOperationAPITests(TestCase):
         self.user = CustomUser.objects.create_user(
             email="manager@example.com", password="pass1234"
         )
-        self._assign_role(self.user, "Gestor")
+        self.assign_role(self.user, "Gestor")
 
         self.attendant = CustomUser.objects.create_user(
             email="attendant@example.com", password="pass1234"
@@ -65,12 +73,6 @@ class FuelLoadOperationAPITests(TestCase):
         self.client.force_authenticate(user=self.user)
 
         self.list_url = reverse("fuel-load-operations-list")
-
-    def _assign_role(self, user, role_name):
-        group, _ = Group.objects.get_or_create(name=role_name)
-        permissions = Permission.objects.filter(codename__in=ROLES.get(role_name, []))
-        group.permissions.set(permissions)
-        user.groups.add(group)
 
     def _create_operation(self, **kwargs):
         defaults = {
@@ -214,7 +216,7 @@ class FuelLoadOperationAPITests(TestCase):
         self.assertIn("exceder", str(context.exception).lower())
 
 
-class PaginationBehaviorTests(TestCase):
+class PaginationBehaviorTests(RoleAssignmentMixin, TestCase):
     """
     Verifica el comportamiento retrocompatible de ConditionalPageNumberPagination.
 
@@ -239,7 +241,7 @@ class PaginationBehaviorTests(TestCase):
         self.user = CustomUser.objects.create_user(
             email="pagtest@example.com", password="pass1234"
         )
-        self._assign_role(self.user, "Gestor")
+        self.assign_role(self.user, "Gestor")
         # El signal post_save de accounts crea automáticamente la cuenta holder
         # al crear el usuario; la obtenemos en lugar de intentar crear otra.
         self.account = Account.objects.get(user=self.user, account_type="holder")
@@ -262,12 +264,6 @@ class PaginationBehaviorTests(TestCase):
                 initial_amount=Decimal(f"{i + 1}.00"),
                 status=FuelLoadOperation.STATUS_PENDING,
             )
-
-    def _assign_role(self, user, role_name):
-        group, _ = Group.objects.get_or_create(name=role_name)
-        permissions = Permission.objects.filter(codename__in=ROLES.get(role_name, []))
-        group.permissions.set(permissions)
-        user.groups.add(group)
 
     def test_sin_page_param_devuelve_lista_directa(self):
         """Sin ?page el response debe ser un array directo (retrocompatibilidad)."""
@@ -329,3 +325,348 @@ class PaginationBehaviorTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Hay 30 registros, todos caben dentro del máximo de 200
         self.assertEqual(len(response.data["results"]), 30)
+
+
+_RECHARGE_MEDIA_ROOT = tempfile.mkdtemp(prefix="wico-test-recharge-media-")
+
+
+@override_settings(MEDIA_ROOT=_RECHARGE_MEDIA_ROOT)
+class BalanceRechargeRequestFlowTests(RoleAssignmentMixin, TestCase):
+    """
+    End-to-end tests for the balance recharge request flow, hitting the real
+    /operations/recharge-requests/ endpoints (create, approve, reject) instead
+    of calling serializer/view methods directly.
+
+    Covers the create -> pending -> approve/reject lifecycle, the
+    fuel_price/BonificationTier bonus math inside approve() (including two
+    non-obvious behaviors found by reading the view: tiers are matched by
+    "last qualifying tier wins" rather than "first match", and the bonus is
+    truncated - not rounded - to whole pesos), the ModifyFunds audit trail,
+    permission enforcement, and the not-pending-anymore guard on both
+    approve and reject (which also guards against double-crediting).
+    """
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(_RECHARGE_MEDIA_ROOT, ignore_errors=True)
+
+    def setUp(self):
+        self.user = CustomUser.objects.create_user(
+            email="recharge-requester@example.com", password="pass1234"
+        )
+        self.gestor = CustomUser.objects.create_user(
+            email="recharge-gestor@example.com", password="pass1234"
+        )
+        self.assign_role(self.gestor, "Gestor")
+
+        # El signal post_save de accounts crea automáticamente la cuenta
+        # holder al crear el usuario; la obtenemos en lugar de crear otra.
+        self.account = Account.objects.get(user=self.user, account_type="holder")
+
+        self.user_client = APIClient()
+        self.user_client.force_authenticate(user=self.user)
+
+        self.gestor_client = APIClient()
+        self.gestor_client.force_authenticate(user=self.gestor)
+
+        self.list_url = reverse("recharge-requests-list")
+
+    def _proof_file(self):
+        """A fresh upload each time - Django's UploadedFile can only be read once."""
+        return SimpleUploadedFile(
+            "comprobante.png", b"fake-file-bytes", content_type="image/png"
+        )
+
+    def _approve_url(self, recharge_request):
+        return reverse("recharge-requests-approve", args=[recharge_request.id])
+
+    def _reject_url(self, recharge_request):
+        return reverse("recharge-requests-reject", args=[recharge_request.id])
+
+    def _create_pending_request(self, amount):
+        return BalanceRechargeRequest.objects.create(
+            account=self.account,
+            requested_by=self.user,
+            amount=amount,
+            transfer_proof=self._proof_file(),
+        )
+
+    def _configure_bonification(self, fuel_price, tiers=()):
+        """
+        appconfig migrations 0005/0007 seed a real AppConfig singleton
+        (fuel_price=1928.00) and 4 default BonificationTier rows into the
+        test database - that seed data is committed before any test
+        transaction starts, so per-test rollback doesn't clear it. Reset
+        both to a known, isolated state instead of fighting the seed data or
+        (worse) coupling test assertions to it.
+        """
+        BonificationTier.objects.all().delete()
+        config = AppConfig.get_config()
+        config.fuel_price = fuel_price
+        config.save()
+        for tier_kwargs in tiers:
+            BonificationTier.objects.create(**tier_kwargs)
+
+    # --- create (user-facing) -------------------------------------------
+
+    def test_user_requests_recharge_creates_pending_request(self):
+        payload = {
+            "account": self.account.id,
+            "amount": "1500.00",
+            "transfer_proof": self._proof_file(),
+            "comments": "Transferencia desde Banco Test",
+        }
+        response = self.user_client.post(self.list_url, payload, format="multipart")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        # The create serializer's fields don't include "id", so look the
+        # request up directly instead of reading it from the response.
+        recharge_request = BalanceRechargeRequest.objects.get(
+            requested_by=self.user, amount=Decimal("1500.00")
+        )
+        self.assertEqual(recharge_request.status, BalanceRechargeRequest.STATUS_PENDING)
+        self.assertTrue(recharge_request.is_pending)
+        self.assertEqual(recharge_request.requested_by, self.user)
+        self.assertEqual(recharge_request.account, self.account)
+        self.assertEqual(recharge_request.amount, Decimal("1500.00"))
+        # Balance must not move until a Gestor approves it.
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.balance, Decimal("0.00"))
+
+    # --- approve: exact balance + bonification math ----------------------
+
+    def test_admin_approves_credits_exact_balance_using_highest_qualifying_tier(self):
+        """
+        Three tiers, ordered ascending. The request amount qualifies for the
+        first two tiers but not the third. approve() iterates all tiers
+        without breaking early and keeps overwriting `applicable_tier` on
+        every match, so the LAST (highest) qualifying tier wins - not the
+        first one reached. This test fails if that assumption is wrong.
+        """
+        self._configure_bonification(
+            fuel_price=Decimal("1200.00"),
+            tiers=[
+                {
+                    "order": 1,
+                    "min_liters": Decimal("100.00"),
+                    "bonus_percent": Decimal("5.00"),
+                },
+                {
+                    "order": 2,
+                    "min_liters": Decimal("300.00"),
+                    "bonus_percent": Decimal("8.00"),
+                },
+                {
+                    "order": 3,
+                    "min_liters": Decimal("500.00"),
+                    "bonus_percent": Decimal("12.00"),
+                },
+            ],
+        )
+        # Tier thresholds (min_liters * fuel_price, floored to the nearest
+        # 1000): 120,000 / 360,000 / 600,000. An amount of 400,000 clears the
+        # first two but not the third, so the 8% tier should apply.
+        recharge_request = self._create_pending_request(Decimal("400000.00"))
+
+        response = self.gestor_client.post(
+            self._approve_url(recharge_request),
+            {"review_comments": "Comprobante verificado"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["applied_tier_percent"], 8.0)
+        self.assertEqual(response.data["bonus_amount"], 32000.0)
+        self.assertEqual(response.data["total_credited"], 432000.0)
+        self.assertEqual(response.data["new_balance"], 432000.0)
+
+        recharge_request.refresh_from_db()
+        self.assertEqual(recharge_request.status, BalanceRechargeRequest.STATUS_APPROVED)
+        self.assertTrue(recharge_request.is_approved)
+        self.assertEqual(recharge_request.reviewed_by, self.gestor)
+        self.assertIsNotNone(recharge_request.reviewed_at)
+        self.assertEqual(recharge_request.review_comments, "Comprobante verificado")
+
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.balance, Decimal("432000"))
+
+        modify_funds = ModifyFunds.objects.get(account=self.account)
+        self.assertEqual(modify_funds.amount, Decimal("432000"))
+        self.assertEqual(modify_funds.gestor, self.gestor)
+        self.assertEqual(modify_funds.payment_method.name, "Transferencia Bancaria")
+        self.assertIn("Recarga aprobada.", modify_funds.comments)
+        self.assertIn("Bonificación 8.0%", modify_funds.comments)
+
+    def test_admin_approves_bonus_is_truncated_not_rounded(self):
+        """
+        bonus_amount = (amount * bonus_percent / 100).quantize(Decimal("1"),
+        rounding=ROUND_DOWN) - any fractional pesos are dropped entirely, they
+        are not rounded to the nearest peso. 1000 @ 33.33% = 333.3, which must
+        become 333, not 333 rounded normally (which would still be 333 here)
+        nor kept as a fraction.
+        """
+        self._configure_bonification(
+            fuel_price=Decimal("1.00"),
+            tiers=[
+                {
+                    "order": 1,
+                    "min_liters": Decimal("1.00"),
+                    "bonus_percent": Decimal("33.33"),
+                }
+            ],
+        )
+        recharge_request = self._create_pending_request(Decimal("1000.00"))
+
+        response = self.gestor_client.post(
+            self._approve_url(recharge_request), {}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["bonus_amount"], 333.0)
+        self.assertEqual(response.data["total_credited"], 1333.0)
+
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.balance, Decimal("1333"))
+
+    def test_admin_approves_without_fuel_price_configured_credits_base_amount_only(self):
+        """No fuel_price on AppConfig => the `if fuel_price:` branch never runs."""
+        self._configure_bonification(fuel_price=None)
+        recharge_request = self._create_pending_request(Decimal("500.00"))
+
+        response = self.gestor_client.post(
+            self._approve_url(recharge_request), {}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["applied_tier_percent"])
+        self.assertEqual(response.data["bonus_amount"], 0.0)
+        self.assertEqual(response.data["total_credited"], 500.0)
+
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.balance, Decimal("500.00"))
+
+    def test_admin_approves_amount_below_lowest_tier_gets_no_bonus(self):
+        self._configure_bonification(
+            fuel_price=Decimal("1200.00"),
+            tiers=[
+                {
+                    "order": 1,
+                    "min_liters": Decimal("100.00"),
+                    "bonus_percent": Decimal("5.00"),
+                }
+            ],
+        )
+        # Tier threshold is 120,000; this amount falls short of it.
+        recharge_request = self._create_pending_request(Decimal("100000.00"))
+
+        response = self.gestor_client.post(
+            self._approve_url(recharge_request), {}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["applied_tier_percent"])
+        self.assertEqual(response.data["bonus_amount"], 0.0)
+        self.assertEqual(response.data["total_credited"], 100000.0)
+
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.balance, Decimal("100000.00"))
+
+    # --- reject ------------------------------------------------------------
+
+    def test_admin_rejects_recharge_request_leaves_balance_unchanged(self):
+        recharge_request = self._create_pending_request(Decimal("750.00"))
+
+        response = self.gestor_client.post(
+            self._reject_url(recharge_request),
+            {"review_comments": "Comprobante ilegible"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        recharge_request.refresh_from_db()
+        self.assertEqual(recharge_request.status, BalanceRechargeRequest.STATUS_REJECTED)
+        self.assertTrue(recharge_request.is_rejected)
+        self.assertEqual(recharge_request.reviewed_by, self.gestor)
+        self.assertIsNotNone(recharge_request.reviewed_at)
+        self.assertEqual(recharge_request.review_comments, "Comprobante ilegible")
+
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.balance, Decimal("0.00"))
+        self.assertFalse(ModifyFunds.objects.filter(account=self.account).exists())
+
+    # --- permissions ---------------------------------------------------------
+
+    def test_non_admin_cannot_approve_or_reject(self):
+        recharge_request = self._create_pending_request(Decimal("600.00"))
+
+        approve_response = self.user_client.post(
+            self._approve_url(recharge_request), {}, format="json"
+        )
+        reject_response = self.user_client.post(
+            self._reject_url(recharge_request), {}, format="json"
+        )
+
+        self.assertEqual(approve_response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(reject_response.status_code, status.HTTP_403_FORBIDDEN)
+
+        recharge_request.refresh_from_db()
+        self.assertTrue(recharge_request.is_pending)
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.balance, Decimal("0.00"))
+
+    # --- idempotency / already-processed guard ------------------------------
+
+    def test_cannot_approve_already_approved_request_and_balance_is_not_double_credited(self):
+        recharge_request = self._create_pending_request(Decimal("300.00"))
+
+        first_response = self.gestor_client.post(
+            self._approve_url(recharge_request), {}, format="json"
+        )
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.account.refresh_from_db()
+        balance_after_first_approval = self.account.balance
+        self.assertEqual(balance_after_first_approval, Decimal("300.00"))
+
+        second_response = self.gestor_client.post(
+            self._approve_url(recharge_request), {}, format="json"
+        )
+        self.assertEqual(second_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Solo se pueden aprobar solicitudes pendientes", second_response.data["error"]
+        )
+
+        # The critical assertion: balance must not have moved a second time.
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.balance, balance_after_first_approval)
+        self.assertEqual(
+            ModifyFunds.objects.filter(account=self.account).count(), 1
+        )
+
+    def test_cannot_reject_already_processed_request(self):
+        recharge_request = self._create_pending_request(Decimal("300.00"))
+
+        first_response = self.gestor_client.post(
+            self._reject_url(recharge_request), {}, format="json"
+        )
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+
+        reject_again_response = self.gestor_client.post(
+            self._reject_url(recharge_request), {}, format="json"
+        )
+        self.assertEqual(reject_again_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "Solo se pueden rechazar solicitudes pendientes",
+            reject_again_response.data["error"],
+        )
+
+        approve_after_reject_response = self.gestor_client.post(
+            self._approve_url(recharge_request), {}, format="json"
+        )
+        self.assertEqual(
+            approve_after_reject_response.status_code, status.HTTP_400_BAD_REQUEST
+        )
+
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.balance, Decimal("0.00"))

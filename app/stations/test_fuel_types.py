@@ -3,7 +3,6 @@
 from decimal import Decimal
 from datetime import date, timedelta
 
-from django.contrib.auth.models import Group, Permission
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
@@ -13,7 +12,7 @@ from accounts.models import Company, Organism
 from locations.models import Country, Province, City
 from stations.models import FuelType, FuelTypePrice
 from users.models import CustomUser
-from users.roles import ROLES
+from users.test_helpers import RoleAssignmentMixin
 
 
 class FuelTypeModelTests(TestCase):
@@ -79,12 +78,12 @@ class FuelTypePriceModelTests(TestCase):
         self.assertEqual(latest.price, Decimal("350.00"))
 
 
-class FuelTypeAPITests(TestCase):
+class FuelTypeAPITests(RoleAssignmentMixin, TestCase):
     def setUp(self):
         self.user = CustomUser.objects.create_user(
             email="gestor@example.com", password="pass1234"
         )
-        self._assign_role(self.user, "Gestor")
+        self.assign_role(self.user, "Gestor")
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
@@ -95,12 +94,6 @@ class FuelTypeAPITests(TestCase):
         self.regular_client.force_authenticate(user=self.regular_user)
 
         self.list_url = reverse("fuel-types-list")
-
-    def _assign_role(self, user, role_name):
-        group, _ = Group.objects.get_or_create(name=role_name)
-        permissions = Permission.objects.filter(codename__in=ROLES.get(role_name, []))
-        group.permissions.set(permissions)
-        user.groups.add(group)
 
     def test_gestor_can_list_fuel_types(self):
         existing = FuelType.objects.count()
@@ -143,7 +136,7 @@ class FuelTypeAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class FuelTypePriceAPITests(TestCase):
+class FuelTypePriceAPITests(RoleAssignmentMixin, TestCase):
     def setUp(self):
         self.country = Country.objects.create(name="Argentina")
         self.province = Province.objects.create(name="Córdoba", country=self.country)
@@ -163,17 +156,11 @@ class FuelTypePriceAPITests(TestCase):
         self.user = CustomUser.objects.create_user(
             email="gestor@example.com", password="pass1234"
         )
-        self._assign_role(self.user, "Gestor")
+        self.assign_role(self.user, "Gestor")
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
         self.list_url = reverse("fuel-type-prices-list")
-
-    def _assign_role(self, user, role_name):
-        group, _ = Group.objects.get_or_create(name=role_name)
-        permissions = Permission.objects.filter(codename__in=ROLES.get(role_name, []))
-        group.permissions.set(permissions)
-        user.groups.add(group)
 
     def test_create_fuel_type_price(self):
         response = self.client.post(

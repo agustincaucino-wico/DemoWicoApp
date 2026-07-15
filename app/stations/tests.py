@@ -1,4 +1,3 @@
-from django.contrib.auth.models import Group, Permission
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -8,10 +7,10 @@ from rest_framework.test import APIClient
 from locations.models import Country, Province, City
 from stations.models import Station, StationAttendantAssignment
 from users.models import CustomUser
-from users.roles import ROLES
+from users.test_helpers import RoleAssignmentMixin
 
 
-class StationAPITests(TestCase):
+class StationAPITests(RoleAssignmentMixin, TestCase):
     def setUp(self):
         self.country = Country.objects.create(name="Testland")
         self.province = Province.objects.create(name="Central", country=self.country)
@@ -48,18 +47,12 @@ class StationAPITests(TestCase):
         self.gestor = CustomUser.objects.create_user(
             email="gestor@example.com", password="pass1234"
         )
-        self._assign_role(self.gestor, "Gestor")
+        self.assign_role(self.gestor, "Gestor")
 
         self.auth_client = APIClient()
         self.auth_client.force_authenticate(user=self.gestor)
 
         self.list_url = reverse("stations-list")
-
-    def _assign_role(self, user, role_name):
-        group, _ = Group.objects.get_or_create(name=role_name)
-        permissions = Permission.objects.filter(codename__in=ROLES.get(role_name, []))
-        group.permissions.set(permissions)
-        user.groups.add(group)
 
     def test_authentication_required_for_listing(self):
         unauthenticated_client = APIClient()

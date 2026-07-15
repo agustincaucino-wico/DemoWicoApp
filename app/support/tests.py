@@ -1,14 +1,13 @@
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group, Permission
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 from support.models import ErrorReport
-from users.roles import ROLES
+from users.test_helpers import RoleAssignmentMixin
 
 User = get_user_model()
 
 
-class ErrorReportPermissionTests(APITestCase):
+class ErrorReportPermissionTests(RoleAssignmentMixin, APITestCase):
     """Comprehensive tests for ErrorReport endpoints and permissions."""
 
     def setUp(self):
@@ -24,7 +23,7 @@ class ErrorReportPermissionTests(APITestCase):
         self.gestor_user = User.objects.create_user(
             email="gestor@test.com", password="testpass123"
         )
-        self._assign_gestor_role(self.gestor_user)
+        self.assign_role(self.gestor_user, "Gestor")
 
         # Create error reports for different users
         self.user_report = ErrorReport.objects.create(
@@ -48,17 +47,6 @@ class ErrorReportPermissionTests(APITestCase):
         self.gestor_client.force_authenticate(user=self.gestor_user)
 
         self.base_url = "/support/error-reports/"
-
-    def _assign_gestor_role(self, user):
-        """Assign Gestor role permissions to a user."""
-        group, _ = Group.objects.get_or_create(name="Gestor")
-        for perm_codename in ROLES["Gestor"]:
-            try:
-                perm = Permission.objects.get(codename=perm_codename)
-                group.permissions.add(perm)
-            except Permission.DoesNotExist:
-                pass
-        user.groups.add(group)
 
     # =========================================================================
     # CREATE (POST) - Any authenticated user can create
