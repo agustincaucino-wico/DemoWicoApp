@@ -17,14 +17,11 @@ jobs:
     runs-on: ubuntu-latest
 
     # Postgres is the only DB engine used across all settings modules
-    # (dev/local/prod all set ENGINE=django.db.backends.postgresql). No
-    # major version is pinned anywhere in the repo or in prod's
-    # docker-compose.yml (the app connects to an external DB host, not a
-    # container), so this defaults to 15 - bump the tag below if you know
-    # the actual server version.
+    # (dev/local/prod all set ENGINE=django.db.backends.postgresql). Real
+    # server version is confirmed as 17.9.
     services:
       postgres:
-        image: postgres:15-alpine
+        image: postgres:17-alpine
         env:
           POSTGRES_DB: wico_test
           POSTGRES_USER: postgres
