@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.core.cache import cache
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase, APIClient
@@ -20,6 +21,11 @@ class UserViewSetPermissionTests(RoleAssignmentMixin, APITestCase):
     """Test permission handling in UserViewSet."""
 
     def setUp(self):
+        # Reset the cache-backed AnonRateThrottle bucket so accumulated
+        # anonymous requests from earlier tests can't throttle the anonymous
+        # registration calls here to 429.
+        cache.clear()
+
         # Create test users
         self.user_without_perms = User.objects.create_user(
             email="noperm@test.com", password="testpass123"
@@ -158,6 +164,10 @@ class LoginFlowTests(APITestCase):
     TOKEN_URL = "/api/token/"
 
     def setUp(self):
+        # Reset the cache-backed AnonRateThrottle bucket so accumulated
+        # anonymous requests from earlier tests can't throttle these to 429.
+        cache.clear()
+
         self.password = "correct-horse-battery-staple"
         self.user = User.objects.create_user(
             email="login-test@example.com", password=self.password
@@ -279,6 +289,10 @@ class DevUserLoginViewTests(APITestCase):
     DEV_LOGIN_URL = "/users/dev/login/"
 
     def setUp(self):
+        # Reset the cache-backed AnonRateThrottle bucket so accumulated
+        # anonymous requests from earlier tests can't throttle these to 429.
+        cache.clear()
+
         self.user = User.objects.create_user(
             email="dev-login-target@example.com", password="whatever-not-checked"
         )
@@ -357,6 +371,16 @@ class PasswordResetFlowTests(APITestCase):
     TOKEN_URL = "/api/token/"
 
     def setUp(self):
+        # These endpoints are AllowAny, so DRF's AnonRateThrottle (40/min)
+        # applies. It is cache-backed (default LocMemCache), which TestCase's
+        # transaction rollback does NOT reset - so the anonymous-request bucket
+        # otherwise accumulates across the whole suite and eventually throttles
+        # _request_code() to 429, leaving no token and failing these tests
+        # order-dependently. Clear the cache so each test starts with a fresh
+        # throttle budget. (The app's own DB-based per-user rate limiter is
+        # unaffected and still exercised by test_request_is_rate_limited.)
+        cache.clear()
+
         self.email = "reset-user@example.com"
         self.old_password = "ClaveVieja2025!"
         self.user = User.objects.create_user(
