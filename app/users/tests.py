@@ -4,12 +4,13 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.core.cache import cache
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase, APIClient
 from rest_framework import status
 
-from users.models import PasswordResetToken
+from users.models import PasswordResetToken, EmailVerificationToken
 from users.test_helpers import RoleAssignmentMixin
 from utils.email_service import EmailService
 
@@ -20,6 +21,11 @@ class UserViewSetPermissionTests(RoleAssignmentMixin, APITestCase):
     """Test permission handling in UserViewSet."""
 
     def setUp(self):
+        # Reset the cache-backed AnonRateThrottle bucket so accumulated
+        # anonymous requests from earlier tests can't throttle the anonymous
+        # registration calls here to 429.
+        cache.clear()
+
         # Create test users
         self.user_without_perms = User.objects.create_user(
             email="noperm@test.com", password="testpass123"
@@ -158,6 +164,10 @@ class LoginFlowTests(APITestCase):
     TOKEN_URL = "/api/token/"
 
     def setUp(self):
+        # Reset the cache-backed AnonRateThrottle bucket so accumulated
+        # anonymous requests from earlier tests can't throttle these to 429.
+        cache.clear()
+
         self.password = "correct-horse-battery-staple"
         self.user = User.objects.create_user(
             email="login-test@example.com", password=self.password
@@ -279,6 +289,10 @@ class DevUserLoginViewTests(APITestCase):
     DEV_LOGIN_URL = "/users/dev/login/"
 
     def setUp(self):
+        # Reset the cache-backed AnonRateThrottle bucket so accumulated
+        # anonymous requests from earlier tests can't throttle these to 429.
+        cache.clear()
+
         self.user = User.objects.create_user(
             email="dev-login-target@example.com", password="whatever-not-checked"
         )
@@ -357,6 +371,16 @@ class PasswordResetFlowTests(APITestCase):
     TOKEN_URL = "/api/token/"
 
     def setUp(self):
+        # These endpoints are AllowAny, so DRF's AnonRateThrottle (40/min)
+        # applies. It is cache-backed (default LocMemCache), which TestCase's
+        # transaction rollback does NOT reset - so the anonymous-request bucket
+        # otherwise accumulates across the whole suite and eventually throttles
+        # _request_code() to 429, leaving no token and failing these tests
+        # order-dependently. Clear the cache so each test starts with a fresh
+        # throttle budget. (The app's own DB-based per-user rate limiter is
+        # unaffected and still exercised by test_request_is_rate_limited.)
+        cache.clear()
+
         self.email = "reset-user@example.com"
         self.old_password = "ClaveVieja2025!"
         self.user = User.objects.create_user(
@@ -586,3 +610,303 @@ class PasswordResetFlowTests(APITestCase):
             format="json",
         )
         self.assertEqual(verify_response.status_code, status.HTTP_200_OK)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class EmailVerificationFlowTests(RoleAssignmentMixin, APITestCase):
+    """
+    End-to-end tests for the /users/verify_email/, /users/resend_verification/
+    and /users/{pk}/mark_email_verified/ endpoints.
+
+    The locmem email backend is forced for the same reason as
+    PasswordResetFlowTests: dev settings point at a real SMTP host, which
+    would make send_verification_email return False and turn
+    resend_verification's happy path into a 500.
+
+    Behavior confirmed by reading the real code:
+      - verify_email looks up the token by (token=code, used=False).latest("created_at"),
+        so an already-used code is indistinguishable from a wrong one ("Código inválido.").
+      - On an expired code, verify_email does NOT set email_verified and does NOT mark
+        that token used directly - it calls EmailVerificationToken.create_for_user(user),
+        which marks ALL of the user's unused tokens (including the expired one) as used
+        as a side effect, and emails a fresh code. email_verified stays False.
+      - resend_verification checks email_verified BEFORE generating a token, so a
+        verified user gets a 400 with no token created and no email sent.
+      - resend_verification generates the token before attempting to send the email,
+        so a delivery failure (500) still leaves the token in the database.
+      - mark_email_verified requires IsAuthenticated at the action level (401 for
+        anonymous) and then manually checks is_superuser OR membership in the
+        "Gestor" group (403 otherwise) - either one is sufficient.
+
+    AnonRateThrottle (40/min, default LocMemCache) is keyed by client IP and
+    never reset between TestCase classes in the same process, since it lives
+    outside the DB transaction rollback. Earlier anonymous-heavy classes in
+    this file (or other apps' tests, when the whole suite runs) can exhaust
+    the bucket before this class's own anonymous POSTs run. Clear it here so
+    these tests are deterministic regardless of run order.
+    """
+
+    VERIFY_URL = "/users/verify_email/"
+    RESEND_URL = "/users/resend_verification/"
+
+    def setUp(self):
+        cache.clear()
+
+    def _mark_expired(self, token):
+        expired_at = timezone.now() - timedelta(
+            hours=EmailVerificationToken.TOKEN_EXPIRY_HOURS + 1
+        )
+        # created_at is auto_now_add, so bypass it with a direct UPDATE.
+        EmailVerificationToken.objects.filter(id=token.id).update(
+            created_at=expired_at
+        )
+
+    def _mark_url(self, user):
+        return f"/users/{user.id}/mark_email_verified/"
+
+    # --- verify_email ---------------------------------------------------
+
+    def test_verify_email_valid_code_marks_verified_and_consumes_token(self):
+        user = User.objects.create_user(
+            email="verify-valid@example.com", password="pass1234"
+        )
+        token = EmailVerificationToken.create_for_user(user)
+
+        response = self.client.post(
+            self.VERIFY_URL,
+            {"email": user.email, "code": token.token},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["message"], "Email verificado correctamente.")
+
+        user.refresh_from_db()
+        self.assertTrue(user.email_verified)
+        token.refresh_from_db()
+        self.assertTrue(token.used)
+
+    def test_verify_email_invalid_code_returns_400(self):
+        user = User.objects.create_user(
+            email="verify-invalid@example.com", password="pass1234"
+        )
+        real_token = EmailVerificationToken.create_for_user(user)
+        wrong_code = "999999" if real_token.token != "999999" else "000000"
+
+        response = self.client.post(
+            self.VERIFY_URL,
+            {"email": user.email, "code": wrong_code},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "Código inválido.")
+
+        user.refresh_from_db()
+        self.assertFalse(user.email_verified)
+
+    def test_verify_email_expired_code_regenerates_token_and_sends_new_email(self):
+        user = User.objects.create_user(
+            email="verify-expired@example.com", password="pass1234"
+        )
+        old_token = EmailVerificationToken.create_for_user(user)
+        self._mark_expired(old_token)
+
+        response = self.client.post(
+            self.VERIFY_URL,
+            {"email": user.email, "code": old_token.token},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("expirado", response.data["error"])
+
+        user.refresh_from_db()
+        self.assertFalse(user.email_verified)
+
+        # The expired token got swept into "used" as a side effect of
+        # generating the replacement, not by verify_email marking it directly.
+        old_token.refresh_from_db()
+        self.assertTrue(old_token.used)
+
+        fresh_tokens = EmailVerificationToken.objects.filter(
+            user=user, used=False
+        )
+        self.assertEqual(fresh_tokens.count(), 1)
+        new_token = fresh_tokens.first()
+        self.assertNotEqual(new_token.id, old_token.id)
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(new_token.token, mail.outbox[0].body)
+
+    def test_verify_email_replay_of_used_code_rejected(self):
+        user = User.objects.create_user(
+            email="verify-replay@example.com", password="pass1234"
+        )
+        token = EmailVerificationToken.create_for_user(user)
+
+        first = self.client.post(
+            self.VERIFY_URL,
+            {"email": user.email, "code": token.token},
+            format="json",
+        )
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+
+        replay = self.client.post(
+            self.VERIFY_URL,
+            {"email": user.email, "code": token.token},
+            format="json",
+        )
+        self.assertEqual(replay.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(replay.data["error"], "Código inválido.")
+
+    def test_verify_email_nonexistent_user_returns_400(self):
+        response = self.client.post(
+            self.VERIFY_URL,
+            {"email": "ghost@example.com", "code": "123456"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "Usuario no encontrado.")
+
+    # --- resend_verification ---------------------------------------------
+
+    def test_resend_verification_unverified_user_generates_new_code(self):
+        user = User.objects.create_user(
+            email="resend-unverified@example.com", password="pass1234"
+        )
+
+        response = self.client.post(
+            self.RESEND_URL, {"email": user.email}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["message"],
+            "Se ha enviado un nuevo código de verificación a tu correo.",
+        )
+
+        new_tokens = EmailVerificationToken.objects.filter(
+            user=user, used=False
+        )
+        self.assertEqual(new_tokens.count(), 1)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(new_tokens.first().token, mail.outbox[0].body)
+
+    def test_resend_verification_already_verified_returns_400(self):
+        user = User.objects.create_user(
+            email="resend-verified@example.com", password="pass1234"
+        )
+        user.email_verified = True
+        user.save()
+
+        response = self.client.post(
+            self.RESEND_URL, {"email": user.email}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "El email ya está verificado.")
+
+        self.assertFalse(EmailVerificationToken.objects.filter(user=user).exists())
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_resend_verification_nonexistent_user_returns_400(self):
+        response = self.client.post(
+            self.RESEND_URL, {"email": "ghost@example.com"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "Usuario no encontrado.")
+
+    def test_resend_verification_returns_500_when_email_send_fails(self):
+        user = User.objects.create_user(
+            email="resend-fails@example.com", password="pass1234"
+        )
+
+        with patch.object(
+            EmailService, "send_verification_email", return_value=False
+        ):
+            response = self.client.post(
+                self.RESEND_URL, {"email": user.email}, format="json"
+            )
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # The token is created before the send is attempted; a failed send
+        # still leaves it behind.
+        self.assertTrue(EmailVerificationToken.objects.filter(user=user).exists())
+
+    # --- mark_email_verified ----------------------------------------------
+
+    def test_mark_email_verified_gestor_succeeds_on_unverified_user(self):
+        gestor = User.objects.create_user(
+            email="gestor-mark@example.com", password="pass1234"
+        )
+        self.assign_role(gestor, "Gestor")
+        target = User.objects.create_user(
+            email="target-mark@example.com", password="pass1234"
+        )
+
+        gestor_client = APIClient()
+        gestor_client.force_authenticate(user=gestor)
+        response = gestor_client.post(self._mark_url(target))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["email_verified"])
+        target.refresh_from_db()
+        self.assertTrue(target.email_verified)
+
+    def test_mark_email_verified_superuser_without_gestor_group_succeeds(self):
+        superuser = User.objects.create_superuser(
+            email="superuser-mark@example.com", password="pass1234"
+        )
+        target = User.objects.create_user(
+            email="target-mark-2@example.com", password="pass1234"
+        )
+
+        superuser_client = APIClient()
+        superuser_client.force_authenticate(user=superuser)
+        response = superuser_client.post(self._mark_url(target))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        target.refresh_from_db()
+        self.assertTrue(target.email_verified)
+
+    def test_mark_email_verified_already_verified_returns_400(self):
+        gestor = User.objects.create_user(
+            email="gestor-mark-2@example.com", password="pass1234"
+        )
+        self.assign_role(gestor, "Gestor")
+        target = User.objects.create_user(
+            email="target-mark-3@example.com", password="pass1234"
+        )
+        target.email_verified = True
+        target.save()
+
+        gestor_client = APIClient()
+        gestor_client.force_authenticate(user=gestor)
+        response = gestor_client.post(self._mark_url(target))
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["error"], "El email del usuario ya está verificado."
+        )
+
+    def test_mark_email_verified_non_admin_returns_403(self):
+        regular_user = User.objects.create_user(
+            email="regular-mark@example.com", password="pass1234"
+        )
+        target = User.objects.create_user(
+            email="target-mark-4@example.com", password="pass1234"
+        )
+
+        regular_client = APIClient()
+        regular_client.force_authenticate(user=regular_user)
+        response = regular_client.post(self._mark_url(target))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        target.refresh_from_db()
+        self.assertFalse(target.email_verified)
+
+    def test_mark_email_verified_unauthenticated_returns_401(self):
+        target = User.objects.create_user(
+            email="target-mark-5@example.com", password="pass1234"
+        )
+
+        response = APIClient().post(self._mark_url(target))
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        target.refresh_from_db()
+        self.assertFalse(target.email_verified)

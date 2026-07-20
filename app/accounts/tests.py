@@ -17,6 +17,7 @@ from .models import (
     Account,
     Dependents,
     Plates,
+    AuthorizedPlate,
     DependentInvitation,
     Organism,
     AuthorizedEmail,
@@ -1422,4 +1423,508 @@ class AuthorizedEmailTestCase(RoleAssignmentMixin, TestCase):
         self.assertIn(
             response.status_code,
             [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND],
+        )
+
+
+# ---------------------------------------------------------------------------
+# deactivate_account tests
+# ---------------------------------------------------------------------------
+
+
+class DeactivateAccountTestCase(RoleAssignmentMixin, TestCase):
+    """
+    End-to-end tests for AccountViewSet.deactivate_account (POST /accounts/accounts/{id}/deactivate/).
+
+    The 'Flota' group must exist before any CustomUser is created, since the
+    post_save signal on CustomUser silently no-ops (Group.DoesNotExist) if the
+    group hasn't been created yet.
+    """
+
+    def setUp(self):
+        Group.objects.get_or_create(name="Flota")
+
+        # Actor performing the deactivations: needs 'add_account' permission
+        # (StrictDjangoModelPermissions maps POST -> add_<model>).
+        self.actor = CustomUser.objects.create_user(
+            email="actor@example.com", password="pass1234"
+        )
+        self.assign_role(self.actor, "Gestor")
+        self.client_ = APIClient()
+        self.client_.force_authenticate(user=self.actor)
+
+    def _deactivate_url(self, account_id):
+        return f"/accounts/accounts/{account_id}/deactivate/"
+
+    def _make_user(self, email):
+        """Creates a user; signal auto-creates an active holder Account and adds 'Flota'."""
+        return CustomUser.objects.create_user(email=email, password="pass1234")
+
+    def test_deactivate_holder_account_full_cascade(self):
+        """Deactivating a holder account should cascade through dependents, plates,
+        authorized plates and pending invitations, and deactivate the account itself."""
+        holder_user = self._make_user("holder-cascade@example.com")
+        holder_account = Account.objects.get(user=holder_user, account_type="holder")
+
+        dep_user = self._make_user("dep-cascade@example.com")
+        dep_account = baker.make(Account, user=dep_user, account_type="dependent", balance=50)
+
+        relation = baker.make(
+            Dependents, holder_account=holder_account, dependent_account=dep_account
+        )
+        plate1 = baker.make(Plates, holder_account=holder_account, plate_number="AAA111")
+        plate2 = baker.make(Plates, holder_account=holder_account, plate_number="BBB222")
+        auth1 = baker.make(AuthorizedPlate, dependent_account=dep_account, plate=plate1)
+        invitation = baker.make(
+            DependentInvitation,
+            holder_account=holder_account,
+            dependent_email="pending@example.com",
+            status="pending",
+        )
+
+        response = self.client_.post(
+            self._deactivate_url(holder_account.id),
+            {"reason": "Cierre de cuenta"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        summary = response.data["summary"]
+        self.assertEqual(summary["dependents_finalized"], 1)
+        self.assertEqual(summary["dependent_accounts_deactivated"], 1)
+        self.assertEqual(summary["plates_deactivated"], 2)
+        # The per-dependent loop already closes auth1 (since dep_account is active),
+        # so the step-3 query that fills this summary key finds nothing left open.
+        # The authorization is still revoked in the DB (asserted below) - the
+        # summary count just doesn't reflect it.
+        self.assertEqual(summary["authorized_plates_revoked"], 0)
+        self.assertEqual(summary["invitations_cancelled"], 1)
+
+        today = timezone.now().date()
+
+        holder_account.refresh_from_db()
+        self.assertFalse(holder_account.is_active)
+        self.assertIsNotNone(holder_account.deactivated_at)
+        self.assertEqual(holder_account.deactivated_by, self.actor)
+        self.assertEqual(holder_account.deactivation_reason, "Cierre de cuenta")
+
+        relation.refresh_from_db()
+        self.assertEqual(relation.end_date, today)
+
+        dep_account.refresh_from_db()
+        self.assertFalse(dep_account.is_active)
+        self.assertIsNotNone(dep_account.deactivated_at)
+        self.assertEqual(dep_account.deactivated_by, self.actor)
+        self.assertEqual(dep_account.deactivation_reason, "Cuenta titular dada de baja")
+
+        plate1.refresh_from_db()
+        plate2.refresh_from_db()
+        self.assertEqual(plate1.end_date, today)
+        self.assertEqual(plate2.end_date, today)
+
+        auth1.refresh_from_db()
+        self.assertEqual(auth1.end_date, today)
+
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.status, "cancelled")
+        self.assertIsNotNone(invitation.response_date)
+
+    def test_deactivate_holder_account_authorized_plate_summary_undercounts_already_inactive_dependent(
+        self,
+    ):
+        """
+        Edge case: an active Dependents relation whose dependent_account was already
+        inactive (deactivated through another path) is excluded from the per-account
+        loop, so its AuthorizedPlate revocation is only caught by the holder-wide
+        step-3 query. Because that query only counts rows still open after the loop
+        ran, 'authorized_plates_revoked' in the response undercounts the total number
+        of AuthorizedPlate rows actually revoked (loop-revoked ones aren't tallied).
+        The DB state itself ends up fully consistent either way.
+        """
+        holder_user = self._make_user("holder-edge@example.com")
+        holder_account = Account.objects.get(user=holder_user, account_type="holder")
+
+        active_dep_user = self._make_user("dep-active@example.com")
+        active_dep_account = baker.make(
+            Account, user=active_dep_user, account_type="dependent", is_active=True
+        )
+
+        already_inactive_dep_user = self._make_user("dep-inactive@example.com")
+        already_inactive_dep_account = baker.make(
+            Account,
+            user=already_inactive_dep_user,
+            account_type="dependent",
+            is_active=False,
+        )
+
+        relation_active = baker.make(
+            Dependents, holder_account=holder_account, dependent_account=active_dep_account
+        )
+        relation_already_inactive = baker.make(
+            Dependents,
+            holder_account=holder_account,
+            dependent_account=already_inactive_dep_account,
+        )
+
+        plate_a = baker.make(Plates, holder_account=holder_account, plate_number="CCC333")
+        plate_b = baker.make(Plates, holder_account=holder_account, plate_number="DDD444")
+        auth_active = baker.make(
+            AuthorizedPlate, dependent_account=active_dep_account, plate=plate_a
+        )
+        auth_already_inactive = baker.make(
+            AuthorizedPlate, dependent_account=already_inactive_dep_account, plate=plate_b
+        )
+
+        response = self.client_.post(
+            self._deactivate_url(holder_account.id), {}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        summary = response.data["summary"]
+        self.assertEqual(summary["dependents_finalized"], 2)
+        # Only the still-active dependent gets counted as deactivated here.
+        self.assertEqual(summary["dependent_accounts_deactivated"], 1)
+        # Undercount: auth_active was already closed by the per-account loop, so
+        # only auth_already_inactive is picked up by the step-3 query.
+        self.assertEqual(summary["authorized_plates_revoked"], 1)
+
+        today = timezone.now().date()
+        relation_active.refresh_from_db()
+        relation_already_inactive.refresh_from_db()
+        self.assertEqual(relation_active.end_date, today)
+        self.assertEqual(relation_already_inactive.end_date, today)
+
+        # Both authorizations are actually revoked in the DB despite the undercount.
+        auth_active.refresh_from_db()
+        auth_already_inactive.refresh_from_db()
+        self.assertEqual(auth_active.end_date, today)
+        self.assertEqual(auth_already_inactive.end_date, today)
+
+        # The already-inactive dependent account was never touched by the loop.
+        already_inactive_dep_account.refresh_from_db()
+        self.assertIsNone(already_inactive_dep_account.deactivated_by)
+        self.assertIsNone(already_inactive_dep_account.deactivation_reason)
+
+    def test_deactivate_dependent_account_cascade(self):
+        """Deactivating a dependent account finalizes its own Dependents relation
+        and revokes its own authorized plates, but leaves the holder untouched."""
+        holder_user = self._make_user("holder-for-dep@example.com")
+        holder_account = Account.objects.get(user=holder_user, account_type="holder")
+
+        dep_user = self._make_user("dep-solo@example.com")
+        dep_account = baker.make(Account, user=dep_user, account_type="dependent")
+
+        relation = baker.make(
+            Dependents, holder_account=holder_account, dependent_account=dep_account
+        )
+        plate = baker.make(Plates, holder_account=holder_account, plate_number="EEE555")
+        auth = baker.make(AuthorizedPlate, dependent_account=dep_account, plate=plate)
+
+        response = self.client_.post(
+            self._deactivate_url(dep_account.id),
+            {"reason": "Se dio de baja el adherido"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        summary = response.data["summary"]
+        self.assertEqual(summary, {
+            "dependent_relations_finalized": 1,
+            "authorized_plates_revoked": 1,
+        })
+
+        today = timezone.now().date()
+
+        dep_account.refresh_from_db()
+        self.assertFalse(dep_account.is_active)
+        self.assertEqual(dep_account.deactivated_by, self.actor)
+        self.assertEqual(dep_account.deactivation_reason, "Se dio de baja el adherido")
+
+        relation.refresh_from_db()
+        self.assertEqual(relation.end_date, today)
+
+        auth.refresh_from_db()
+        self.assertEqual(auth.end_date, today)
+
+        # Holder and its plate are untouched by a dependent's own deactivation.
+        holder_account.refresh_from_db()
+        plate.refresh_from_db()
+        self.assertTrue(holder_account.is_active)
+        self.assertIsNone(plate.end_date)
+
+    def test_deactivate_already_inactive_account_returns_400(self):
+        account = baker.make(
+            Account,
+            account_type="holder",
+            is_active=False,
+            deactivated_at=timezone.now(),
+        )
+        response = self.client_.post(
+            self._deactivate_url(account.id), {}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("error", response.data)
+        self.assertIn("deactivated_at", response.data)
+
+    def test_deactivate_holder_strips_flota_role_for_dependent_left_with_no_active_accounts(
+        self,
+    ):
+        """If a cascaded dependent's user has no other active accounts left,
+        the loop inside the holder branch must strip their 'Flota' role directly
+        (this is invisible in the response payload - only the acted-upon account's
+        own user status is reported there)."""
+        holder_user = self._make_user("holder-strip@example.com")
+        holder_account = Account.objects.get(user=holder_user, account_type="holder")
+
+        dep_user = self._make_user("dep-strip@example.com")
+        # Deactivate the dependent user's own auto-created holder account so that,
+        # once their dependent account is cascaded away, they have zero active accounts.
+        dep_solo_holder = Account.objects.get(user=dep_user, account_type="holder")
+        dep_solo_holder.is_active = False
+        dep_solo_holder.save(update_fields=["is_active"])
+
+        dep_account = baker.make(Account, user=dep_user, account_type="dependent")
+        baker.make(Dependents, holder_account=holder_account, dependent_account=dep_account)
+
+        self.assertTrue(dep_user.groups.filter(name="Flota").exists())
+
+        response = self.client_.post(
+            self._deactivate_url(holder_account.id), {}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        dep_user.refresh_from_db()
+        self.assertFalse(dep_user.groups.filter(name="Flota").exists())
+
+    def test_deactivate_holder_does_not_strip_flota_role_for_dependent_with_other_active_account(
+        self,
+    ):
+        """If a cascaded dependent's user still has another active account
+        (here: their own auto-created holder account), 'Flota' must be kept."""
+        holder_user = self._make_user("holder-keep@example.com")
+        holder_account = Account.objects.get(user=holder_user, account_type="holder")
+
+        dep_user = self._make_user("dep-keep@example.com")
+        # dep_user's auto-created holder account stays active.
+        dep_account = baker.make(Account, user=dep_user, account_type="dependent")
+        baker.make(Dependents, holder_account=holder_account, dependent_account=dep_account)
+
+        response = self.client_.post(
+            self._deactivate_url(holder_account.id), {}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        dep_user.refresh_from_db()
+        self.assertTrue(dep_user.groups.filter(name="Flota").exists())
+
+    def test_deactivate_account_strips_own_flota_role_when_no_accounts_remain(self):
+        """If the deactivated account was the user's only account, 'Flota' should
+        be stripped and reflected in the response."""
+        solo_user = self._make_user("solo-user@example.com")
+        solo_account = Account.objects.get(user=solo_user, account_type="holder")
+
+        response = self.client_.post(
+            self._deactivate_url(solo_account.id), {}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data.get("flota_role_removed"))
+        self.assertIn("Flota", response.data["message"])
+
+        solo_user.refresh_from_db()
+        self.assertFalse(solo_user.groups.filter(name="Flota").exists())
+
+    def test_deactivate_account_does_not_strip_own_flota_role_when_other_active_account_exists(
+        self,
+    ):
+        """If the user still has another active account after this one is
+        deactivated, 'Flota' must not be stripped."""
+        multi_user = self._make_user("multi-user@example.com")
+        holder_account = Account.objects.get(user=multi_user, account_type="holder")
+        # A second, unrelated, active account for the same user.
+        baker.make(Account, user=multi_user, account_type="dependent")
+
+        response = self.client_.post(
+            self._deactivate_url(holder_account.id), {}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data.get("flota_role_removed", False))
+
+        multi_user.refresh_from_db()
+        self.assertTrue(multi_user.groups.filter(name="Flota").exists())
+
+
+# ---------------------------------------------------------------------------
+# balance_by_dni_plate tests
+# ---------------------------------------------------------------------------
+
+
+class BalanceByDniPlateTestCase(RoleAssignmentMixin, TestCase):
+    """End-to-end tests for AccountViewSet.balance_by_dni_plate
+    (GET /accounts/accounts/balance-by-dni-plate/)."""
+
+    URL = "/accounts/accounts/balance-by-dni-plate/"
+
+    def setUp(self):
+        self.playero_user = CustomUser.objects.create_user(
+            email="playero@example.com", password="pass1234"
+        )
+        self.assign_role(self.playero_user, "Playero")
+        self.playero_client = APIClient()
+        self.playero_client.force_authenticate(user=self.playero_user)
+
+    def test_balance_by_dni_plate_holder_ownership_match(self):
+        holder_user = CustomUser.objects.create_user(
+            email="holder-balance@example.com", password="pass1234", dni="10111111"
+        )
+        holder_account = Account.objects.get(user=holder_user, account_type="holder")
+        holder_account.balance = 750
+        holder_account.save(update_fields=["balance"])
+        baker.make(Plates, holder_account=holder_account, plate_number="ABC111")
+
+        response = self.playero_client.get(
+            self.URL, {"dni": "10111111", "plate_number": "abc111"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["account_id"], holder_account.id)
+        self.assertEqual(response.data["account_type"], "Titular")
+        self.assertEqual(float(response.data["balance"]), 750.0)
+        self.assertEqual(response.data["plate_number"], "ABC111")
+
+    def test_balance_by_dni_plate_authorized_dependent_match(self):
+        holder_user = CustomUser.objects.create_user(
+            email="holder-for-auth@example.com", password="pass1234"
+        )
+        holder_account = Account.objects.get(user=holder_user, account_type="holder")
+        plate = baker.make(Plates, holder_account=holder_account, plate_number="XYZ222")
+
+        dep_user = CustomUser.objects.create_user(
+            email="dep-for-auth@example.com", password="pass1234", dni="20222222"
+        )
+        dep_account = baker.make(
+            Account, user=dep_user, account_type="dependent", balance=300
+        )
+        baker.make(Dependents, holder_account=holder_account, dependent_account=dep_account)
+        baker.make(AuthorizedPlate, dependent_account=dep_account, plate=plate)
+
+        response = self.playero_client.get(
+            self.URL, {"dni": "20222222", "plate_number": "xyz222"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["account_id"], dep_account.id)
+        self.assertEqual(response.data["account_type"], "Adherido")
+        self.assertEqual(float(response.data["balance"]), 300.0)
+
+    def test_balance_by_dni_plate_dni_not_found(self):
+        response = self.playero_client.get(
+            self.URL, {"dni": "99999999", "plate_number": "ANY123"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn("No se encontró ningún usuario", response.data["error"])
+
+    def test_balance_by_dni_plate_no_active_plate_found(self):
+        user = CustomUser.objects.create_user(
+            email="noplate@example.com", password="pass1234", dni="30333333"
+        )
+        holder_account = Account.objects.get(user=user, account_type="holder")
+        # A plate with this number exists but is already soft-deleted (inactive).
+        baker.make(
+            Plates,
+            holder_account=holder_account,
+            plate_number="OLD999",
+            end_date=timezone.now().date(),
+        )
+
+        response = self.playero_client.get(
+            self.URL, {"dni": "30333333", "plate_number": "OLD999"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn("No se encontró ninguna patente activa", response.data["error"])
+
+    def test_balance_by_dni_plate_dni_not_associated_with_plate(self):
+        owner_user = CustomUser.objects.create_user(
+            email="plate-owner@example.com", password="pass1234"
+        )
+        owner_account = Account.objects.get(user=owner_user, account_type="holder")
+        baker.make(Plates, holder_account=owner_account, plate_number="NOMATCH1")
+
+        unrelated_user = CustomUser.objects.create_user(
+            email="unrelated@example.com", password="pass1234", dni="40444444"
+        )
+
+        response = self.playero_client.get(
+            self.URL, {"dni": "40444444", "plate_number": "NOMATCH1"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn("no está asociado a esta patente", response.data["error"])
+
+    def test_balance_by_dni_plate_inactive_account_returns_400(self):
+        holder_user = CustomUser.objects.create_user(
+            email="inactive-holder@example.com", password="pass1234", dni="50555555"
+        )
+        holder_account = Account.objects.get(user=holder_user, account_type="holder")
+        baker.make(Plates, holder_account=holder_account, plate_number="DEAD001")
+        holder_account.is_active = False
+        holder_account.save(update_fields=["is_active"])
+
+        response = self.playero_client.get(
+            self.URL, {"dni": "50555555", "plate_number": "DEAD001"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("desactivada", response.data["error"])
+
+    def test_balance_by_dni_plate_ambiguous_multiple_matches_returns_one_valid_account(
+        self,
+    ):
+        """
+        Risk scenario: the same plate_number can be registered active for two
+        different holder accounts (uniqueness is scoped per holder), and the
+        same physical person can hold two different dependent accounts (one per
+        fleet) each authorized on a same-numbered plate. The view has no
+        tie-breaker: it iterates matches and returns the first one found, so
+        which of the two accounts gets charged at the pump is DB-order
+        dependent rather than deterministic business logic.
+        """
+        holder_a_user = CustomUser.objects.create_user(
+            email="holder-a@example.com", password="pass1234"
+        )
+        holder_a_account = Account.objects.get(
+            user=holder_a_user, account_type="holder"
+        )
+        plate_a = baker.make(
+            Plates, holder_account=holder_a_account, plate_number="DUP001"
+        )
+
+        holder_b_user = CustomUser.objects.create_user(
+            email="holder-b@example.com", password="pass1234"
+        )
+        holder_b_account = Account.objects.get(
+            user=holder_b_user, account_type="holder"
+        )
+        plate_b = baker.make(
+            Plates, holder_account=holder_b_account, plate_number="DUP001"
+        )
+
+        # Same physical person, two separate dependent accounts (one per fleet),
+        # each authorized on a plate sharing the "DUP001" number.
+        shared_user = CustomUser.objects.create_user(
+            email="shared-dependent@example.com", password="pass1234", dni="60666666"
+        )
+        dep_account_1 = baker.make(
+            Account, user=shared_user, account_type="dependent", balance=111
+        )
+        dep_account_2 = baker.make(
+            Account, user=shared_user, account_type="dependent", balance=222
+        )
+        baker.make(Dependents, holder_account=holder_a_account, dependent_account=dep_account_1)
+        baker.make(Dependents, holder_account=holder_b_account, dependent_account=dep_account_2)
+        baker.make(AuthorizedPlate, dependent_account=dep_account_1, plate=plate_a)
+        baker.make(AuthorizedPlate, dependent_account=dep_account_2, plate=plate_b)
+
+        response = self.playero_client.get(
+            self.URL, {"dni": "60666666", "plate_number": "dup001"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Either account is a "valid" match; the endpoint silently picks one
+        # without surfacing that the match was ambiguous.
+        self.assertIn(
+            response.data["account_id"], {dep_account_1.id, dep_account_2.id}
         )
