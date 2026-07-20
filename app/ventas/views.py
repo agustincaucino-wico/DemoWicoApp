@@ -112,7 +112,7 @@ def _invalidar_token():
         _ventas_token = None
 
 
-def _proxy_request(method: str, path: str, django_request) -> Response:
+def _proxy_request(method: str, path: str, django_request, override_data=None) -> Response:
     """Reenvía la request al sistema de ventas con el token de servicio."""
     if not VENTAS_BASE:
         return Response(
@@ -130,7 +130,7 @@ def _proxy_request(method: str, path: str, django_request) -> Response:
         }
         kwargs = dict(params=params, headers=headers, timeout=15)
         if method in ("POST", "PUT", "PATCH"):
-            kwargs["json"] = django_request.data
+            kwargs["json"] = override_data if override_data is not None else django_request.data
         return requests.request(method, url, **kwargs)
 
     try:
@@ -392,7 +392,8 @@ def aut_precio_comb_pendientes(request):
 @api_view(["PUT"])
 @permission_classes(PERMISOS_TRANSPORTE)
 def aut_precio_comb_actualizar(request, id_aut: str):
-    return _proxy_request("PUT", f"/autPrecioComb/{id_aut}/", request)
+    data = {**dict(request.data), "ult_usuario": (request.user.get_full_name() or request.user.email)[:20]}
+    return _proxy_request("PUT", f"/autPrecioComb/{id_aut}/", request, override_data=data)
 
 
 @api_view(["GET"])
