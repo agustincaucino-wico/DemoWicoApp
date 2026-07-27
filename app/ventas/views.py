@@ -223,11 +223,7 @@ def localidades_por_provincia(request, id_provincia: str):
 @api_view(["GET"])
 @permission_classes(PERMISOS_VENDEDOR)
 def precio_flete_x_litro(request):
-    # Intentar camelCase primero (consistente con otras rutas del upstream)
-    resp = _proxy_request("GET", "/precioFleteXLitro/", request)
-    if resp.status_code == 404:
-        resp = _proxy_request("GET", "/precio_flete_x_litro/", request)
-    return resp
+    return _proxy_request("GET", "/precio_flete_x_litro/", request)
 
 
 @api_view(["GET"])

@@ -2,6 +2,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from django.db import IntegrityError
+from django.core.exceptions import MultipleObjectsReturned
 from users.serializers import (
     UserSerializer,
     EmailVerificationSerializer,
@@ -164,6 +165,14 @@ class UserViewSet(viewsets.ModelViewSet):
                 {"error": "Usuario no encontrado."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        except MultipleObjectsReturned:
+            # Duplicate emails exist in DB; pick the first active one
+            user = User.objects.filter(email__iexact=email).order_by("id").first()
+            if user is None:
+                return Response(
+                    {"error": "Usuario no encontrado."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         try:
             token = user.verification_tokens.filter(token=code, used=False).latest(
@@ -229,6 +238,13 @@ class UserViewSet(viewsets.ModelViewSet):
                 {"error": "Usuario no encontrado."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        except MultipleObjectsReturned:
+            user = User.objects.filter(email__iexact=email).order_by("id").first()
+            if user is None:
+                return Response(
+                    {"error": "Usuario no encontrado."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         if user.email_verified:
             return Response(
@@ -577,6 +593,13 @@ class DevUserLoginView(APIView):
                 {"error": "User not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+        except MultipleObjectsReturned:
+            user = User.objects.filter(email__iexact=email).order_by("id").first()
+            if user is None:
+                return Response(
+                    {"error": "User not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
 
         # Generate tokens
         refresh = RefreshToken.for_user(user)

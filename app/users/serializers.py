@@ -98,6 +98,9 @@ class UserSerializer(serializers.ModelSerializer):
             self.fields["dni"].allow_blank = True
             self.fields["dni"].allow_null = True
 
+    def validate_email(self, value):
+        return value.lower() if value else value
+
     def validate_dni(self, value):
         if value:
             # Exclude current instance during update
