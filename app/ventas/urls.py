@@ -17,6 +17,7 @@ urlpatterns = [
     path("NotasVentasApp/dni/<str:dni>/", views.notas_venta_por_dni),
     path("NotasVentasApp/imagenes/<str:nro_nota_vta>/", views.imagenes_nota_venta),
     path("NotasVentasApp/upload/", views.upload_imagenes_nota_venta),
+    path("NotasVentasApp/<str:nro_nota_vta>/<str:orden>/", views.detalle_nota_venta),
     path("NotasVentasApp/", views.submit_nota_venta),
     # Autorizaciones de precio de combustible
     path("autPrecioComb/pendientes/", views.aut_precio_comb_pendientes),

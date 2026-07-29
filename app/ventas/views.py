@@ -271,6 +271,12 @@ def imagenes_nota_venta(request, nro_nota_vta: str):
     return _proxy_request("GET", f"/NotasVentasApp/imagenes/{nro_nota_vta}", request)
 
 
+@api_view(["GET"])
+@permission_classes(PERMISOS_VENDEDOR)
+def detalle_nota_venta(request, nro_nota_vta: str, orden: str):
+    return _proxy_request("GET", f"/NotasVentasApp/{nro_nota_vta}/{orden}", request)
+
+
 @api_view(["POST"])
 @permission_classes(PERMISOS_VENDEDOR)
 def submit_nota_venta(request):
