@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+#
+# Opt-in pre-push safety net: if the push touches main or PROD, try to run
+# the test suite locally before letting it through. See README for how to
+# enable this (git config core.hooksPath .githooks) and how to bypass it
+# (git push --no-verify) - it's a courtesy check, NOT an enforced gate.
+# There is no branch protection on this repo (no admin access), so CI
+# remains the only thing that actually blocks a bad push from deploying.
+#
+# Reasoning for the fallback behavior below: this repo has no
+# docker-compose/Dockerfile committed and no scripted way to provision a
+# local Postgres - every settings module (test/dev/prod, and local.py
+# despite its stale "no PostgreSQL needed" docstring) requires a real
+# Postgres reachable via DATABASE_HOST/PORT from a developer's own
+# untracked .env. There's no guarantee any given clone has that. So this
+# hook actively probes for a runnable environment first (interpreter,
+# importable deps, DB env vars, actual TCP reachability) and only enforces
+# a hard pass/fail once it has confirmed it can genuinely run the suite.
+# If any precondition is missing, it warns loudly and lets the push
+# through rather than either silently skipping the check or blocking a
+# push over an infra problem that says nothing about the code itself.
+
+set -euo pipefail
+
+protected_refs="refs/heads/main refs/heads/PROD"
+
+targets_protected_branch=false
+while read -r local_ref local_sha remote_ref remote_sha; do
+  for ref in $protected_refs; do
+    if [ "$remote_ref" = "$ref" ]; then
+      targets_protected_branch=true
+    fi
+  done
+done
+
+if [ "$targets_protected_branch" = false ]; then
+  exit 0
+fi
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+warn_and_allow() {
+  echo ""
+  echo "############################################################"
+  echo "# pre-push: COULD NOT VERIFY TESTS LOCALLY ($1)"
+  echo "# CI will be the ONLY check for this push - watch the Actions"
+  echo "# run once it lands, there is no branch protection backing"
+  echo "# this up server-side."
+  echo "############################################################"
+  echo ""
+  exit 0
+}
+
+echo "pre-push: push targets a protected branch (main/PROD) - attempting to run the test suite locally first..."
+
+# Prefer the repo's own venv if the developer has one set up.
+if [ -x "$REPO_ROOT/venv/bin/python" ]; then
+  PYTHON="$REPO_ROOT/venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+  PYTHON="python3"
+else
+  warn_and_allow "no python interpreter found"
+fi
+
+if ! "$PYTHON" -c "import django, pytest, psycopg2" >/dev/null 2>&1; then
+  warn_and_allow "required packages (django/pytest/psycopg2) aren't importable with $PYTHON"
+fi
+
+# settings/test.py loads DB config from .env via python-dotenv - load the
+# same file here so we can probe reachability before spending time on migrate/pytest.
+if [ -f "$REPO_ROOT/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$REPO_ROOT/.env"
+  set +a
+fi
+
+if [ -z "${DATABASE_HOST:-}" ] || [ -z "${DATABASE_PORT:-}" ]; then
+  warn_and_allow "DATABASE_HOST/DATABASE_PORT are not set (missing or incomplete .env) - can't tell if a test DB is reachable"
+fi
+
+probe() {
+  if command -v pg_isready >/dev/null 2>&1; then
+    pg_isready -h "$DATABASE_HOST" -p "$DATABASE_PORT" >/dev/null 2>&1
+  else
+    # No pg_isready available - fall back to a bare TCP probe.
+    bash -c "exec 3<>/dev/tcp/$DATABASE_HOST/$DATABASE_PORT" >/dev/null 2>&1
+  fi
+}
+
+if command -v timeout >/dev/null 2>&1; then
+  reachable=$(timeout 5 bash -c "$(declare -f probe); probe" && echo yes || echo no)
+else
+  reachable=$(probe && echo yes || echo no)
+fi
+
+if [ "$reachable" = "no" ]; then
+  warn_and_allow "Postgres at $DATABASE_HOST:$DATABASE_PORT is not reachable"
+fi
+
+echo "pre-push: local Postgres looks reachable, running migrate + pytest (DJANGO_SETTINGS_MODULE=myapp.settings.test)..."
+
+export DJANGO_SETTINGS_MODULE=myapp.settings.test
+
+if ! (cd "$REPO_ROOT/app" && "$PYTHON" manage.py migrate --noinput); then
+  echo ""
+  echo "pre-push: BLOCKED - migrations failed against the local test DB."
+  echo "Fix them, or bypass this courtesy check with 'git push --no-verify' (CI will still run)."
+  exit 1
+fi
+
+if ! (cd "$REPO_ROOT/app" && "$PYTHON" -m pytest); then
+  echo ""
+  echo "pre-push: BLOCKED - the test suite failed."
+  echo "Fix the failures, or bypass this courtesy check with 'git push --no-verify' (CI will still run and gate deploy)."
+  exit 1
+fi
+
+echo "pre-push: tests passed locally, allowing push."
+exit 0
