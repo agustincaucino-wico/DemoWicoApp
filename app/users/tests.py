@@ -611,6 +611,98 @@ class PasswordResetFlowTests(APITestCase):
         )
         self.assertEqual(verify_response.status_code, status.HTTP_200_OK)
 
+    # --- attempt lockout (brute-force protection) ---------------------------
+
+    def test_verify_attempts_under_threshold_still_succeed(self):
+        """A handful of wrong guesses don't burn the token - the real code
+        still works as long as failed_attempts stays under the threshold."""
+        self._request_code()
+        real_code = self._latest_code()
+        wrong_code = "999999" if real_code != "999999" else "000000"
+
+        # One fewer wrong guess than the lockout threshold.
+        for _ in range(PasswordResetToken.MAX_VERIFY_ATTEMPTS - 1):
+            response = self.client.post(
+                self.VERIFY_URL,
+                {"email": self.email, "code": wrong_code},
+                format="json",
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        response = self.client.post(
+            self.VERIFY_URL,
+            {"email": self.email, "code": real_code},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["valid"])
+
+    def test_exceeding_verify_attempts_locks_out_the_token(self):
+        """
+        Once failed_attempts reaches the threshold, even the correct code is
+        rejected - the lockout response is identical in shape to the
+        existing invalid/expired-code response, no separate error state.
+        """
+        self._request_code()
+        real_code = self._latest_code()
+        wrong_code = "999999" if real_code != "999999" else "000000"
+
+        for _ in range(PasswordResetToken.MAX_VERIFY_ATTEMPTS):
+            response = self.client.post(
+                self.VERIFY_URL,
+                {"email": self.email, "code": wrong_code},
+                format="json",
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # The token is now locked out: the CORRECT code is rejected too, with
+        # the exact same response shape as the invalid/expired-code case.
+        locked_out = self.client.post(
+            self.VERIFY_URL,
+            {"email": self.email, "code": real_code},
+            format="json",
+        )
+        self.assertEqual(locked_out.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(locked_out.data["valid"])
+        self.assertEqual(locked_out.data["error"], "Código inválido o expirado.")
+
+    def test_lockout_is_shared_between_verify_and_confirm(self):
+        """
+        The attempt counter lives on the token, not on either endpoint - wrong
+        guesses at confirm also lock out verify (and vice versa), so an
+        attacker can't dodge the limit by alternating between the two.
+        """
+        self._request_code()
+        real_code = self._latest_code()
+        wrong_code = "999999" if real_code != "999999" else "000000"
+
+        # Burn the whole attempt budget via confirm instead of verify.
+        for _ in range(PasswordResetToken.MAX_VERIFY_ATTEMPTS):
+            response = self.client.post(
+                self.CONFIRM_URL,
+                {
+                    "email": self.email,
+                    "code": wrong_code,
+                    "new_password": "NuevaClave2026!",
+                },
+                format="json",
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # verify is now locked out too, even with the correct code, matching
+        # the existing invalid/expired-code response shape.
+        locked_out = self.client.post(
+            self.VERIFY_URL,
+            {"email": self.email, "code": real_code},
+            format="json",
+        )
+        self.assertEqual(locked_out.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(locked_out.data["valid"])
+
+        # And the password was never touched.
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(self.old_password))
+
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
 class EmailVerificationFlowTests(RoleAssignmentMixin, APITestCase):
