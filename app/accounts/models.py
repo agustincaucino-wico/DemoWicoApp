@@ -190,11 +190,17 @@ class DependentInvitation(models.Model):
             raise ValidationError("Solo se pueden aceptar invitaciones pendientes")
 
         with transaction.atomic():
-            # Crear la cuenta adherente
+            # Crear la cuenta adherente, copiando company/display_type/
+            # unlimited_balance de la cuenta titular (lectura en vivo: a
+            # diferencia de AuthorizedEmail, DependentInvitation no
+            # snapshotea estos campos al crear la invitación).
             dependent_account = Account.objects.create(
                 user=CustomUser.objects.get(email=self.dependent_email),
                 balance=0,
                 account_type="dependent",
+                company=self.holder_account.company,
+                display_type=self.holder_account.display_type,
+                unlimited_balance=self.holder_account.unlimited_balance,
             )
 
             # Actualizar el estado de la invitación
