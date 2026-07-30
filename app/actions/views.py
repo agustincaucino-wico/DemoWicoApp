@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -9,6 +11,7 @@ from rest_framework.decorators import (
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db import transaction
+from django.db import Error as DatabaseError
 from django.utils import timezone
 from django.http import HttpResponse
 from drf_spectacular.utils import extend_schema, OpenApiParameter
@@ -52,6 +55,8 @@ from .serializers import (
     WithdrawFromDependentSerializer,
     AccountMovementSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class InvitationViewSet(viewsets.ViewSet):
@@ -835,9 +840,20 @@ class TransferBalanceView(APIView):
                     status=status.HTTP_200_OK,
                 )
 
-        except Exception as e:
+        except DatabaseError:
+            logger.exception("Database error during balance transfer")
             return Response(
-                {"error": f"An error occurred: {str(e)}"},
+                {
+                    "error": "No se pudo completar la transferencia debido a un error interno. Intentá nuevamente."
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except Exception:
+            logger.exception("Unexpected error during balance transfer")
+            return Response(
+                {
+                    "error": "Ocurrió un error inesperado al procesar la transferencia. Intentá nuevamente más tarde."
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -938,9 +954,20 @@ class WithdrawFromDependentView(APIView):
                     status=status.HTTP_200_OK,
                 )
 
-        except Exception as e:
+        except DatabaseError:
+            logger.exception("Database error during dependent withdrawal")
             return Response(
-                {"error": f"Ocurrió un error: {str(e)}"},
+                {
+                    "error": "No se pudo completar el retiro debido a un error interno. Intentá nuevamente."
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except Exception:
+            logger.exception("Unexpected error during dependent withdrawal")
+            return Response(
+                {
+                    "error": "Ocurrió un error inesperado al procesar el retiro. Intentá nuevamente más tarde."
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
