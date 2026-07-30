@@ -772,7 +772,7 @@ class TransferBalanceView(APIView):
                         {
                             "error": "La cuenta de origen no fue encontrada o no te pertenece"
                         },
-                        status=status.HTTP_404_NOT_FOUND,
+                        status=status.HTTP_403_FORBIDDEN,
                     )
 
                 # Get destination account (must be active)
@@ -879,7 +879,7 @@ class WithdrawFromDependentView(APIView):
                 except Account.DoesNotExist:
                     return Response(
                         {"error": "La cuenta titular no fue encontrada o no te pertenece"},
-                        status=status.HTTP_404_NOT_FOUND,
+                        status=status.HTTP_403_FORBIDDEN,
                     )
 
                 # Verify the dependent account exists and is active
