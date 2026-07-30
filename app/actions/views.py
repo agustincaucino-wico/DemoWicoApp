@@ -422,17 +422,28 @@ class InvitationViewSet(viewsets.ViewSet):
                         holder_name=f"{holder_account.user.first_name} {holder_account.user.last_name}".strip(),
                     )
                 except Exception:
-                    # Log email error but don't fail the cancellation
-                    pass
+                    # Don't fail the cancellation over a notification error.
+                    logger.exception("Failed to send invitation cancelled email")
 
                 return Response(
                     {"message": "Invitation cancelled successfully"},
                     status=status.HTTP_200_OK,
                 )
 
-        except Exception as e:
+        except DatabaseError:
+            logger.exception("Database error during invitation cancellation")
             return Response(
-                {"error": f"An error occurred: {str(e)}"},
+                {
+                    "error": "No se pudo cancelar la invitación debido a un error interno. Intentá nuevamente."
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except Exception:
+            logger.exception("Unexpected error during invitation cancellation")
+            return Response(
+                {
+                    "error": "Ocurrió un error inesperado al cancelar la invitación. Intentá nuevamente más tarde."
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
