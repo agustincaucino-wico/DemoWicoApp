@@ -735,8 +735,8 @@ class RemoveDependentView(APIView):
                         balance_transferred=float(dependent_balance),
                     )
                 except Exception:
-                    print("Error sending dependent removal notification email")
-                    pass
+                    # Don't fail the removal over a notification error.
+                    logger.exception("Failed to send dependent removal notification email")
 
                 response_data = {
                     "message": "Dependent removed successfully",
@@ -746,9 +746,20 @@ class RemoveDependentView(APIView):
 
             return Response(response_data, status=status.HTTP_200_OK)
 
-        except Exception as e:
+        except DatabaseError:
+            logger.exception("Database error during dependent removal")
             return Response(
-                {"error": f"An error occurred: {str(e)}"},
+                {
+                    "error": "No se pudo remover al adherido debido a un error interno. Intentá nuevamente."
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except Exception:
+            logger.exception("Unexpected error during dependent removal")
+            return Response(
+                {
+                    "error": "Ocurrió un error inesperado al remover al adherido. Intentá nuevamente más tarde."
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
