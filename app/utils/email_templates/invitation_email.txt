@@ -1,12 +1,12 @@
 ¡Has recibido una invitación a Wicored!
 
-Hola {dependent_name},
+Hola {{ dependent_name }},
 
-{holder_name} ({holder_email}) te ha invitado a ser adherido a su cuenta de Wicored.
+{{ holder_name }} ({{ holder_email }}) te ha invitado a ser adherido a su cuenta de Wicored.
 
-Para aceptar esta invitación y convertirte en adherido a la cuenta de {holder_name}, debes INGRESAR A LA APLICACIÓN WICORED.
+Para aceptar esta invitación y convertirte en adherido a la cuenta de {{ holder_name }}, debes INGRESAR A LA APLICACIÓN WICORED.
 
 Si tienes alguna pregunta sobre esta invitación, contacta directamente al titular de la cuenta.
 
 ---
-Este es un mensaje automatizado de {app_name}. Por favor no respondas a este correo.
+Este es un mensaje automatizado de {{ app_name }}. Por favor no respondas a este correo.

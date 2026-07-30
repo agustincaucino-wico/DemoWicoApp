@@ -1,22 +1,22 @@
 Solicitud Rechazada
 
-Hola {user_name},
+Hola {{ user_name }},
 
 Lamentamos informarte que tu solicitud de recarga de saldo ha sido RECHAZADA.
 
 DETALLES DE LA SOLICITUD
 -------------------------
-Solicitud N°: #{request_id}
-Monto solicitado: ${amount}
+Solicitud N°: #{{ request_id }}
+Monto solicitado: ${{ amount }}
 
 MOTIVO DEL RECHAZO
 ------------------
-{rejection_reason}
+{{ rejection_reason }}
 
 Si consideras que esto es un error o necesitas más información, por favor comunícate con nuestro equipo de soporte a través de la aplicación.
 
 Puedes realizar una nueva solicitud de recarga cuando lo desees, asegurándote de cumplir con todos los requisitos.
 
 ---
-Este es un mensaje automatizado de {app_name}. Por favor no respondas a este correo.
+Este es un mensaje automatizado de {{ app_name }}. Por favor no respondas a este correo.
 Si tienes alguna consulta, contáctanos a través de la aplicación.

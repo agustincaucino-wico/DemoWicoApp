@@ -5,46 +5,46 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dependent Access Removed</title>
     <style>
-        body {{
+        body {
             font-family: Arial, sans-serif;
             line-height: 1.6;
             color: #333;
             max-width: 600px;
             margin: 0 auto;
             padding: 20px;
-        }}
-        .header {{
+        }
+        .header {
             background-color: #1B2F5B;
             color: white;
             padding: 20px;
             border-radius: 8px 8px 0 0;
             text-align: center;
-        }}
-        .content {{
+        }
+        .content {
             background-color: #f8f9fa;
             padding: 20px;
             border-radius: 0 0 8px 8px;
-        }}
-        .footer {{
+        }
+        .footer {
             margin-top: 30px;
             padding-top: 20px;
             border-top: 1px solid #dee2e6;
             font-size: 12px;
             color: #6c757d;
             text-align: center;
-        }}
-        .highlight {{
+        }
+        .highlight {
             font-weight: bold;
             color: #1B2F5B;
-        }}
-        .info-box {{
+        }
+        .info-box {
             background-color: #d1ecf1;
             border: 1px solid #bee5eb;
             color: #0c5460;
             padding: 15px;
             border-radius: 5px;
             margin: 20px 0;
-        }}
+        }
     </style>
 </head>
 <body>
@@ -53,20 +53,20 @@
     </div>
     
     <div class="content">
-        <p>Hola <strong>{dependent_name}</strong>,</p>
+        <p>Hola <strong>{{ dependent_name }}</strong>,</p>
         
-        <p><span class="highlight">{holder_name}</span> ({holder_email}) te ha removido de su flota de Wico.</p>
+        <p><span class="highlight">{{ holder_name }}</span> ({{ holder_email }}) te ha removido de su flota de Wico.</p>
         
         <div class="info-box">
             <p><strong>Qué significa esto:</strong></p>
-            <p>Ya no tendrás acceso a los servicios asociados con esta cuenta. Tu cuenta personal de {app_name} no se ve afectada.</p>
+            <p>Ya no tendrás acceso a los servicios asociados con esta cuenta. Tu cuenta personal de {{ app_name }} no se ve afectada.</p>
         </div>
         
         <p>Si tienes alguna pregunta sobre este cambio, puedes ponerte en contacto con soporte@wico.com.ar</p>
     </div>
     
     <div class="footer">
-        <p>Este es un mensaje automatizado de {app_name}. Por favor no respondas a este correo.</p>
+        <p>Este es un mensaje automatizado de {{ app_name }}. Por favor no respondas a este correo.</p>
     </div>
 </body>
 </html>

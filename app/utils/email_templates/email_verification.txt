@@ -1,9 +1,9 @@
-Hola {user_name},
+Hola {{ user_name }},
 
-Gracias por registrarte en {app_name}. Para completar tu registro, por favor ingresa el siguiente código de verificación:
+Gracias por registrarte en {{ app_name }}. Para completar tu registro, por favor ingresa el siguiente código de verificación:
 
-{verification_code}
+{{ verification_code }}
 
 Este código expirará en 24 horas.
 
-Si no te registraste en {app_name}, puedes ignorar este correo.
+Si no te registraste en {{ app_name }}, puedes ignorar este correo.

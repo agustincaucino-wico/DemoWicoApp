@@ -5,85 +5,85 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Solicitud de Recarga Rechazada</title>
     <style>
-        body {{
+        body {
             font-family: Arial, sans-serif;
             line-height: 1.6;
             color: #333;
             max-width: 600px;
             margin: 0 auto;
             padding: 20px;
-        }}
-        .header {{
+        }
+        .header {
             background-color: #dc3545;
             color: white;
             padding: 20px;
             border-radius: 8px 8px 0 0;
             text-align: center;
-        }}
-        .header h1 {{
+        }
+        .header h1 {
             margin: 0;
             font-size: 24px;
-        }}
-        .content {{
+        }
+        .content {
             background-color: #f8f9fa;
             padding: 30px;
             border-radius: 0 0 8px 8px;
-        }}
-        .warning-icon {{
+        }
+        .warning-icon {
             text-align: center;
             font-size: 48px;
             margin-bottom: 20px;
             color: #dc3545;
-        }}
-        .details-box {{
+        }
+        .details-box {
             background-color: #f8d7da;
             border: 1px solid #f5c6cb;
             padding: 20px;
             border-radius: 5px;
             margin: 20px 0;
             border-left: 4px solid #dc3545;
-        }}
-        .details-box h3 {{
+        }
+        .details-box h3 {
             margin-top: 0;
             color: #721c24;
-        }}
-        .detail-item {{
+        }
+        .detail-item {
             margin: 10px 0;
             padding: 8px 0;
             border-bottom: 1px solid #f5c6cb;
-        }}
-        .detail-item:last-child {{
+        }
+        .detail-item:last-child {
             border-bottom: none;
-        }}
-        .detail-label {{
+        }
+        .detail-label {
             font-weight: bold;
             color: #721c24;
             display: inline-block;
             width: 150px;
-        }}
-        .detail-value {{
+        }
+        .detail-value {
             color: #333;
-        }}
-        .reason-box {{
+        }
+        .reason-box {
             background-color: #fff3cd;
             border: 1px solid #ffeaa7;
             padding: 15px;
             border-radius: 5px;
             margin: 20px 0;
-        }}
-        .reason-box h4 {{
+        }
+        .reason-box h4 {
             margin-top: 0;
             color: #856404;
-        }}
-        .footer {{
+        }
+        .footer {
             margin-top: 30px;
             padding-top: 20px;
             border-top: 1px solid #dee2e6;
             font-size: 12px;
             color: #6c757d;
             text-align: center;
-        }}
-        .cta {{
+        }
+        .cta {
             background-color: #007bff;
             color: white;
             padding: 12px 24px;
@@ -91,7 +91,7 @@
             border-radius: 5px;
             display: inline-block;
             margin: 20px 0;
-        }}
+        }
     </style>
 </head>
 <body>
@@ -101,7 +101,7 @@
     
     <div class="content">
         
-        <p>Hola {user_name},</p>
+        <p>Hola {{ user_name }},</p>
 
         <p>Lamentamos informarte que tu solicitud de recarga de saldo ha sido <strong>rechazada</strong>.</p>
         
@@ -110,7 +110,7 @@
             
             <div class="detail-item">
                 <span class="detail-label">Monto solicitado:</span>
-                <span class="detail-value">${amount}</span>
+                <span class="detail-value">${{ amount }}</span>
             </div>
         </div>
 
@@ -120,7 +120,7 @@
     </div>
     
     <div class="footer">
-        <p>Este es un mensaje automatizado de {app_name}. Por favor no respondas a este correo.</p>
+        <p>Este es un mensaje automatizado de {{ app_name }}. Por favor no respondas a este correo.</p>
         <p>Si tienes alguna consulta, contáctanos a través de la aplicación.</p>
     </div>
 </body>
