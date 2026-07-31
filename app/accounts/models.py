@@ -151,6 +151,15 @@ class DependentInvitation(models.Model):
         Account, on_delete=models.CASCADE, related_name="sent_invitations"
     )
     dependent_email = models.EmailField(default="")
+    dependent_user = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="received_invitations",
+        help_text="Usuario destinatario de la invitación, si ya está registrado. "
+        "No reemplaza a dependent_email todavía: se irá poblando en una etapa posterior.",
+    )
     invitation_date = models.DateTimeField(auto_now_add=True)
     status = models.CharField(
         max_length=20, choices=INVITATION_STATUS, default="pending"
