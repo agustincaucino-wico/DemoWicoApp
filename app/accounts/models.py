@@ -198,13 +198,26 @@ class DependentInvitation(models.Model):
         if self.status != "pending":
             raise ValidationError("Solo se pueden aceptar invitaciones pendientes")
 
+        # El destinatario se resuelve al crear la invitación. Si el FK quedó
+        # en null (invitación anterior a la migración y sin backfill, o
+        # usuario eliminado después) no se puede determinar a quién
+        # corresponde: resolverlo por email acá volvería a atar la cuenta a
+        # quien tenga esa dirección en este momento, que es exactamente lo
+        # que se está corrigiendo.
+        if self.dependent_user_id is None:
+            raise ValidationError(
+                "La invitación no tiene un usuario destinatario asociado"
+            )
+
+        dependent_user = self.dependent_user
+
         with transaction.atomic():
             # Crear la cuenta adherente, copiando company/display_type/
             # unlimited_balance de la cuenta titular (lectura en vivo: a
             # diferencia de AuthorizedEmail, DependentInvitation no
             # snapshotea estos campos al crear la invitación).
             dependent_account = Account.objects.create(
-                user=CustomUser.objects.get(email=self.dependent_email),
+                user=dependent_user,
                 balance=0,
                 account_type="dependent",
                 company=self.holder_account.company,
@@ -227,7 +240,6 @@ class DependentInvitation(models.Model):
             # Asignar rol de Flota al usuario adherido
             try:
                 fleet_group = Group.objects.get(name="Flota")
-                dependent_user = CustomUser.objects.get(email=self.dependent_email)
                 dependent_user.groups.add(fleet_group)
             except Group.DoesNotExist:
                 pass
