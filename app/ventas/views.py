@@ -7,6 +7,7 @@ llamadas al sistema de ventas usando las credenciales de cuenta de servicio.
 """
 
 import os
+import re
 import threading
 import logging
 
@@ -17,6 +18,28 @@ from rest_framework.response import Response
 from rest_framework import status
 
 logger = logging.getLogger(__name__)
+
+# El sistema de ventas persiste "fecha"/"fecha_max_entrega" en columnas sin
+# timezone, pero el valor siempre se generó en UTC (el front hace
+# new Date().toISOString() antes de enviarlo). Al leerlas, vuelven sin
+# sufijo de zona y el front las interpreta como hora local, corriendo el
+# horario mostrado (ej. 09:57 ART se ve como 12:57). Se les agrega "Z" para
+# que el front las interprete correctamente como UTC.
+_FECHA_KEYS = ("fecha", "fecha_max_entrega")
+_FECHA_SIN_TZ_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$")
+
+
+def _marcar_fechas_como_utc(data):
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if key in _FECHA_KEYS and isinstance(value, str) and _FECHA_SIN_TZ_RE.match(value):
+                data[key] = value + "Z"
+            else:
+                _marcar_fechas_como_utc(value)
+    elif isinstance(data, list):
+        for item in data:
+            _marcar_fechas_como_utc(item)
+    return data
 
 VENTAS_BASE = os.getenv("SISTEMA_VENTAS_API", "").rstrip("/")
 VENTAS_USER = os.getenv("VENTAS_USER", "")
@@ -262,7 +285,9 @@ def notas_venta_por_dni(request, dni: str):
             {"error": "No tenés permiso para ver las notas de otro vendedor."},
             status=status.HTTP_403_FORBIDDEN,
         )
-    return _proxy_request("GET", f"/NotasVentasApp/dni/{dni}", request)
+    resp = _proxy_request("GET", f"/NotasVentasApp/dni/{dni}", request)
+    _marcar_fechas_como_utc(resp.data)
+    return resp
 
 
 @api_view(["GET"])
@@ -274,7 +299,9 @@ def imagenes_nota_venta(request, nro_nota_vta: str):
 @api_view(["GET"])
 @permission_classes(PERMISOS_VENDEDOR)
 def detalle_nota_venta(request, nro_nota_vta: str, orden: str):
-    return _proxy_request("GET", f"/NotasVentasApp/{nro_nota_vta}/{orden}", request)
+    resp = _proxy_request("GET", f"/NotasVentasApp/{nro_nota_vta}/{orden}", request)
+    _marcar_fechas_como_utc(resp.data)
+    return resp
 
 
 @api_view(["POST"])
