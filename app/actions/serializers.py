@@ -84,7 +84,7 @@ class CreateInvitationSerializer(serializers.Serializer):
         # Validar que no exista una relación activa
         if Dependents.objects.filter(
             holder_account=holder_account,
-            dependent_account__user__email=dependent_email,
+            dependent_account__user=dependent_user,
             end_date__isnull=True,
         ).exists():
             raise serializers.ValidationError(
@@ -92,6 +92,7 @@ class CreateInvitationSerializer(serializers.Serializer):
             )
 
         attrs["holder_account"] = holder_account
+        attrs["dependent_user"] = dependent_user
         return attrs
 
 

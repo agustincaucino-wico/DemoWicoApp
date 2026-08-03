@@ -229,6 +229,7 @@ class InvitationViewSet(viewsets.ViewSet):
                     invitation = DependentInvitation.objects.create(
                         holder_account=validated_data["holder_account"],
                         dependent_email=validated_data["dependent_email"],
+                        dependent_user=validated_data["dependent_user"],
                     )
 
                     # Send email notification to the dependent user
