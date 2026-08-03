@@ -1158,6 +1158,7 @@ class InvitationLifecycleTests(TestCase):
         return DependentInvitation.objects.create(
             holder_account=self.holder_account,
             dependent_email=self.invitee_user.email,
+            dependent_user=self.invitee_user,
         )
 
     # --- create ------------------------------------------------------------
