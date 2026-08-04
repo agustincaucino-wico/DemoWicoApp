@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import Group
 from django.core import mail
+from django.core.exceptions import ValidationError
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from model_bakery import baker
@@ -1323,3 +1324,140 @@ class InvitationLifecycleTests(TestCase):
 
         invitation.refresh_from_db()
         self.assertEqual(invitation.status, "pending")
+
+
+class InvitationRecipientOwnershipTests(TestCase):
+    """
+    Regressions for the invitation ownership fix: who may answer an
+    invitation is decided by the dependent_user FK resolved when the
+    invitation was created, never by whatever address happens to sit in
+    dependent_email at the time of the response.
+
+    dependent_email deliberately keeps pointing at the old address after a
+    recipient moves - it is display/audit data. These tests pin down that
+    the stale string grants nothing on its own, in either direction: the
+    real recipient keeps their invitation, and whoever picks up the freed
+    address does not inherit it.
+    """
+
+    NEW_EMAIL = "ownership-invitee-moved@example.com"
+
+    def _respond_url(self, invitation_id):
+        return f"/actions/invitations/respond/{invitation_id}/"
+
+    def setUp(self):
+        self.holder_user = CustomUser.objects.create_user(
+            email="ownership-holder@example.com", password="pass1234"
+        )
+        self.holder_account = Account.objects.get(
+            user=self.holder_user, account_type="holder"
+        )
+        self.original_email = "ownership-invitee@example.com"
+        self.invitee_user = CustomUser.objects.create_user(
+            email=self.original_email, password="pass1234"
+        )
+        self.invitee_client = APIClient()
+        self.invitee_client.force_authenticate(user=self.invitee_user)
+
+    def _make_invitation(self, dependent_user=None):
+        return DependentInvitation.objects.create(
+            holder_account=self.holder_account,
+            dependent_email=self.original_email,
+            dependent_user=dependent_user,
+        )
+
+    def _move_invitee_to_new_email(self):
+        """Change the invitee's address through the real user endpoint."""
+        response = self.invitee_client.patch(
+            f"/users/{self.invitee_user.id}/",
+            {"email": self.NEW_EMAIL},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.invitee_user.refresh_from_db()
+        self.assertEqual(self.invitee_user.email, self.NEW_EMAIL)
+
+    def test_recipient_can_still_respond_after_changing_their_email(self):
+        invitation = self._make_invitation(dependent_user=self.invitee_user)
+        self._move_invitee_to_new_email()
+
+        # The invitation still carries the address the invite was sent to.
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.dependent_email, self.original_email)
+        self.assertNotEqual(invitation.dependent_email, self.invitee_user.email)
+
+        response = self.invitee_client.post(
+            self._respond_url(invitation.id), {"action": "accept"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.status, "accepted")
+
+        # The dependent account belongs to the invited identity, not to
+        # whatever the stale email string would have resolved to.
+        dependent_account = Account.objects.get(
+            user=self.invitee_user, account_type="dependent"
+        )
+        self.assertTrue(
+            Dependents.objects.filter(
+                holder_account=self.holder_account,
+                dependent_account=dependent_account,
+                end_date__isnull=True,
+            ).exists()
+        )
+
+    def test_later_owner_of_the_freed_address_cannot_respond(self):
+        """The vulnerability this branch exists to close."""
+        invitation = self._make_invitation(dependent_user=self.invitee_user)
+        self._move_invitee_to_new_email()
+
+        # Somebody else registers with the address the invitee just freed.
+        impostor = CustomUser.objects.create_user(
+            email=self.original_email, password="pass1234"
+        )
+        impostor_client = APIClient()
+        impostor_client.force_authenticate(user=impostor)
+
+        # The invitation's email column now literally reads the impostor's
+        # own address - that is precisely what must not be enough.
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.dependent_email, impostor.email)
+
+        response = impostor_client.post(
+            self._respond_url(invitation.id), {"action": "accept"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.status, "pending")
+
+        # Every new user gets a holder account from a post_save signal, so
+        # scope this to the dependent account an accept would have created.
+        self.assertFalse(
+            Account.objects.filter(user=impostor, account_type="dependent").exists()
+        )
+        self.assertFalse(
+            Dependents.objects.filter(dependent_account__user=impostor).exists()
+        )
+
+    def test_accept_without_dependent_user_raises_instead_of_matching_by_email(self):
+        """
+        Model-level guard, reached directly rather than through the view, so
+        a future caller that skips respond_invitation cannot resurrect the
+        email-based resolution.
+        """
+        invitation = self._make_invitation(dependent_user=None)
+
+        with self.assertRaises(ValidationError):
+            invitation.accept_invitation()
+
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.status, "pending")
+        self.assertIsNone(invitation.response_date)
+        self.assertFalse(
+            Account.objects.filter(
+                user=self.invitee_user, account_type="dependent"
+            ).exists()
+        )
+        self.assertFalse(Dependents.objects.exists())
