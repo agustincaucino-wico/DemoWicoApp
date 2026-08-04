@@ -474,9 +474,9 @@ class InvitationViewSet(viewsets.ViewSet):
             holder_account__in=user_holder_accounts
         ).order_by("-invitation_date")
 
-        # Get received invitations (by user's email)
+        # Get received invitations (by resolved recipient)
         received_invitations = DependentInvitation.objects.filter(
-            dependent_email=user.email
+            dependent_user=user
         ).order_by("-invitation_date")
 
         return Response(
@@ -597,9 +597,9 @@ class UserInfoView(APIView):
             sent_invitations, many=True
         ).data
 
-        # Get received invitations (by user's email)
+        # Get received invitations (by resolved recipient)
         received_invitations = DependentInvitation.objects.filter(
-            dependent_email=user.email
+            dependent_user=user
         ).order_by("-invitation_date")
         received_invitations_data = DependentInvitationSerializer(
             received_invitations, many=True
