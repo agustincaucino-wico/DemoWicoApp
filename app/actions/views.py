@@ -312,8 +312,15 @@ class InvitationViewSet(viewsets.ViewSet):
                 {"error": "Invitation not found"}, status=status.HTTP_404_NOT_FOUND
             )
 
-        # Verify invitation belongs to the requesting user
-        if invitation.dependent_email.lower() != request.user.email.lower():
+        # Verify invitation belongs to the requesting user. La titularidad la
+        # define el FK resuelto al crear la invitación: comparar contra
+        # dependent_email permitiría que quien tome esa dirección más
+        # adelante responda una invitación ajena. Sin dependent_user no hay
+        # forma de determinar el destinatario, así que se rechaza.
+        if (
+            invitation.dependent_user_id is None
+            or invitation.dependent_user_id != request.user.id
+        ):
             return Response(
                 {"error": "You are not authorized to respond to this invitation"},
                 status=status.HTTP_403_FORBIDDEN,
