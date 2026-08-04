@@ -183,10 +183,14 @@ class DependentInvitation(models.Model):
                 "Solo las cuentas titulares pueden enviar invitaciones"
             )
 
-        # Validar que no exista ya una relación activa
+        # Validar que no exista ya una relación activa. Sin dependent_user no
+        # hay destinatario contra el cual comprobarla.
+        if self.dependent_user_id is None:
+            return
+
         existing_relationship = Dependents.objects.filter(
             holder_account=self.holder_account,
-            dependent_account__user__email=self.dependent_email,
+            dependent_account__user=self.dependent_user,
             end_date__isnull=True,
         ).exists()
 
