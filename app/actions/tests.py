@@ -1113,12 +1113,17 @@ class InvitationLifecycleTests(TestCase):
     /actions/invitations/cancel/.
 
     Ownership checks confirmed from the code: create validates the holder
-    account belongs to the requester (serializer), respond compares the
-    invitation's dependent_email case-insensitively against the requesting
-    user's email, and cancel re-resolves the holder account with
-    user=request.user. respond's check order is 404 (unknown id) -> 403 (not
-    yours) -> 400 (not pending). Accepting creates a brand-new dependent
-    Account (balance 0), the Dependents link, and assigns the Flota group.
+    account belongs to the requester (serializer) and stores the resolved
+    recipient in dependent_user, respond compares that FK against the
+    requesting user's id and refuses outright when it is null, and cancel
+    re-resolves the holder account with user=request.user. respond's check
+    order is 404 (unknown id) -> 403 (not yours) -> 400 (not pending).
+    Accepting creates a brand-new dependent Account (balance 0), the
+    Dependents link, and assigns the Flota group.
+
+    dependent_email is kept as display/audit data and is no longer what
+    decides who may answer an invitation; see InvitationRecipientOwnershipTests
+    for the regressions that pins down.
     """
 
     CREATE_URL = "/actions/invitations/create/"
@@ -1179,6 +1184,9 @@ class InvitationLifecycleTests(TestCase):
             dependent_email=self.invitee_user.email,
         )
         self.assertEqual(invitation.status, "pending")
+        # The recipient is pinned to the user resolved at creation time, not
+        # left to be re-derived from the email string later.
+        self.assertEqual(invitation.dependent_user_id, self.invitee_user.id)
         # The invitee actually got notified.
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [self.invitee_user.email])
