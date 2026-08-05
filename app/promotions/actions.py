@@ -4,6 +4,8 @@ from django.db import transaction
 from django.contrib.auth.models import Group
 from decimal import Decimal
 
+from operation.models import ModifyFunds, PaymentMethod
+
 
 class PromotionActions:
     @staticmethod
@@ -78,6 +80,32 @@ class PromotionActions:
             # Add balance
             holder_account.balance += amount
             holder_account.save()
+
+            # Audit record, matching the other ModifyFunds creation sites
+            # (accounts/views.py update_balance, operation/views.py recharge
+            # approval, operation/admin.py bulk approval). Those all set
+            # gestor=request.user for a staff member performing/approving the
+            # modification; this path has no staff actor at all - redeeming a
+            # promo code is self-service, and PromotionCode itself has no
+            # staff-attribution field either. gestor=user (the redeemer) is
+            # used here since there's no other actor, and the comments make
+            # explicit that this is a self-service redemption so it doesn't
+            # read as a misleading self-approved staff record in admin/audit
+            # views.
+            payment_method, _ = PaymentMethod.objects.get_or_create(
+                name="Código Promocional", defaults={"is_active": True}
+            )
+            ModifyFunds.objects.create(
+                account=holder_account,
+                gestor=user,
+                amount=amount,
+                payment_method=payment_method,
+                comments=(
+                    "Acreditación por canje de código promocional. "
+                    "Operación de autoservicio realizada por el propio "
+                    "usuario, sin intervención de un gestor."
+                ),
+            )
 
             return {
                 "success": True,

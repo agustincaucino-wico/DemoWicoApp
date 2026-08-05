@@ -23,11 +23,20 @@ class PasswordResetToken(models.Model):
     token = models.CharField(max_length=6)
     created_at = models.DateTimeField(auto_now_add=True)
     used = models.BooleanField(default=False)
+    failed_attempts = models.PositiveIntegerField(default=0)
 
     # Rate limiting
     TOKEN_EXPIRY_MINUTES = 15
     # 30 requests/hour in dev, 3 in production
     MAX_REQUESTS_PER_HOUR = 30 if settings.DEBUG else 3
+    # Wrong guesses tolerated on a single token before it's locked out,
+    # regardless of DEBUG - unlike MAX_REQUESTS_PER_HOUR this isn't about
+    # dev-testing friction, it's a fixed anti-brute-force cap. 5 wrong
+    # guesses against a 6-digit code (1,000,000 possible values) keeps the
+    # odds of a successful blind guess within the token's lifetime
+    # negligible (well under 0.001%) while leaving enough room for a
+    # legitimate user to mistype the code a couple of times.
+    MAX_VERIFY_ATTEMPTS = 5
 
     class Meta:
         ordering = ["-created_at"]
@@ -76,20 +85,38 @@ class PasswordResetToken(models.Model):
     @classmethod
     def get_valid_token(cls, email, token_code):
         """
-        Get a valid (not expired, not used) token for the given email and code.
-        Returns the token if valid, None otherwise.
+        Get a valid (not expired, not used, not locked out) token for the
+        given email and code. Returns the token if token_code is correct,
+        None otherwise - covering "no pending token", "expired", "locked
+        out from too many wrong guesses" and "wrong code" alike, so callers
+        can't tell them apart (same as before this method tracked attempts).
+
+        Looked up by (email, used=False) rather than including token_code in
+        the query: create_for_user() guarantees at most one unused token per
+        user, and a wrong guess needs to land on that same row to have its
+        failed_attempts counted - matching on the code up front would never
+        find a row for a wrong guess to increment.
         """
         try:
             token = cls.objects.select_related("user").get(
                 user__email__iexact=email,
-                token=token_code,
                 used=False,
             )
-            if token.is_expired():
-                return None
-            return token
         except cls.DoesNotExist:
             return None
+
+        if token.is_expired():
+            return None
+
+        if token.failed_attempts >= cls.MAX_VERIFY_ATTEMPTS:
+            return None
+
+        if token.token != token_code:
+            token.failed_attempts += 1
+            token.save(update_fields=["failed_attempts"])
+            return None
+
+        return token
 
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):

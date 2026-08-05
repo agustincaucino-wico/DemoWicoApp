@@ -5,82 +5,82 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Invitación a WICO - Biocombustibles Córdoba</title>
     <style>
-        body {{
+        body {
             font-family: Arial, sans-serif;
             line-height: 1.6;
             color: #333;
             background-color: #f0f2f5;
             margin: 0;
             padding: 0;
-        }}
-        .wrapper {{
+        }
+        .wrapper {
             max-width: 600px;
             margin: 40px auto;
             background-color: #ffffff;
             border-radius: 10px;
             overflow: hidden;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }}
-        .header {{
+        }
+        .header {
             background-color: #1B5B2F;
             padding: 36px 30px;
             text-align: center;
-        }}
-        .header h1 {{
+        }
+        .header h1 {
             color: #ffffff;
             margin: 0;
             font-size: 24px;
             letter-spacing: 0.5px;
-        }}
-        .header p {{
+        }
+        .header p {
             color: #a8d8b8;
             margin: 8px 0 0;
             font-size: 14px;
-        }}
-        .content {{
+        }
+        .content {
             padding: 36px 40px;
-        }}
-        .content p {{
+        }
+        .content p {
             margin: 0 0 16px;
             font-size: 15px;
             color: #444;
-        }}
-        .sender-box {{
+        }
+        .sender-box {
             background-color: #f4f9f6;
             border-left: 4px solid #1B5B2F;
             border-radius: 0 6px 6px 0;
             padding: 14px 18px;
             margin: 24px 0;
-        }}
-        .sender-box p {{
+        }
+        .sender-box p {
             margin: 0;
             font-size: 14px;
             color: #555;
-        }}
-        .sender-box strong {{
+        }
+        .sender-box strong {
             color: #1B5B2F;
             font-size: 15px;
-        }}
-        .steps {{
+        }
+        .steps {
             background-color: #f4f9f6;
             border-radius: 8px;
             padding: 20px 24px;
             margin: 24px 0;
-        }}
-        .steps p {{
+        }
+        .steps p {
             font-weight: bold;
             color: #1B5B2F;
             margin: 0 0 12px;
             font-size: 14px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-        }}
-        .step {{
+        }
+        .step {
             display: flex;
             align-items: flex-start;
             margin-bottom: 12px;
-        }}
-        .step-number {{
+        }
+        .step-number {
             background-color: #1B5B2F;
             color: white;
             border-radius: 50%;
@@ -94,23 +94,23 @@
             font-weight: bold;
             margin-right: 12px;
             margin-top: 1px;
-        }}
-        .step-text {{
+        }
+        .step-text {
             font-size: 14px;
             color: #444;
             line-height: 1.5;
-        }}
-        .highlight {{
+        }
+        .highlight {
             color: #1B5B2F;
             font-weight: bold;
-        }}
-        .store-links {{
+        }
+        .store-links {
             width: 100%;
             margin: 16px 0 8px;
             border-collapse: separate;
             border-spacing: 10px 0;
-        }}
-        .store-btn {{
+        }
+        .store-btn {
             display: block;
             width: 100%;
             background-color: #1B5B2F;
@@ -123,28 +123,28 @@
             font-weight: bold;
             text-align: center;
             box-sizing: border-box;
-        }}
-        .store-btn span {{
+        }
+        .store-btn span {
             display: block;
             font-size: 11px;
             font-weight: normal;
             opacity: 0.85;
-        }}
-        .note {{
+        }
+        .note {
             font-size: 13px;
             color: #777;
             border-top: 1px solid #eaeaea;
             padding-top: 16px;
             margin-top: 8px;
-        }}
-        .footer {{
+        }
+        .footer {
             background-color: #f4f9f6;
             text-align: center;
             padding: 18px 30px;
             font-size: 12px;
             color: #999;
             border-top: 1px solid #eaeaea;
-        }}
+        }
     </style>
 </head>
 <body>
@@ -160,9 +160,9 @@
 
             <div class="sender-box">
                 <p>Invitación enviada por</p>
-                <strong>{holder_name}</strong>
-                <p style="margin-top: 4px; color: #888;">{holder_email}</p>
-                {company_html}
+                <strong>{{ holder_name }}</strong>
+                <p style="margin-top: 4px; color: #888;">{{ holder_email }}</p>
+                {{ company_html|safe }}
             </div>
 
             <div class="steps">
@@ -203,7 +203,7 @@
         </div>
 
         <div class="footer">
-            <p>Este es un mensaje automático de {app_name}. Por favor no respondas a este correo.</p>
+            <p>Este es un mensaje automático de {{ app_name }}. Por favor no respondas a este correo.</p>
         </div>
     </div>
 </body>

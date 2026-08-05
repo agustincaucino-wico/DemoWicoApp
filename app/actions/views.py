@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -9,6 +11,7 @@ from rest_framework.decorators import (
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db import transaction
+from django.db import Error as DatabaseError
 from django.utils import timezone
 from django.http import HttpResponse
 from drf_spectacular.utils import extend_schema, OpenApiParameter
@@ -52,6 +55,8 @@ from .serializers import (
     WithdrawFromDependentSerializer,
     AccountMovementSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class InvitationViewSet(viewsets.ViewSet):
@@ -417,17 +422,28 @@ class InvitationViewSet(viewsets.ViewSet):
                         holder_name=f"{holder_account.user.first_name} {holder_account.user.last_name}".strip(),
                     )
                 except Exception:
-                    # Log email error but don't fail the cancellation
-                    pass
+                    # Don't fail the cancellation over a notification error.
+                    logger.exception("Failed to send invitation cancelled email")
 
                 return Response(
                     {"message": "Invitation cancelled successfully"},
                     status=status.HTTP_200_OK,
                 )
 
-        except Exception as e:
+        except DatabaseError:
+            logger.exception("Database error during invitation cancellation")
             return Response(
-                {"error": f"An error occurred: {str(e)}"},
+                {
+                    "error": "No se pudo cancelar la invitación debido a un error interno. Intentá nuevamente."
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except Exception:
+            logger.exception("Unexpected error during invitation cancellation")
+            return Response(
+                {
+                    "error": "Ocurrió un error inesperado al cancelar la invitación. Intentá nuevamente más tarde."
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -719,8 +735,8 @@ class RemoveDependentView(APIView):
                         balance_transferred=float(dependent_balance),
                     )
                 except Exception:
-                    print("Error sending dependent removal notification email")
-                    pass
+                    # Don't fail the removal over a notification error.
+                    logger.exception("Failed to send dependent removal notification email")
 
                 response_data = {
                     "message": "Dependent removed successfully",
@@ -730,9 +746,20 @@ class RemoveDependentView(APIView):
 
             return Response(response_data, status=status.HTTP_200_OK)
 
-        except Exception as e:
+        except DatabaseError:
+            logger.exception("Database error during dependent removal")
             return Response(
-                {"error": f"An error occurred: {str(e)}"},
+                {
+                    "error": "No se pudo remover al adherido debido a un error interno. Intentá nuevamente."
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except Exception:
+            logger.exception("Unexpected error during dependent removal")
+            return Response(
+                {
+                    "error": "Ocurrió un error inesperado al remover al adherido. Intentá nuevamente más tarde."
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -772,7 +799,7 @@ class TransferBalanceView(APIView):
                         {
                             "error": "La cuenta de origen no fue encontrada o no te pertenece"
                         },
-                        status=status.HTTP_404_NOT_FOUND,
+                        status=status.HTTP_403_FORBIDDEN,
                     )
 
                 # Get destination account (must be active)
@@ -835,9 +862,20 @@ class TransferBalanceView(APIView):
                     status=status.HTTP_200_OK,
                 )
 
-        except Exception as e:
+        except DatabaseError:
+            logger.exception("Database error during balance transfer")
             return Response(
-                {"error": f"An error occurred: {str(e)}"},
+                {
+                    "error": "No se pudo completar la transferencia debido a un error interno. Intentá nuevamente."
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except Exception:
+            logger.exception("Unexpected error during balance transfer")
+            return Response(
+                {
+                    "error": "Ocurrió un error inesperado al procesar la transferencia. Intentá nuevamente más tarde."
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -879,7 +917,7 @@ class WithdrawFromDependentView(APIView):
                 except Account.DoesNotExist:
                     return Response(
                         {"error": "La cuenta titular no fue encontrada o no te pertenece"},
-                        status=status.HTTP_404_NOT_FOUND,
+                        status=status.HTTP_403_FORBIDDEN,
                     )
 
                 # Verify the dependent account exists and is active
@@ -938,9 +976,20 @@ class WithdrawFromDependentView(APIView):
                     status=status.HTTP_200_OK,
                 )
 
-        except Exception as e:
+        except DatabaseError:
+            logger.exception("Database error during dependent withdrawal")
             return Response(
-                {"error": f"Ocurrió un error: {str(e)}"},
+                {
+                    "error": "No se pudo completar el retiro debido a un error interno. Intentá nuevamente."
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except Exception:
+            logger.exception("Unexpected error during dependent withdrawal")
+            return Response(
+                {
+                    "error": "Ocurrió un error inesperado al procesar el retiro. Intentá nuevamente más tarde."
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 

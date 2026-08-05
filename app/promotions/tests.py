@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.test import TestCase
 from rest_framework.test import APIClient
 from rest_framework import status
@@ -5,6 +7,7 @@ from users.models import CustomUser
 from users.roles import ROLES
 from django.contrib.auth.models import Group, Permission
 from accounts.models import Account
+from operation.models import ModifyFunds
 from .models import PromotionCode, PromotionRedemption
 from django.utils import timezone
 from datetime import timedelta
@@ -96,4 +99,32 @@ class PromotionTests(TestCase):
         response = self.client.post('/promotions/redeem/', {"code": "WICORED"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['error'], "Ya canjeaste este código.")
+
+    def test_redeem_gift_balance_creates_modify_funds_record(self):
+        gift_code = PromotionCode.objects.create(
+            code="GIFT100",
+            action_type="GIFT_BALANCE",
+            action_params={"amount": 100},
+        )
+
+        if self.account_exists:
+            holder_account = Account.objects.get(user=self.user, account_type="holder")
+        else:
+            holder_account = Account.objects.create(
+                user=self.user, balance=0, account_type="holder"
+            )
+
+        response = self.client.post('/promotions/redeem/', {"code": "GIFT100"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        holder_account.refresh_from_db()
+        self.assertEqual(holder_account.balance, Decimal("100"))
+
+        record = ModifyFunds.objects.filter(account=holder_account).first()
+        self.assertIsNotNone(record)
+        self.assertEqual(record.account, holder_account)
+        self.assertEqual(record.amount, Decimal("100"))
+        self.assertEqual(record.gestor, self.user)
+        self.assertIn("canje de código promocional", record.comments)
+        self.assertIn("autoservicio", record.comments)
 

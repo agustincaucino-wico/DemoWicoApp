@@ -460,7 +460,7 @@ class TransferBalanceTests(TestCase):
         self.assertEqual(self.dependent_account.balance, Decimal("0.00"))
         self.assertFalse(Transfer.objects.exists())
 
-    def test_source_account_not_owned_by_requester_returns_404(self):
+    def test_source_account_not_owned_by_requester_returns_403(self):
         """A user cannot transfer FROM an account that isn't theirs."""
         attacker = CustomUser.objects.create_user(
             email="transfer-attacker@example.com", password="pass1234"
@@ -471,7 +471,7 @@ class TransferBalanceTests(TestCase):
         response = attacker_client.post(
             self.URL, self._payload(Decimal("100.00")), format="json"
         )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
         self.holder_account.refresh_from_db()
         self.assertEqual(self.holder_account.balance, Decimal("1000.00"))
@@ -608,8 +608,11 @@ class WithdrawFromDependentTests(TestCase):
     Non-obvious behavior confirmed by reading the view: unlike
     TransferBalanceView, both `.get` lookups here filter by account_type
     (holder must be account_type="holder", dependent must be
-    account_type="dependent"), so a type mismatch surfaces as a 404 from the
-    lookup rather than reaching the relationship check.
+    account_type="dependent"). A type mismatch on holder_account_id shares
+    the same lookup (and user=request.user filter) as the ownership check,
+    so it surfaces as 403, same as any other holder-ownership violation. A
+    type mismatch on dependent_account_id is not covered here (see the
+    module-level note on the ambiguous dependent_account lookup branch).
     """
 
     URL = "/actions/withdraw-from-dependent/"
@@ -683,7 +686,7 @@ class WithdrawFromDependentTests(TestCase):
         self.assertEqual(self.dependent_account.balance, Decimal("500.00"))
         self.assertFalse(Transfer.objects.exists())
 
-    def test_holder_account_not_owned_by_requester_returns_404(self):
+    def test_holder_account_not_owned_by_requester_returns_403(self):
         attacker = CustomUser.objects.create_user(
             email="withdraw-attacker@example.com", password="pass1234"
         )
@@ -693,24 +696,26 @@ class WithdrawFromDependentTests(TestCase):
         response = attacker_client.post(
             self.URL, self._payload(Decimal("100.00")), format="json"
         )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
         self.dependent_account.refresh_from_db()
         self.assertEqual(self.dependent_account.balance, Decimal("500.00"))
         self.assertFalse(Transfer.objects.exists())
 
-    def test_holder_account_id_pointing_to_dependent_type_returns_404(self):
+    def test_holder_account_id_pointing_to_dependent_type_returns_403(self):
         """
         The holder lookup filters account_type="holder"; passing a
-        dependent-type account id as holder_account_id fails that lookup (404)
-        rather than moving money the wrong direction.
+        dependent-type account id as holder_account_id fails that lookup
+        rather than moving money the wrong direction. It shares the same
+        DoesNotExist branch (and user=request.user filter) as ownership
+        violations, so it's a 403, same as any other holder-ownership case.
         """
         response = self.client.post(
             self.URL,
             self._payload(Decimal("100.00"), holder=self.dependent_account.id),
             format="json",
         )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(Transfer.objects.exists())
 
     def test_withdraw_from_unrelated_dependent_is_rejected_403(self):

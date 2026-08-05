@@ -1,13 +1,13 @@
 Acceso de cuenta removido
 
-Hola {dependent_name},
+Hola {{ dependent_name }},
 
-{holder_name} ({holder_email}) te ha removido de su flota de Wico.
+{{ holder_name }} ({{ holder_email }}) te ha removido de su flota de Wico.
 
 Qué significa esto:
-Ya no tendrás acceso a los servicios asociados con esta cuenta. Tu cuenta personal de {app_name} (si tienes una) no se ve afectada.
+Ya no tendrás acceso a los servicios asociados con esta cuenta. Tu cuenta personal de {{ app_name }} (si tienes una) no se ve afectada.
 
 Si tienes alguna pregunta sobre este cambio, contacta directamente al titular de la cuenta.
 
 ---
-Este es un mensaje automatizado de {app_name}. Por favor no respondas a este correo.
+Este es un mensaje automatizado de {{ app_name }}. Por favor no respondas a este correo.

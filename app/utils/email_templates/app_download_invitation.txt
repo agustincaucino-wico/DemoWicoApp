@@ -4,8 +4,8 @@ Hola,
 
 Te invitaron a unirte como adherente en la app WICO.
 
-Invitación enviada por: {holder_name} ({holder_email})
-{company_txt}
+Invitación enviada por: {{ holder_name }} ({{ holder_email }})
+{{ company_txt }}
 ¿Cómo empezar?
 
   1. Descargá la app WICO desde la tienda de tu dispositivo:
@@ -21,4 +21,4 @@ Si ya tenés la app instalada, simplemente iniciá sesión o registrate
 con este email y la vinculación se hará de forma automática.
 
 ---
-Este es un mensaje automático de {app_name}. Por favor no respondas a este correo.
+Este es un mensaje automático de {{ app_name }}. Por favor no respondas a este correo.

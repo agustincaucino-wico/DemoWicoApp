@@ -2,7 +2,9 @@ name: Backend Tests
 
 on:
   push:
-    branches: [ main ]
+    # PROD is included so the test job also runs (and gates deploy-prod
+    # below) on pushes to PROD, not just main.
+    branches: [ main, PROD ]
   pull_request:
     branches: [ main ]
 
@@ -68,3 +70,81 @@ jobs:
       - name: Run tests
         working-directory: app
         run: pytest
+
+  # Deploy jobs live in this same workflow (instead of a separate
+  # deploy.yml with its own `on: push` trigger) specifically so `needs: test`
+  # can gate them: needs: only works between jobs within one workflow file.
+  # If the test job fails (or is skipped/cancelled), GitHub Actions skips
+  # any job that needs: it by default - no extra `if:` check required.
+  deploy-test:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Test Server
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ubuntu
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /home/ubuntu/myapp/backend
+            git pull origin main
+            docker-compose build backend
+            docker-compose up -d backend
+
+  deploy-prod:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/PROD'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Prod Server
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.SERVER_IP_PROD }}
+          username: ubuntu
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /home/ubuntu/myapp/backend
+            git pull origin PROD
+            docker-compose build backend
+            docker-compose up -d backend
+
+  # Fires only when test actually fails on a direct push to main/PROD (not
+  # on PRs, not on skip/cancel) - branch protection isn't available on this
+  # repo (no admin access), so this is the closest thing to a guaranteed
+  # "someone finds out" signal when a broken push slips past a developer's
+  # own testing and lands on a branch that's supposed to gate deploy.
+  alert-on-failure:
+    needs: test
+    if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/PROD')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Open failure issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = context.ref.replace('refs/heads/', '');
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `CI failure on push to ${branch} - deploy skipped`,
+              body: [
+                `@${context.actor} pushed a commit to \`${branch}\` and the test suite failed.`,
+                '',
+                `Deploy was **skipped** as a result - the deploy job for this branch only runs when tests pass.`,
+                '',
+                `Failed run: ${runUrl}`,
+              ].join('\n'),
+              labels: ['ci-failure'],
+            });

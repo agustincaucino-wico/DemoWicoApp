@@ -5,60 +5,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cuenta Adherida Agregada</title>
     <style>
-        body {{
+        body {
             font-family: Arial, sans-serif;
             line-height: 1.6;
             color: #333;
             max-width: 600px;
             margin: 0 auto;
             padding: 20px;
-        }}
-        .header {{
+        }
+        .header {
             background-color: #1B2F5B;
             color: white;
             padding: 20px;
             border-radius: 8px 8px 0 0;
             text-align: center;
-        }}
-        .content {{
+        }
+        .content {
             background-color: #f8f9fa;
             padding: 20px;
             border-radius: 0 0 8px 8px;
-        }}
-        .account-details {{
+        }
+        .account-details {
             background-color: #e9ecef;
             padding: 15px;
             border-radius: 5px;
             margin: 20px 0;
             border-left: 4px solid #1B2F5B;
-        }}
-        .account-details h3 {{
+        }
+        .account-details h3 {
             margin-top: 0;
             color: #1B2F5B;
-        }}
-        .footer {{
+        }
+        .footer {
             margin-top: 30px;
             padding-top: 20px;
             border-top: 1px solid #dee2e6;
             font-size: 12px;
             color: #6c757d;
             text-align: center;
-        }}
-        .highlight {{
+        }
+        .highlight {
             font-weight: bold;
             color: #007bff;
-        }}
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>¡Bienvenido a la flota de {holder_name}!</h1>
+        <h1>¡Bienvenido a la flota de {{ holder_name }}!</h1>
     </div>
     
     <div class="content">
-        <p>Hola {dependent_name},</p>
+        <p>Hola {{ dependent_name }},</p>
 
-        <p><span class="highlight">{holder_name}</span> ({holder_email}) te ha incorporado a su flota de WICORED.</p>
+        <p><span class="highlight">{{ holder_name }}</span> ({{ holder_email }}) te ha incorporado a su flota de WICORED.</p>
         
         <p>Ahora puedes acceder a la aplicación Wico APP y comenzar a cargar combustible con tu nueva cuenta de flota.</p>
         
@@ -66,7 +66,7 @@
     </div>
     
     <div class="footer">
-        <p>Este es un mensaje automatizado de {app_name}. Por favor no respondas a este correo.</p>
+        <p>Este es un mensaje automatizado de {{ app_name }}. Por favor no respondas a este correo.</p>
     </div>
 </body>
 </html>

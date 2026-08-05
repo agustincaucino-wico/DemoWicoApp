@@ -21,6 +21,7 @@ from .models import (
     DependentInvitation,
     Organism,
     AuthorizedEmail,
+    Company,
 )
 
 
@@ -166,6 +167,15 @@ class AccountsTestCase(RoleAssignmentMixin, TestCase):
         self.assertIn("Ya existe una autorización activa", str(response.data))
 
     def test_dependent_invitation_flow_models(self):
+        # Give the holder account non-default company/display_type/
+        # unlimited_balance so the copy onto the new dependent account can
+        # actually be verified (not just match by coincidence with defaults).
+        company = baker.make(Company)
+        self.holder_account.company = company
+        self.holder_account.display_type = "litros"
+        self.holder_account.unlimited_balance = True
+        self.holder_account.save()
+
         # Create an invitation and accept it via model methods
         invitation = DependentInvitation.objects.create(
             holder_account=self.holder_account,
@@ -184,6 +194,13 @@ class AccountsTestCase(RoleAssignmentMixin, TestCase):
             end_date__isnull=True,
         ).first()
         self.assertIsNotNone(relation)
+
+        # company/display_type/unlimited_balance should be copied live from
+        # the holder account onto the new dependent account.
+        new_dependent_account = relation.dependent_account
+        self.assertEqual(new_dependent_account.company, company)
+        self.assertEqual(new_dependent_account.display_type, "litros")
+        self.assertTrue(new_dependent_account.unlimited_balance)
 
         # Trying to accept again should raise a ValidationError
         with self.assertRaises(ValidationError):
