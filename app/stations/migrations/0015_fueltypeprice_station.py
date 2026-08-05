@@ -23,7 +23,7 @@ def noop(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('stations', '0013_add_new_stations'),
+        ('stations', '0014_add_gnc_fuel_type'),
     ]
 
     operations = [
