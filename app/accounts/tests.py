@@ -180,6 +180,7 @@ class AccountsTestCase(RoleAssignmentMixin, TestCase):
         invitation = DependentInvitation.objects.create(
             holder_account=self.holder_account,
             dependent_email=self.user_dependent.email,
+            dependent_user=self.user_dependent,
         )
 
         # Accept invitation (should create a dependent account for dependent user)

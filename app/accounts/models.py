@@ -151,6 +151,15 @@ class DependentInvitation(models.Model):
         Account, on_delete=models.CASCADE, related_name="sent_invitations"
     )
     dependent_email = models.EmailField(default="")
+    dependent_user = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="received_invitations",
+        help_text="Usuario destinatario de la invitación, si ya está registrado. "
+        "No reemplaza a dependent_email todavía: se irá poblando en una etapa posterior.",
+    )
     invitation_date = models.DateTimeField(auto_now_add=True)
     status = models.CharField(
         max_length=20, choices=INVITATION_STATUS, default="pending"
@@ -174,10 +183,14 @@ class DependentInvitation(models.Model):
                 "Solo las cuentas titulares pueden enviar invitaciones"
             )
 
-        # Validar que no exista ya una relación activa
+        # Validar que no exista ya una relación activa. Sin dependent_user no
+        # hay destinatario contra el cual comprobarla.
+        if self.dependent_user_id is None:
+            return
+
         existing_relationship = Dependents.objects.filter(
             holder_account=self.holder_account,
-            dependent_account__user__email=self.dependent_email,
+            dependent_account__user=self.dependent_user,
             end_date__isnull=True,
         ).exists()
 
@@ -189,13 +202,26 @@ class DependentInvitation(models.Model):
         if self.status != "pending":
             raise ValidationError("Solo se pueden aceptar invitaciones pendientes")
 
+        # El destinatario se resuelve al crear la invitación. Si el FK quedó
+        # en null (invitación anterior a la migración y sin backfill, o
+        # usuario eliminado después) no se puede determinar a quién
+        # corresponde: resolverlo por email acá volvería a atar la cuenta a
+        # quien tenga esa dirección en este momento, que es exactamente lo
+        # que se está corrigiendo.
+        if self.dependent_user_id is None:
+            raise ValidationError(
+                "La invitación no tiene un usuario destinatario asociado"
+            )
+
+        dependent_user = self.dependent_user
+
         with transaction.atomic():
             # Crear la cuenta adherente, copiando company/display_type/
             # unlimited_balance de la cuenta titular (lectura en vivo: a
             # diferencia de AuthorizedEmail, DependentInvitation no
             # snapshotea estos campos al crear la invitación).
             dependent_account = Account.objects.create(
-                user=CustomUser.objects.get(email=self.dependent_email),
+                user=dependent_user,
                 balance=0,
                 account_type="dependent",
                 company=self.holder_account.company,
@@ -218,7 +244,6 @@ class DependentInvitation(models.Model):
             # Asignar rol de Flota al usuario adherido
             try:
                 fleet_group = Group.objects.get(name="Flota")
-                dependent_user = CustomUser.objects.get(email=self.dependent_email)
                 dependent_user.groups.add(fleet_group)
             except Group.DoesNotExist:
                 pass
