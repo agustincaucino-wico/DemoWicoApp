@@ -27,7 +27,7 @@ class FuelTypeModelTests(TestCase):
             FuelType.objects.create(name="Diesel")
 
     def test_fuel_type_default_active(self):
-        ft = FuelType.objects.create(name="GNC")
+        ft = FuelType.objects.create(name="GNC Test")
         self.assertTrue(ft.is_active)
 
 
@@ -105,10 +105,10 @@ class FuelTypeAPITests(RoleAssignmentMixin, TestCase):
 
     def test_gestor_can_create_fuel_type(self):
         response = self.client.post(
-            self.list_url, {"name": "GNC", "is_active": True}, format="json"
+            self.list_url, {"name": "GNC Test", "is_active": True}, format="json"
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(FuelType.objects.filter(name="GNC").exists())
+        self.assertTrue(FuelType.objects.filter(name="GNC Test").exists())
 
     def test_gestor_can_update_fuel_type(self):
         ft = FuelType.objects.create(name="Nafta Premium")
