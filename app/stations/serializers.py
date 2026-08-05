@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from rest_framework.validators import UniqueTogetherValidator
 
 from .models import FuelType, FuelTypePrice, Station, StationAttendantAssignment
 
@@ -11,11 +12,40 @@ class FuelTypeSerializer(serializers.ModelSerializer):
 
 class FuelTypePriceSerializer(serializers.ModelSerializer):
     fuel_type_name = serializers.CharField(source="fuel_type.name", read_only=True)
-    company_name = serializers.CharField(source="company.name", read_only=True)
+    station_name = serializers.CharField(source="station.name", read_only=True)
 
     class Meta:
         model = FuelTypePrice
-        fields = "__all__"
+        fields = (
+            "id",
+            "fuel_type",
+            "fuel_type_name",
+            "station",
+            "station_name",
+            "price",
+            "effective_date",
+            "created_at",
+        )
+        read_only_fields = ("id", "fuel_type_name", "station_name", "created_at")
+        validators = [
+            UniqueTogetherValidator(
+                queryset=FuelTypePrice.objects.all(),
+                fields=["station", "fuel_type", "effective_date"],
+                message="Ya existe un precio para esa estación, combustible y fecha.",
+            )
+        ]
+
+    def validate_price(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("El precio debe ser mayor a cero.")
+        return value
+
+
+class StationCurrentFuelPriceSerializer(FuelTypePriceSerializer):
+    """Serializer de solo lectura para el endpoint de precios vigentes por estación."""
+
+    class Meta(FuelTypePriceSerializer.Meta):
+        read_only_fields = FuelTypePriceSerializer.Meta.fields
 
 
 class StationSerializer(serializers.ModelSerializer):

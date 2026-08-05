@@ -1,7 +1,11 @@
+from datetime import datetime
+
 from rest_framework import mixins, viewsets, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.contrib.auth.models import Group
+from django.utils import timezone
 
 from myapp.permissions import StrictDjangoModelPermissions
 from .models import FuelType, FuelTypePrice, Station, StationAttendantAssignment
@@ -9,6 +13,7 @@ from .permissions import AuthenticatedReadDjangoModelPermissions
 from .serializers import (
     FuelTypeSerializer,
     FuelTypePriceSerializer,
+    StationCurrentFuelPriceSerializer,
     StationSerializer,
     StationAttendantAssignmentSerializer,
 )
@@ -38,28 +43,73 @@ class FuelTypePriceViewSet(
     mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
-    """CRUD de precios de combustible por empresa. Solo Gestores."""
+    """CRUD de precios de combustible por estación. Lectura para cualquier usuario
+    autenticado (la app), escritura solo para Gestores."""
 
     authentication_classes = [JWTAuthentication]
-    permission_classes = [StrictDjangoModelPermissions]
+    permission_classes = [AuthenticatedReadDjangoModelPermissions]
     serializer_class = FuelTypePriceSerializer
 
     def get_queryset(self):
-        queryset = (
-            FuelTypePrice.objects.select_related("fuel_type", "company")
-            .all()
-            .order_by("-effective_date")
-        )
+        queryset = FuelTypePrice.objects.select_related("fuel_type", "station")
 
         fuel_type_id = self.request.query_params.get("fuel_type")
-        company_id = self.request.query_params.get("company")
+        station_id = self.request.query_params.get("station")
+        effective_date_from = self.request.query_params.get("effective_date_from")
+        effective_date_to = self.request.query_params.get("effective_date_to")
 
         if fuel_type_id:
             queryset = queryset.filter(fuel_type_id=fuel_type_id)
-        if company_id:
-            queryset = queryset.filter(company_id=company_id)
+        if station_id:
+            queryset = queryset.filter(station_id=station_id)
+        if effective_date_from:
+            parsed = self._parse_date(effective_date_from)
+            if parsed:
+                queryset = queryset.filter(effective_date__gte=parsed)
+        if effective_date_to:
+            parsed = self._parse_date(effective_date_to)
+            if parsed:
+                queryset = queryset.filter(effective_date__lte=parsed)
 
         return queryset
+
+    @staticmethod
+    def _parse_date(value):
+        try:
+            return datetime.strptime(value, "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            return None
+
+    @action(detail=False, methods=["get"], url_path="current")
+    def current(self, request):
+        """
+        Devuelve el precio vigente (mayor `effective_date` <= hoy) de cada
+        combinación (estación, tipo de combustible), excluyendo estaciones y
+        tipos de combustible inactivos. Acepta los filtros opcionales
+        `station` y `fuel_type`.
+        """
+        queryset = (
+            FuelTypePrice.objects.filter(
+                effective_date__lte=timezone.localdate(),
+                fuel_type__is_active=True,
+                station__is_active=True,
+            )
+            .select_related("fuel_type", "station")
+        )
+
+        fuel_type_id = request.query_params.get("fuel_type")
+        station_id = request.query_params.get("station")
+        if fuel_type_id:
+            queryset = queryset.filter(fuel_type_id=fuel_type_id)
+        if station_id:
+            queryset = queryset.filter(station_id=station_id)
+
+        queryset = queryset.order_by(
+            "station_id", "fuel_type_id", "-effective_date", "-id"
+        ).distinct("station_id", "fuel_type_id")
+
+        serializer = StationCurrentFuelPriceSerializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class StationViewSet(

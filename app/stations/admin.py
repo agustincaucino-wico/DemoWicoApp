@@ -13,10 +13,10 @@ class FuelTypeAdmin(admin.ModelAdmin):
 
 @admin.register(FuelTypePrice, site=my_admin_site)
 class FuelTypePriceAdmin(admin.ModelAdmin):
-    list_display = ("id", "fuel_type", "company", "price", "effective_date")
-    search_fields = ("fuel_type__name", "company__name")
-    list_filter = ("fuel_type", "effective_date")
-    autocomplete_fields = ("fuel_type", "company")
+    list_display = ("id", "fuel_type", "station", "price", "effective_date")
+    search_fields = ("fuel_type__name", "station__name")
+    list_filter = ("fuel_type", "station", "effective_date")
+    autocomplete_fields = ("fuel_type", "station")
 
 
 @admin.register(Station, site=my_admin_site)

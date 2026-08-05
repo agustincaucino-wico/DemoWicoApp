@@ -26,25 +26,38 @@ class FuelType(models.Model):
 
 
 class FuelTypePrice(models.Model):
-    """Precio histórico de un tipo de combustible por empresa y fecha."""
+    """Precio histórico de un tipo de combustible por estación y fecha."""
 
     fuel_type = models.ForeignKey(
         FuelType, on_delete=models.CASCADE, related_name="prices"
     )
-    company = models.ForeignKey(
-        "accounts.Company", on_delete=models.CASCADE, related_name="fuel_prices"
+    station = models.ForeignKey(
+        "stations.Station", on_delete=models.CASCADE, related_name="fuel_prices"
     )
     price = models.DecimalField(max_digits=12, decimal_places=2)
     effective_date = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["-effective_date"]
+        ordering = ["-effective_date", "-id"]
         verbose_name = "Precio de combustible"
         verbose_name_plural = "Precios de combustible"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["station", "fuel_type", "effective_date"],
+                name="uniq_station_fueltype_date",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["station", "fuel_type", "-effective_date"],
+                name="ftp_station_fuel_date_idx",
+            )
+        ]
 
     def __str__(self):
         return (
-            f"{self.fuel_type.name} - {self.company.name}: "
+            f"{self.fuel_type.name} - {self.station.name}: "
             f"${self.price} ({self.effective_date})"
         )
 
