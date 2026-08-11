@@ -228,6 +228,7 @@ jobs:
           # desde el entrypoint de cada contenedor (prod corre 2 instancias)
           # dispararía migraciones concurrentes contra la misma DB.
           MIGRATE_SCRIPT=$(cat <<'SCRIPT'
+          #!/bin/bash
           set -euo pipefail
           mkdir -p /opt/wicoapp
           echo "__ENV_B64__" | base64 -d > /opt/wicoapp/app.env
@@ -252,6 +253,7 @@ jobs:
           wait_for_ssm "$MIGRATE_CMD_ID" "${ID_ARR[0]}"
 
           ROLLOUT_SCRIPT=$(cat <<'SCRIPT'
+          #!/bin/bash
           set -euo pipefail
           mkdir -p /opt/wicoapp
           echo "__ENV_B64__" | base64 -d > /opt/wicoapp/app.env
@@ -407,6 +409,7 @@ jobs:
           echo "Instancias destino: ${ID_ARR[*]}"
 
           MIGRATE_SCRIPT=$(cat <<'SCRIPT'
+          #!/bin/bash
           set -euo pipefail
           mkdir -p /opt/wicoapp
           echo "__ENV_B64__" | base64 -d > /opt/wicoapp/app.env
@@ -431,6 +434,7 @@ jobs:
           wait_for_ssm "$MIGRATE_CMD_ID" "${ID_ARR[0]}"
 
           ROLLOUT_SCRIPT=$(cat <<'SCRIPT'
+          #!/bin/bash
           set -euo pipefail
           mkdir -p /opt/wicoapp
           echo "__ENV_B64__" | base64 -d > /opt/wicoapp/app.env
