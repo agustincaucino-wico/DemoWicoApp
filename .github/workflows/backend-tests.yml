@@ -284,7 +284,11 @@ jobs:
             --log-opt tag=wicoapp-backend \
             "__IMAGE__"
           for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8000/health/ >/dev/null 2>&1; then
+            # "/" (no "/health/"): es el path que efectivamente chequea el
+            # ALB (modules/alb, health_check_path default "/"), así que
+            # queremos que el smoke test del propio deploy falle en el
+            # mismo caso en que el health check del ALB fallaría después.
+            if curl -fsS http://localhost:8000/ >/dev/null 2>&1; then
               echo "Container healthy"
               exit 0
             fi
@@ -483,7 +487,11 @@ jobs:
             --log-opt tag=wicoapp-backend \
             "__IMAGE__"
           for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8000/health/ >/dev/null 2>&1; then
+            # "/" (no "/health/"): es el path que efectivamente chequea el
+            # ALB (modules/alb, health_check_path default "/"), así que
+            # queremos que el smoke test del propio deploy falle en el
+            # mismo caso en que el health check del ALB fallaría después.
+            if curl -fsS http://localhost:8000/ >/dev/null 2>&1; then
               echo "Container healthy"
               exit 0
             fi

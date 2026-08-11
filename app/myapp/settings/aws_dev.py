@@ -12,12 +12,16 @@ Diferencias con dev.py (el settings del servidor legacy):
   Host de nuevo es redundante. Hace falta además porque el health check del
   ALB pega directo a la IP privada de la instancia (Host: <ip>:8000, no un
   dominio), que no se puede enumerar de antemano.
-- SECURE_SSL_REDIRECT + SECURE_REDIRECT_EXEMPT para /health/: CloudFront ya
-  redirige HTTP->HTTPS en el borde (viewer_protocol_policy, ver modules/cdn)
-  así que todo tráfico real llega con X-Forwarded-Proto=https. Pero el
-  health check del ALB pega directo al target por HTTP, sin ese header - sin
-  la excepción, Django le devolvería un 301 y el ALB marcaría la instancia
-  unhealthy.
+- SECURE_SSL_REDIRECT + SECURE_REDIRECT_EXEMPT para "/" (raíz, también
+  servida por HealthCheckView - ver myapp/urls.py) y "/health/": CloudFront
+  ya redirige HTTP->HTTPS en el borde (viewer_protocol_policy, ver
+  modules/cdn) así que todo tráfico real llega con X-Forwarded-Proto=https.
+  Pero el health check del ALB (modules/alb, health_check_path default "/",
+  modules/app no lo sobreescribe) pega directo al target por HTTP, sin ese
+  header - sin exceptuar la RAÍZ (no solo /health/) Django le devolvía un
+  301 al chequeo del ALB, que no acepta 301 como 200 y termina matando la
+  instancia por unhealthy (aunque el /health/ del propio rollout script sí
+  pasara, por pegarle a un path distinto del que chequea el ALB).
 - Sin MEDIA_ROOT en disco persistente (el /mnt de dev.py no existe en estas
   instancias, y aunque existiera no sobrevive a un reemplazo de ASG). Usa el
   default de base.py (disco local del contenedor) - se pierde en cada
@@ -60,7 +64,7 @@ CSRF_TRUSTED_ORIGINS = ["https://api-wicoapp-dev.wicosistemas.com.ar"]
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
 SECURE_SSL_REDIRECT = True
-SECURE_REDIRECT_EXEMPT = [r"^health/?$"]
+SECURE_REDIRECT_EXEMPT = [r"^$", r"^health/?$"]
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
