@@ -218,11 +218,25 @@ jobs:
           # que arma jq más abajo.
           ENV_B64=$(printf '%s' "$ENV_FILE_CONTENT" | base64 -w0)
 
-          INSTANCE_IDS=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=$INSTANCE_NAME_TAG" "Name=instance-state-name,Values=running" \
-            --query 'Reservations[].Instances[].InstanceId' --output text)
+          # Reintenta en vez de fallar apenas no hay instancias: un deploy
+          # anterior roto puede haber dejado el lifecycle hook sin completar
+          # (ver modules/asg, heartbeat_timeout=1200s) - a los 20 min el ASG
+          # abandona/mata esa instancia y tarda un rato en relanzar otra
+          # (más todavía si hubo varios fallos seguidos, por el backoff que
+          # aplica EC2 Auto Scaling). Sin este retry, un push que llega justo
+          # en esa ventana fallaba con "No hay instancias corriendo" aunque
+          # el ASG estuviera sano y a punto de recuperarse solo.
+          INSTANCE_IDS=""
+          for _ in $(seq 1 20); do
+            INSTANCE_IDS=$(aws ec2 describe-instances \
+              --filters "Name=tag:Name,Values=$INSTANCE_NAME_TAG" "Name=instance-state-name,Values=running" \
+              --query 'Reservations[].Instances[].InstanceId' --output text)
+            [ -n "$INSTANCE_IDS" ] && break
+            echo "Sin instancias running todavía con tag Name=$INSTANCE_NAME_TAG, reintentando en 30s..."
+            sleep 30
+          done
           if [ -z "$INSTANCE_IDS" ]; then
-            echo "No hay instancias corriendo con tag Name=$INSTANCE_NAME_TAG - ¿el ASG está en 0?" >&2
+            echo "Se agotó el reintento (10 min) sin encontrar instancias corriendo con tag Name=$INSTANCE_NAME_TAG - revisar el ASG a mano." >&2
             exit 1
           fi
           read -ra ID_ARR <<< "$INSTANCE_IDS"
@@ -406,11 +420,25 @@ jobs:
           )
           ENV_B64=$(printf '%s' "$ENV_FILE_CONTENT" | base64 -w0)
 
-          INSTANCE_IDS=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=$INSTANCE_NAME_TAG" "Name=instance-state-name,Values=running" \
-            --query 'Reservations[].Instances[].InstanceId' --output text)
+          # Reintenta en vez de fallar apenas no hay instancias: un deploy
+          # anterior roto puede haber dejado el lifecycle hook sin completar
+          # (ver modules/asg, heartbeat_timeout=1200s) - a los 20 min el ASG
+          # abandona/mata esa instancia y tarda un rato en relanzar otra
+          # (más todavía si hubo varios fallos seguidos, por el backoff que
+          # aplica EC2 Auto Scaling). Sin este retry, un push que llega justo
+          # en esa ventana fallaba con "No hay instancias corriendo" aunque
+          # el ASG estuviera sano y a punto de recuperarse solo.
+          INSTANCE_IDS=""
+          for _ in $(seq 1 20); do
+            INSTANCE_IDS=$(aws ec2 describe-instances \
+              --filters "Name=tag:Name,Values=$INSTANCE_NAME_TAG" "Name=instance-state-name,Values=running" \
+              --query 'Reservations[].Instances[].InstanceId' --output text)
+            [ -n "$INSTANCE_IDS" ] && break
+            echo "Sin instancias running todavía con tag Name=$INSTANCE_NAME_TAG, reintentando en 30s..."
+            sleep 30
+          done
           if [ -z "$INSTANCE_IDS" ]; then
-            echo "No hay instancias corriendo con tag Name=$INSTANCE_NAME_TAG - ¿el ASG está en 0?" >&2
+            echo "Se agotó el reintento (10 min) sin encontrar instancias corriendo con tag Name=$INSTANCE_NAME_TAG - revisar el ASG a mano." >&2
             exit 1
           fi
           read -ra ID_ARR <<< "$INSTANCE_IDS"
