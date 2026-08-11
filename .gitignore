@@ -1,6 +1,8 @@
 # gitignore
 
-Dockerfile
+# nginx.conf: del setup legacy con docker-compose, no aplica en la infra de
+# Wico-Infraestructura (ALB/CloudFront terminan TLS y balancean directo
+# contra uvicorn - ver Dockerfile). Dockerfile SÍ se commitea ahora.
 nginx.conf
 # API testing
 *.API-requests.http

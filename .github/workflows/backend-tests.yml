@@ -92,7 +92,10 @@ jobs:
   # falta crear esos dos GitHub Environments en este repo (Settings ->
   # Environments) con las variables/secrets que se listan en cada job.
   deploy-aws-dev:
-    needs: test
+    # needs: test saqué esto a pedido - los tests todavía no pasan en este
+    # repo, así que por ahora el deploy corre en paralelo sin esperar (ni
+    # depender de) su resultado. Volver a agregar needs: test en cuanto la
+    # suite esté en verde, para no perder ese gate.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: dev

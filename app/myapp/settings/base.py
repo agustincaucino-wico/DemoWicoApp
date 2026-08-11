@@ -78,6 +78,12 @@ SPECTACULAR_SETTINGS = {
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Sirve STATIC_ROOT directo desde el proceso de Django (admin, jazzmin,
+    # swagger UI de drf-spectacular). Necesario en la infra de
+    # Wico-Infraestructura porque ahí no hay nginx delante del contenedor
+    # (ver Dockerfile) - el setup legacy con docker-compose lo resolvía con
+    # nginx.conf, que ya no aplica.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -123,6 +129,17 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    # Manifest + compresión de whitenoise (hashea nombres de archivo para
+    # cacheo agresivo en el browser/CloudFront).
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # Media files (User uploads)
 MEDIA_URL = "/media/"
