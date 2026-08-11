@@ -2,11 +2,12 @@ name: Backend Tests
 
 on:
   push:
-    # PROD is included so the test job also runs (and gates deploy-aws-prod
-    # below) on pushes to PROD, not just main.
-    branches: [ main, PROD ]
+    # dev -> AWS dev environment (deploy-aws-dev), main -> AWS prod
+    # environment (deploy-aws-prod). La vieja rama PROD ya no dispara nada
+    # acá (queda en el repo, pero fuera de CI/CD).
+    branches: [ main, dev ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, dev ]
 
 # Cancel a superseded run (e.g. a fresh push to the same PR) instead of
 # letting both burn through CI minutes.
@@ -91,12 +92,16 @@ jobs:
   # `environment:<env>` en el claim `sub`, no alcanza con el branch. Hace
   # falta crear esos dos GitHub Environments en este repo (Settings ->
   # Environments) con las variables/secrets que se listan en cada job.
+  #
+  # Mapeo de branches: dev -> este job (AWS dev), main -> deploy-aws-prod
+  # (AWS prod). Ojo que es AL REVÉS del deploy legacy que reemplazó (ahí
+  # main era el ambiente de test/dev) - decisión explícita del equipo.
   deploy-aws-dev:
     # needs: test saqué esto a pedido - los tests todavía no pasan en este
     # repo, así que por ahora el deploy corre en paralelo sin esperar (ni
     # depender de) su resultado. Volver a agregar needs: test en cuanto la
     # suite esté en verde, para no perder ese gate.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
     environment: dev
     concurrency: deploy-aws-dev
@@ -302,7 +307,7 @@ jobs:
 
   deploy-aws-prod:
     needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/PROD'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: prod
     concurrency: deploy-aws-prod
@@ -472,14 +477,14 @@ jobs:
               --lifecycle-action-result CONTINUE 2>/dev/null || true
           done
 
-  # Fires only when test actually fails on a direct push to main/PROD (not
+  # Fires only when test actually fails on a direct push to main/dev (not
   # on PRs, not on skip/cancel) - branch protection isn't available on this
   # repo (no admin access), so this is the closest thing to a guaranteed
   # "someone finds out" signal when a broken push slips past a developer's
   # own testing and lands on a branch that's supposed to gate deploy.
   alert-on-failure:
     needs: test
-    if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/PROD')
+    if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
     runs-on: ubuntu-latest
     permissions:
       issues: write
