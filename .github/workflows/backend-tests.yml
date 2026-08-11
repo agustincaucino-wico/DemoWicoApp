@@ -136,13 +136,17 @@ jobs:
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
 
+      # Sin tag "latest": el repo (modules/ecr) tiene image_tag_mutability=
+      # IMMUTABLE a propósito (nadie puede pisar un tag ya pusheado), así que
+      # "latest" solo puede pushearse UNA vez en la vida del repo - el
+      # segundo deploy en adelante fallaba con "tag invalid ... immutable".
+      # El deploy tampoco lo necesita: siempre referencia $IMAGE_TAG (el SHA).
       - name: Build and push image
         run: |
           set -euo pipefail
           IMAGE="${{ steps.ecr-login.outputs.registry }}/$ECR_REPOSITORY:$IMAGE_TAG"
-          docker build -t "$IMAGE" -t "${{ steps.ecr-login.outputs.registry }}/$ECR_REPOSITORY:latest" .
+          docker build -t "$IMAGE" .
           docker push "$IMAGE"
-          docker push "${{ steps.ecr-login.outputs.registry }}/$ECR_REPOSITORY:latest"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
           echo "ECR_REGISTRY=${{ steps.ecr-login.outputs.registry }}" >> "$GITHUB_ENV"
 
@@ -339,13 +343,17 @@ jobs:
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
 
+      # Sin tag "latest": el repo (modules/ecr) tiene image_tag_mutability=
+      # IMMUTABLE a propósito (nadie puede pisar un tag ya pusheado), así que
+      # "latest" solo puede pushearse UNA vez en la vida del repo - el
+      # segundo deploy en adelante fallaba con "tag invalid ... immutable".
+      # El deploy tampoco lo necesita: siempre referencia $IMAGE_TAG (el SHA).
       - name: Build and push image
         run: |
           set -euo pipefail
           IMAGE="${{ steps.ecr-login.outputs.registry }}/$ECR_REPOSITORY:$IMAGE_TAG"
-          docker build -t "$IMAGE" -t "${{ steps.ecr-login.outputs.registry }}/$ECR_REPOSITORY:latest" .
+          docker build -t "$IMAGE" .
           docker push "$IMAGE"
-          docker push "${{ steps.ecr-login.outputs.registry }}/$ECR_REPOSITORY:latest"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
           echo "ECR_REGISTRY=${{ steps.ecr-login.outputs.registry }}" >> "$GITHUB_ENV"
 
