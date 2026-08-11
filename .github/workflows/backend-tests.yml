@@ -267,7 +267,7 @@ jobs:
           docker rm -f wicoapp-backend 2>/dev/null || true
           docker run -d --name wicoapp-backend --restart unless-stopped \
             -p 8000:8000 --env-file /opt/wicoapp/app.env \
-            --log-opt awslogs-stream-prefix=wicoapp-backend \
+            --log-opt tag=wicoapp-backend \
             "__IMAGE__"
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:8000/health/ >/dev/null 2>&1; then
@@ -452,7 +452,7 @@ jobs:
           docker rm -f wicoapp-backend 2>/dev/null || true
           docker run -d --name wicoapp-backend --restart unless-stopped \
             -p 8000:8000 --env-file /opt/wicoapp/app.env \
-            --log-opt awslogs-stream-prefix=wicoapp-backend \
+            --log-opt tag=wicoapp-backend \
             "__IMAGE__"
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:8000/health/ >/dev/null 2>&1; then
