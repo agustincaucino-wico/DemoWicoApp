@@ -11,10 +11,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# psycopg2-binary no necesita libpq-dev, pero sí un compilador para algunas
-# deps transitivas con wheels ausentes para esta arquitectura/versión de Python.
+# psycopg2-binary==2.9.10 no publica wheel prearmado para Python 3.14
+# (todavía muy nueva a la fecha del paquete), así que pip cae a compilar
+# desde el source: libpq-dev da pg_config (si no falta, falla con
+# "pg_config executable not found") y build-essential da gcc + los headers
+# de libc (assert.h, etc.) - con gcc solo (sin build-essential) la imagen
+# slim de Debian falla compilando con "fatal error: assert.h: No such file
+# or directory".
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc \
+    && apt-get install -y --no-install-recommends build-essential libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
