@@ -1,120 +1,473 @@
-name: Backend Tests
+# name: Backend Tests
 
-on:
-  push:
-    # PROD is included so the test job also runs (and gates deploy-prod
-    # below) on pushes to PROD, not just main.
-    branches: [ main, PROD ]
-  pull_request:
-    branches: [ main ]
+# on:
+#   push:
+#     # PROD is included so the test job also runs (and gates deploy-aws-prod
+#     # below) on pushes to PROD, not just main.
+#     branches: [ main, PROD ]
+#   pull_request:
+#     branches: [ main ]
 
-# Cancel a superseded run (e.g. a fresh push to the same PR) instead of
-# letting both burn through CI minutes.
-concurrency:
-  group: backend-tests-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+# # Cancel a superseded run (e.g. a fresh push to the same PR) instead of
+# # letting both burn through CI minutes.
+# concurrency:
+#   group: backend-tests-${{ github.workflow }}-${{ github.ref }}
+#   cancel-in-progress: true
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
+# jobs:
+#   test:
+#     runs-on: ubuntu-latest
 
-    # Postgres is the only DB engine used across all settings modules
-    # (dev/local/prod all set ENGINE=django.db.backends.postgresql). Real
-    # server version is confirmed as 17.9.
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_DB: wico_test
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U postgres"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
+#     # Postgres is the only DB engine used across all settings modules
+#     # (dev/local/prod all set ENGINE=django.db.backends.postgresql). Real
+#     # server version is confirmed as 17.9.
+#     services:
+#       postgres:
+#         image: postgres:17-alpine
+#         env:
+#           POSTGRES_DB: wico_test
+#           POSTGRES_USER: postgres
+#           POSTGRES_PASSWORD: postgres
+#         ports:
+#           - 5432:5432
+#         options: >-
+#           --health-cmd="pg_isready -U postgres"
+#           --health-interval=10s
+#           --health-timeout=5s
+#           --health-retries=5
 
-    env:
-      DJANGO_SETTINGS_MODULE: myapp.settings.test
-      # Disposable value for an ephemeral CI database - never touches
-      # real user data, so it doesn't need to be a GitHub secret.
-      SECRET_KEY: ci-test-secret-key-not-for-production
-      DATABASE_NAME: wico_test
-      DATABASE_USER: postgres
-      DATABASE_PASSWORD: postgres
-      DATABASE_HOST: localhost
-      DATABASE_PORT: 5432
+#     env:
+#       DJANGO_SETTINGS_MODULE: myapp.settings.test
+#       # Disposable value for an ephemeral CI database - never touches
+#       # real user data, so it doesn't need to be a GitHub secret.
+#       SECRET_KEY: ci-test-secret-key-not-for-production
+#       DATABASE_NAME: wico_test
+#       DATABASE_USER: postgres
+#       DATABASE_PASSWORD: postgres
+#       DATABASE_HOST: localhost
+#       DATABASE_PORT: 5432
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-          cache: "pip"
-          cache-dependency-path: requirements.txt
+#       - name: Set up Python
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: "3.14"
+#           cache: "pip"
+#           cache-dependency-path: requirements.txt
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+#       - name: Install dependencies
+#         run: |
+#           python -m pip install --upgrade pip
+#           pip install -r requirements.txt
 
-      - name: Run migrations
-        working-directory: app
-        run: python manage.py migrate --noinput
+#       - name: Run migrations
+#         working-directory: app
+#         run: python manage.py migrate --noinput
 
-      - name: Run tests
-        working-directory: app
-        run: pytest
+#       - name: Run tests
+#         working-directory: app
+#         run: pytest
 
-  # Deploy jobs live in this same workflow (instead of a separate
-  # deploy.yml with its own `on: push` trigger) specifically so `needs: test`
-  # can gate them: needs: only works between jobs within one workflow file.
-  # If the test job fails (or is skipped/cancelled), GitHub Actions skips
-  # any job that needs: it by default - no extra `if:` check required.
-  deploy-test:
+  # Deploy jobs live in this same workflow (instead of a separate deploy.yml
+  # with its own `on: push` trigger) specifically so `needs: test` can gate
+  # them: needs: only works between jobs within one workflow file. If the
+  # test job fails (or is skipped/cancelled), GitHub Actions skips any job
+  # that needs: it by default - no extra `if:` check required.
+  #
+  # Reemplaza los viejos deploy-test/deploy-prod (SSH + docker-compose al
+  # servidor legacy back-appmobile-{tst,prod}.wico.com.ar) - ese servidor no
+  # es parte de Wico-Infraestructura. Estos dos jobs deployan en cambio a la
+  # infra Terraform-managed de ese repo (module.wicoapp, ver
+  # Workloads/Production|Development/main.tf): build+push a ECR, y rollout a
+  # las instancias EC2 del ASG vía SSM (sin acceso SSH - la infra no lo
+  # habilita, solo SSM).
+  #
+  # `environment: dev`/`environment: prod` es lo que hace que el rol OIDC
+  # (module.wicoapp.github_actions_app, ver modules/app_iam) confíe en este
+  # job: su trust policy exige que el token OIDC traiga
+  # `environment:<env>` en el claim `sub`, no alcanza con el branch. Hace
+  # falta crear esos dos GitHub Environments en este repo (Settings ->
+  # Environments) con las variables/secrets que se listan en cada job.
+  deploy-aws-dev:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment: dev
+    concurrency: deploy-aws-dev
+    permissions:
+      id-token: write
+      contents: read
+
+    env:
+      AWS_REGION: us-east-1
+      ECR_REPOSITORY: wico-dev-wicoapp-backend
+      IMAGE_TAG: ${{ github.sha }}
+      INSTANCE_NAME_TAG: wico-dev-wicoapp-server
+      ASG_NAME: wico-dev-wicoapp-asg
+      LIFECYCLE_HOOK_NAME: wico-dev-wicoapp-wait-for-deploy
+      DJANGO_SETTINGS_MODULE: myapp.settings.aws_dev
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to Test Server
-        uses: appleboy/ssh-action@v0.1.5
+      # role-to-assume: ARN de module.wicoapp.github_actions_app_role_arn
+      # (output de Development/main.tf) - no es secreto (es solo un
+      # identificador, esa es la gracia de OIDC), se guarda como
+      # Environment VARIABLE (Settings -> Environments -> dev -> Variables),
+      # no como secret.
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ubuntu
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            cd /home/ubuntu/myapp/backend
-            git pull origin main
-            docker-compose build backend
-            docker-compose up -d backend
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
-  deploy-prod:
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        run: |
+          set -euo pipefail
+          IMAGE="${{ steps.ecr-login.outputs.registry }}/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker build -t "$IMAGE" -t "${{ steps.ecr-login.outputs.registry }}/$ECR_REPOSITORY:latest" .
+          docker push "$IMAGE"
+          docker push "${{ steps.ecr-login.outputs.registry }}/$ECR_REPOSITORY:latest"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          echo "ECR_REGISTRY=${{ steps.ecr-login.outputs.registry }}" >> "$GITHUB_ENV"
+
+      # Todos los DATABASE_*/DJANGO_SECRET_KEY son secrets del GitHub
+      # Environment "dev" (Settings -> Environments -> dev -> Secrets). El
+      # schema/usuario de DATABASE_* ya lo creaste vos a mano dentro de la
+      # RDS de ventas (module.wicoapp usa create_dedicated_db=false, ver
+      # Workloads/modules/app) - Terraform no los conoce ni los gestiona.
+      #
+      # OJO: estos valores viajan en texto plano dentro del comando SSM
+      # (AWS-RunShellScript no soporta variables server-side como Automation)
+      # y quedan en el historial de Systems Manager de la cuenta (visible
+      # vía ssm:GetCommandInvocation) - GitHub enmascara el log del propio
+      # workflow, pero no lo que efectivamente le llega a AWS. Mismo nivel
+      # de rigor que ya usa este proyecto para otros secrets (ver
+      # wico-*.tfvars) - si más adelante quieren algo más estricto, migrar a
+      # SSM Parameter Store (SecureString) es el paso siguiente.
+      - name: Deploy to EC2 via SSM
+        env:
+          DATABASE_NAME: ${{ secrets.DATABASE_NAME }}
+          DATABASE_USER: ${{ secrets.DATABASE_USER }}
+          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+          DATABASE_HOST: ${{ secrets.DATABASE_HOST }}
+          DATABASE_PORT: ${{ secrets.DATABASE_PORT }}
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+
+          # Espera un comando SSM ya enviado, chequeando cada instancia con
+          # ssm:GetCommandInvocation (list-command-invocations NO está en la
+          # policy del rol de deploy - ver modules/app_iam, github_actions_ssm).
+          wait_for_ssm() {
+            local cmd_id="$1"; shift
+            local ids=("$@")
+            for _ in $(seq 1 60); do
+              sleep 5
+              local all_done=true
+              for iid in "${ids[@]}"; do
+                status=$(aws ssm get-command-invocation --command-id "$cmd_id" --instance-id "$iid" \
+                  --query 'Status' --output text 2>/dev/null || echo "Pending")
+                case "$status" in
+                  Success) ;;
+                  Pending|InProgress|Delayed) all_done=false ;;
+                  *)
+                    echo "SSM command $cmd_id failed on $iid: $status" >&2
+                    aws ssm get-command-invocation --command-id "$cmd_id" --instance-id "$iid" \
+                      --query 'StandardErrorContent' --output text >&2 || true
+                    return 1
+                    ;;
+                esac
+              done
+              [ "$all_done" = true ] && return 0
+            done
+            echo "Timed out waiting for SSM command $cmd_id" >&2
+            return 1
+          }
+
+          ENV_FILE_CONTENT=$(cat <<ENVEOF
+          DJANGO_SETTINGS_MODULE=$DJANGO_SETTINGS_MODULE
+          SECRET_KEY=$DJANGO_SECRET_KEY
+          DATABASE_NAME=$DATABASE_NAME
+          DATABASE_USER=$DATABASE_USER
+          DATABASE_PASSWORD=$DATABASE_PASSWORD
+          DATABASE_HOST=$DATABASE_HOST
+          DATABASE_PORT=$DATABASE_PORT
+          ENVEOF
+          )
+          # base64: evita pelear con el escaping de comillas dentro del JSON
+          # que arma jq más abajo.
+          ENV_B64=$(printf '%s' "$ENV_FILE_CONTENT" | base64 -w0)
+
+          INSTANCE_IDS=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=$INSTANCE_NAME_TAG" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[].Instances[].InstanceId' --output text)
+          if [ -z "$INSTANCE_IDS" ]; then
+            echo "No hay instancias corriendo con tag Name=$INSTANCE_NAME_TAG - ¿el ASG está en 0?" >&2
+            exit 1
+          fi
+          read -ra ID_ARR <<< "$INSTANCE_IDS"
+          echo "Instancias destino: ${ID_ARR[*]}"
+
+          # Migraciones: UNA sola vez, en la primera instancia - correrlas
+          # desde el entrypoint de cada contenedor (prod corre 2 instancias)
+          # dispararía migraciones concurrentes contra la misma DB.
+          MIGRATE_SCRIPT=$(cat <<'SCRIPT'
+          set -euo pipefail
+          mkdir -p /opt/wicoapp
+          echo "__ENV_B64__" | base64 -d > /opt/wicoapp/app.env
+          chmod 600 /opt/wicoapp/app.env
+          aws ecr get-login-password --region __REGION__ | docker login --username AWS --password-stdin __REGISTRY__
+          docker pull "__IMAGE__"
+          docker run --rm --env-file /opt/wicoapp/app.env -e RUN_MIGRATIONS=true "__IMAGE__"
+          SCRIPT
+          )
+          MIGRATE_SCRIPT=${MIGRATE_SCRIPT//__ENV_B64__/$ENV_B64}
+          MIGRATE_SCRIPT=${MIGRATE_SCRIPT//__REGION__/$AWS_REGION}
+          MIGRATE_SCRIPT=${MIGRATE_SCRIPT//__REGISTRY__/$ECR_REGISTRY}
+          MIGRATE_SCRIPT=${MIGRATE_SCRIPT//__IMAGE__/$IMAGE}
+
+          echo "Corriendo migraciones en ${ID_ARR[0]}"
+          MIGRATE_CMD_ID=$(aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --instance-ids "${ID_ARR[0]}" \
+            --comment "wicoapp migrate ($IMAGE_TAG)" \
+            --parameters "$(jq -n --arg s "$MIGRATE_SCRIPT" '{commands: [$s]}')" \
+            --query 'Command.CommandId' --output text)
+          wait_for_ssm "$MIGRATE_CMD_ID" "${ID_ARR[0]}"
+
+          ROLLOUT_SCRIPT=$(cat <<'SCRIPT'
+          set -euo pipefail
+          mkdir -p /opt/wicoapp
+          echo "__ENV_B64__" | base64 -d > /opt/wicoapp/app.env
+          chmod 600 /opt/wicoapp/app.env
+          aws ecr get-login-password --region __REGION__ | docker login --username AWS --password-stdin __REGISTRY__
+          docker pull "__IMAGE__"
+          docker rm -f wicoapp-backend 2>/dev/null || true
+          docker run -d --name wicoapp-backend --restart unless-stopped \
+            -p 8000:8000 --env-file /opt/wicoapp/app.env \
+            --log-opt awslogs-stream-prefix=wicoapp-backend \
+            "__IMAGE__"
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health/ >/dev/null 2>&1; then
+              echo "Container healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Container did not become healthy in time" >&2
+          docker logs --tail 200 wicoapp-backend >&2 || true
+          exit 1
+          SCRIPT
+          )
+          ROLLOUT_SCRIPT=${ROLLOUT_SCRIPT//__ENV_B64__/$ENV_B64}
+          ROLLOUT_SCRIPT=${ROLLOUT_SCRIPT//__REGION__/$AWS_REGION}
+          ROLLOUT_SCRIPT=${ROLLOUT_SCRIPT//__REGISTRY__/$ECR_REGISTRY}
+          ROLLOUT_SCRIPT=${ROLLOUT_SCRIPT//__IMAGE__/$IMAGE}
+
+          echo "Rollout a: ${ID_ARR[*]}"
+          ROLLOUT_CMD_ID=$(aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --instance-ids "${ID_ARR[@]}" \
+            --comment "wicoapp rollout ($IMAGE_TAG)" \
+            --parameters "$(jq -n --arg s "$ROLLOUT_SCRIPT" '{commands: [$s]}')" \
+            --query 'Command.CommandId' --output text)
+          wait_for_ssm "$ROLLOUT_CMD_ID" "${ID_ARR[@]}"
+
+          # Instancias recién lanzadas por el ASG quedan en Pending:Wait hasta
+          # que esto se completa (ver modules/asg, aws_autoscaling_lifecycle_hook)
+          # - sin esto nunca entran al target group. Para una instancia que ya
+          # estaba InService de un deploy anterior, esta llamada simplemente
+          # falla ("No active Lifecycle Action found") y se ignora - no hace
+          # falta (ni el rol tiene permiso para) distinguir de antemano cuál es
+          # cuál vía autoscaling:DescribeAutoScalingInstances.
+          echo "Completando lifecycle hooks pendientes (si los hay)"
+          for iid in "${ID_ARR[@]}"; do
+            aws autoscaling complete-lifecycle-action \
+              --lifecycle-hook-name "$LIFECYCLE_HOOK_NAME" \
+              --auto-scaling-group-name "$ASG_NAME" \
+              --instance-id "$iid" \
+              --lifecycle-action-result CONTINUE 2>/dev/null || true
+          done
+
+  deploy-aws-prod:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/PROD'
     runs-on: ubuntu-latest
+    environment: prod
+    concurrency: deploy-aws-prod
+    permissions:
+      id-token: write
+      contents: read
+
+    env:
+      AWS_REGION: us-east-1
+      ECR_REPOSITORY: wico-prod-wicoapp-backend
+      IMAGE_TAG: ${{ github.sha }}
+      INSTANCE_NAME_TAG: wico-prod-wicoapp-server
+      ASG_NAME: wico-prod-wicoapp-asg
+      LIFECYCLE_HOOK_NAME: wico-prod-wicoapp-wait-for-deploy
+      DJANGO_SETTINGS_MODULE: myapp.settings.aws_prod
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to Prod Server
-        uses: appleboy/ssh-action@v0.1.5
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          host: ${{ secrets.SERVER_IP_PROD }}
-          username: ubuntu
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            cd /home/ubuntu/myapp/backend
-            git pull origin PROD
-            docker-compose build backend
-            docker-compose up -d backend
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        run: |
+          set -euo pipefail
+          IMAGE="${{ steps.ecr-login.outputs.registry }}/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker build -t "$IMAGE" -t "${{ steps.ecr-login.outputs.registry }}/$ECR_REPOSITORY:latest" .
+          docker push "$IMAGE"
+          docker push "${{ steps.ecr-login.outputs.registry }}/$ECR_REPOSITORY:latest"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          echo "ECR_REGISTRY=${{ steps.ecr-login.outputs.registry }}" >> "$GITHUB_ENV"
+
+      - name: Deploy to EC2 via SSM
+        env:
+          DATABASE_NAME: ${{ secrets.DATABASE_NAME }}
+          DATABASE_USER: ${{ secrets.DATABASE_USER }}
+          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+          DATABASE_HOST: ${{ secrets.DATABASE_HOST }}
+          DATABASE_PORT: ${{ secrets.DATABASE_PORT }}
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+
+          wait_for_ssm() {
+            local cmd_id="$1"; shift
+            local ids=("$@")
+            for _ in $(seq 1 60); do
+              sleep 5
+              local all_done=true
+              for iid in "${ids[@]}"; do
+                status=$(aws ssm get-command-invocation --command-id "$cmd_id" --instance-id "$iid" \
+                  --query 'Status' --output text 2>/dev/null || echo "Pending")
+                case "$status" in
+                  Success) ;;
+                  Pending|InProgress|Delayed) all_done=false ;;
+                  *)
+                    echo "SSM command $cmd_id failed on $iid: $status" >&2
+                    aws ssm get-command-invocation --command-id "$cmd_id" --instance-id "$iid" \
+                      --query 'StandardErrorContent' --output text >&2 || true
+                    return 1
+                    ;;
+                esac
+              done
+              [ "$all_done" = true ] && return 0
+            done
+            echo "Timed out waiting for SSM command $cmd_id" >&2
+            return 1
+          }
+
+          ENV_FILE_CONTENT=$(cat <<ENVEOF
+          DJANGO_SETTINGS_MODULE=$DJANGO_SETTINGS_MODULE
+          SECRET_KEY=$DJANGO_SECRET_KEY
+          DATABASE_NAME=$DATABASE_NAME
+          DATABASE_USER=$DATABASE_USER
+          DATABASE_PASSWORD=$DATABASE_PASSWORD
+          DATABASE_HOST=$DATABASE_HOST
+          DATABASE_PORT=$DATABASE_PORT
+          ENVEOF
+          )
+          ENV_B64=$(printf '%s' "$ENV_FILE_CONTENT" | base64 -w0)
+
+          INSTANCE_IDS=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=$INSTANCE_NAME_TAG" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[].Instances[].InstanceId' --output text)
+          if [ -z "$INSTANCE_IDS" ]; then
+            echo "No hay instancias corriendo con tag Name=$INSTANCE_NAME_TAG - ¿el ASG está en 0?" >&2
+            exit 1
+          fi
+          read -ra ID_ARR <<< "$INSTANCE_IDS"
+          echo "Instancias destino: ${ID_ARR[*]}"
+
+          MIGRATE_SCRIPT=$(cat <<'SCRIPT'
+          set -euo pipefail
+          mkdir -p /opt/wicoapp
+          echo "__ENV_B64__" | base64 -d > /opt/wicoapp/app.env
+          chmod 600 /opt/wicoapp/app.env
+          aws ecr get-login-password --region __REGION__ | docker login --username AWS --password-stdin __REGISTRY__
+          docker pull "__IMAGE__"
+          docker run --rm --env-file /opt/wicoapp/app.env -e RUN_MIGRATIONS=true "__IMAGE__"
+          SCRIPT
+          )
+          MIGRATE_SCRIPT=${MIGRATE_SCRIPT//__ENV_B64__/$ENV_B64}
+          MIGRATE_SCRIPT=${MIGRATE_SCRIPT//__REGION__/$AWS_REGION}
+          MIGRATE_SCRIPT=${MIGRATE_SCRIPT//__REGISTRY__/$ECR_REGISTRY}
+          MIGRATE_SCRIPT=${MIGRATE_SCRIPT//__IMAGE__/$IMAGE}
+
+          echo "Corriendo migraciones en ${ID_ARR[0]}"
+          MIGRATE_CMD_ID=$(aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --instance-ids "${ID_ARR[0]}" \
+            --comment "wicoapp migrate ($IMAGE_TAG)" \
+            --parameters "$(jq -n --arg s "$MIGRATE_SCRIPT" '{commands: [$s]}')" \
+            --query 'Command.CommandId' --output text)
+          wait_for_ssm "$MIGRATE_CMD_ID" "${ID_ARR[0]}"
+
+          ROLLOUT_SCRIPT=$(cat <<'SCRIPT'
+          set -euo pipefail
+          mkdir -p /opt/wicoapp
+          echo "__ENV_B64__" | base64 -d > /opt/wicoapp/app.env
+          chmod 600 /opt/wicoapp/app.env
+          aws ecr get-login-password --region __REGION__ | docker login --username AWS --password-stdin __REGISTRY__
+          docker pull "__IMAGE__"
+          docker rm -f wicoapp-backend 2>/dev/null || true
+          docker run -d --name wicoapp-backend --restart unless-stopped \
+            -p 8000:8000 --env-file /opt/wicoapp/app.env \
+            --log-opt awslogs-stream-prefix=wicoapp-backend \
+            "__IMAGE__"
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health/ >/dev/null 2>&1; then
+              echo "Container healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Container did not become healthy in time" >&2
+          docker logs --tail 200 wicoapp-backend >&2 || true
+          exit 1
+          SCRIPT
+          )
+          ROLLOUT_SCRIPT=${ROLLOUT_SCRIPT//__ENV_B64__/$ENV_B64}
+          ROLLOUT_SCRIPT=${ROLLOUT_SCRIPT//__REGION__/$AWS_REGION}
+          ROLLOUT_SCRIPT=${ROLLOUT_SCRIPT//__REGISTRY__/$ECR_REGISTRY}
+          ROLLOUT_SCRIPT=${ROLLOUT_SCRIPT//__IMAGE__/$IMAGE}
+
+          echo "Rollout a: ${ID_ARR[*]}"
+          ROLLOUT_CMD_ID=$(aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --instance-ids "${ID_ARR[@]}" \
+            --comment "wicoapp rollout ($IMAGE_TAG)" \
+            --parameters "$(jq -n --arg s "$ROLLOUT_SCRIPT" '{commands: [$s]}')" \
+            --query 'Command.CommandId' --output text)
+          wait_for_ssm "$ROLLOUT_CMD_ID" "${ID_ARR[@]}"
+
+          echo "Completando lifecycle hooks pendientes (si los hay)"
+          for iid in "${ID_ARR[@]}"; do
+            aws autoscaling complete-lifecycle-action \
+              --lifecycle-hook-name "$LIFECYCLE_HOOK_NAME" \
+              --auto-scaling-group-name "$ASG_NAME" \
+              --instance-id "$iid" \
+              --lifecycle-action-result CONTINUE 2>/dev/null || true
+          done
 
   # Fires only when test actually fails on a direct push to main/PROD (not
   # on PRs, not on skip/cancel) - branch protection isn't available on this
