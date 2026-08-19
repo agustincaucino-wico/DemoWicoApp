@@ -112,7 +112,13 @@ jobs:
     env:
       AWS_REGION: us-east-1
       ECR_REPOSITORY: wico-dev-wicoapp-backend
-      IMAGE_TAG: ${{ github.sha }}
+      # run_id-run_attempt (no solo el SHA): el repo ECR es
+      # image_tag_mutability=IMMUTABLE, así que re-correr el mismo commit
+      # (re-run de un run fallido, o un futuro workflow_dispatch) sin un
+      # commit nuevo pisaría un tag ya pusheado y el push fallaba con "tag
+      # invalid ... immutable". run_attempt cambia incluso en un re-run del
+      # mismo run_id, así que cada intento de deploy tiene tag propio.
+      IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
       INSTANCE_NAME_TAG: wico-dev-wicoapp-server
       ASG_NAME: wico-dev-wicoapp-asg
       LIFECYCLE_HOOK_NAME: wico-dev-wicoapp-wait-for-deploy
@@ -140,7 +146,7 @@ jobs:
       # IMMUTABLE a propósito (nadie puede pisar un tag ya pusheado), así que
       # "latest" solo puede pushearse UNA vez en la vida del repo - el
       # segundo deploy en adelante fallaba con "tag invalid ... immutable".
-      # El deploy tampoco lo necesita: siempre referencia $IMAGE_TAG (el SHA).
+      # El deploy tampoco lo necesita: siempre referencia $IMAGE_TAG (ver definición arriba).
       - name: Build and push image
         run: |
           set -euo pipefail
@@ -248,6 +254,12 @@ jobs:
           MIGRATE_SCRIPT=$(cat <<'SCRIPT'
           #!/bin/bash
           set -euo pipefail
+          # Evita la carrera contra el user_data del launch template (modules/asg):
+          # el agente SSM queda online antes de que cloud-init termine de instalar
+          # Docker/AWS CLI (~3-5 min) - sin este wait, una instancia recién
+          # lanzada por el ASG puede recibir este comando con "aws"/"docker"
+          # todavía sin instalar ("aws: command not found").
+          cloud-init status --wait >/dev/null 2>&1 || true
           mkdir -p /opt/wicoapp
           echo "__ENV_B64__" | base64 -d > /opt/wicoapp/app.env
           chmod 600 /opt/wicoapp/app.env
@@ -273,6 +285,12 @@ jobs:
           ROLLOUT_SCRIPT=$(cat <<'SCRIPT'
           #!/bin/bash
           set -euo pipefail
+          # Evita la carrera contra el user_data del launch template (modules/asg):
+          # el agente SSM queda online antes de que cloud-init termine de instalar
+          # Docker/AWS CLI (~3-5 min) - sin este wait, una instancia recién
+          # lanzada por el ASG puede recibir este comando con "aws"/"docker"
+          # todavía sin instalar ("aws: command not found").
+          cloud-init status --wait >/dev/null 2>&1 || true
           mkdir -p /opt/wicoapp
           echo "__ENV_B64__" | base64 -d > /opt/wicoapp/app.env
           chmod 600 /opt/wicoapp/app.env
@@ -342,7 +360,10 @@ jobs:
     env:
       AWS_REGION: us-east-1
       ECR_REPOSITORY: wico-prod-wicoapp-backend
-      IMAGE_TAG: ${{ github.sha }}
+      # Ver comentario equivalente en deploy-aws-dev: run_id-run_attempt
+      # evita que un re-run sin commit nuevo choque contra un tag ya
+      # pusheado en el ECR IMMUTABLE.
+      IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
       INSTANCE_NAME_TAG: wico-prod-wicoapp-server
       ASG_NAME: wico-prod-wicoapp-asg
       LIFECYCLE_HOOK_NAME: wico-prod-wicoapp-wait-for-deploy
@@ -365,7 +386,7 @@ jobs:
       # IMMUTABLE a propósito (nadie puede pisar un tag ya pusheado), así que
       # "latest" solo puede pushearse UNA vez en la vida del repo - el
       # segundo deploy en adelante fallaba con "tag invalid ... immutable".
-      # El deploy tampoco lo necesita: siempre referencia $IMAGE_TAG (el SHA).
+      # El deploy tampoco lo necesita: siempre referencia $IMAGE_TAG (ver definición arriba).
       - name: Build and push image
         run: |
           set -euo pipefail
@@ -451,6 +472,12 @@ jobs:
           MIGRATE_SCRIPT=$(cat <<'SCRIPT'
           #!/bin/bash
           set -euo pipefail
+          # Evita la carrera contra el user_data del launch template (modules/asg):
+          # el agente SSM queda online antes de que cloud-init termine de instalar
+          # Docker/AWS CLI (~3-5 min) - sin este wait, una instancia recién
+          # lanzada por el ASG puede recibir este comando con "aws"/"docker"
+          # todavía sin instalar ("aws: command not found").
+          cloud-init status --wait >/dev/null 2>&1 || true
           mkdir -p /opt/wicoapp
           echo "__ENV_B64__" | base64 -d > /opt/wicoapp/app.env
           chmod 600 /opt/wicoapp/app.env
@@ -476,6 +503,12 @@ jobs:
           ROLLOUT_SCRIPT=$(cat <<'SCRIPT'
           #!/bin/bash
           set -euo pipefail
+          # Evita la carrera contra el user_data del launch template (modules/asg):
+          # el agente SSM queda online antes de que cloud-init termine de instalar
+          # Docker/AWS CLI (~3-5 min) - sin este wait, una instancia recién
+          # lanzada por el ASG puede recibir este comando con "aws"/"docker"
+          # todavía sin instalar ("aws: command not found").
+          cloud-init status --wait >/dev/null 2>&1 || true
           mkdir -p /opt/wicoapp
           echo "__ENV_B64__" | base64 -d > /opt/wicoapp/app.env
           chmod 600 /opt/wicoapp/app.env
